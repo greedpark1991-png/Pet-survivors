@@ -90,6 +90,16 @@
   let game = null;
   let activeScene = null;
 
+  const socket = window.io ? window.io() : null;
+  const coop = { active:false, room:null, myId:null, isHost:false };
+  const blankMoveInput = () => ({ left:false, right:false, up:false, down:false });
+  const BUILD_KEYS = [
+    'attackPower','moveSpeed','maxHp','hp','levelUpgradeCounts','xpGainMult','basicCooldown','extraBasicShots',
+    'basicPierce','basicExplosion','basicRicochet','basicSizeMult','shockwaveLevel','shockwaveTimer','majorLevels',
+    'majorTimers','poopOrbiters','gasClouds','territoryZones','discDirectionIndex','facingAngle','gemMagnetRange',
+    'playerDamageMult','augments','basicTimer','playerInvulnUntil','shieldCharges','skillLevels','skillTimers','shieldVisual'
+  ];
+
   let audioCtx = null;
   let bgmIndex = 0;
   let bgmVolume = Number(localStorage.getItem('petSurvivorsBgm') || 0.22);
@@ -239,8 +249,77 @@
     card.addEventListener('click', () => {
       selectedCharacter = key;
       document.querySelectorAll('.char-card').forEach(x => x.classList.toggle('selected', x === card));
+      if (socket && coop.room && !coop.room.started) socket.emit('coopCharacter', { character:key });
     });
   });
+
+  function setCoopStatus(message, bad=false) {
+    const el=document.querySelector('#coop-status'); if(!el)return;
+    el.textContent=message; el.style.color=bad?'#ff9c92':'#aaa1ae';
+  }
+  function renderCoopRoom(room) {
+    coop.room=room;
+    const panel=document.querySelector('#coop-room-panel');
+    if(!room){panel?.classList.add('hidden');return;}
+    coop.isHost=room.hostId===coop.myId;
+    panel?.classList.remove('hidden');
+    const code=document.querySelector('#coop-room-code'); if(code)code.textContent=room.code;
+    const list=document.querySelector('#coop-player-list');
+    if(list) list.innerHTML=room.players.map(p=>{
+      const c=CHARACTERS[p.character]||CHARACTERS.jjigae;
+      const cls=['coop-player',p.id===coop.myId?'me':'',p.id===room.hostId?'host':''].filter(Boolean).join(' ');
+      return `<div class="${cls}">P${p.slot} · ${c.name}${p.id===coop.myId?' · 나':''}</div>`;
+    }).join('');
+    const start=document.querySelector('#coop-start-btn');
+    if(start)start.classList.toggle('hidden',!(coop.isHost&&room.players.length===2&&!room.started));
+    setCoopStatus(room.players.length<2?'친구가 들어오길 기다리는 중…':'2명 준비 완료. 방장이 시작하면 돼.');
+  }
+  if(socket){
+    socket.on('connect',()=>{coop.myId=socket.id;});
+    socket.on('coopRoom',room=>{coop.myId=socket.id;renderCoopRoom(room);});
+    socket.on('coopHostChanged',data=>{if(coop.room){coop.room.hostId=data.hostId;renderCoopRoom(coop.room);}setCoopStatus('방장이 바뀌었어.');});
+    socket.on('coopPartnerLeft',()=>{setCoopStatus('상대가 방을 나갔어.',true);activeScene?.handleCoopPartnerLeft?.();});
+    socket.on('coopRemoteInput',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='host')activeScene.setRemoteInput?.(payload.id,payload.input||{});});
+    socket.on('coopSnapshot',snapshot=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.applyNetworkSnapshot?.(snapshot);});
+    socket.on('coopChoicePrompt',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.showGuestChoicePrompt?.(payload||{});});
+    socket.on('coopChoicePick',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='host')activeScene.handleCoopChoicePick?.(payload?.playerId,payload?.choiceId,payload?.kind);});
+    socket.on('coopChoiceState',payload=>{
+      if(!activeScene?.coopMode||activeScene.networkRole!=='guest')return;
+      if(payload?.open)activeScene.showCoopWait?.(payload.title||'상대 플레이어 선택 중',payload.text||'잠시 기다려줘.');
+      else activeScene.hideCoopWait?.();
+    });
+    socket.on('coopChoiceResume',()=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.closeGuestChoiceUi?.();});
+    socket.on('coopPauseRequest',()=>{if(activeScene?.coopMode&&activeScene.networkRole==='host')activeScene.toggleCoopPauseFromRequest?.();});
+    socket.on('coopPauseState',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.applyRemotePauseState?.(payload||{});});
+    socket.on('coopGameOver',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.showRemoteGameOver?.(payload||{});});
+    socket.on('coopReturnedLobby',room=>{
+      coop.active=false; renderCoopRoom(room);
+      document.querySelector('#coop-wait-screen')?.classList.remove('show');
+      document.querySelector('#start-screen')?.classList.add('show');
+      if(game?.scene?.isActive('SurvivorScene')||game?.scene?.isPaused('SurvivorScene'))game.scene.stop('SurvivorScene');
+      stopBgm();
+    });
+    socket.on('coopStarted',room=>{
+      coop.room=room; coop.active=true; coop.myId=socket.id; coop.isHost=room.hostId===socket.id;
+      const mine=room.players.find(p=>p.id===socket.id); if(mine)selectedCharacter=mine.character;
+      startGame({coop:true,networkRole:coop.isHost?'host':'guest',players:room.players,localId:socket.id,roomCode:room.code});
+    });
+  }
+  document.querySelector('#coop-create-btn')?.addEventListener('click',()=>{
+    if(!socket)return setCoopStatus('온라인 연결 기능을 사용할 수 없어.',true);
+    ensureAudio(); socket.emit('coopCreate',{character:selectedCharacter},res=>{if(!res?.ok)return setCoopStatus(res?.error||'방 만들기 실패',true);coop.myId=res.myId||socket.id;renderCoopRoom(res.room);});
+  });
+  document.querySelector('#coop-join-btn')?.addEventListener('click',()=>{
+    if(!socket)return setCoopStatus('온라인 연결 기능을 사용할 수 없어.',true);
+    const code=(document.querySelector('#coop-code-input')?.value||'').trim().toUpperCase();
+    if(code.length!==5)return setCoopStatus('방 코드 5자리를 입력해줘.',true);
+    ensureAudio(); socket.emit('coopJoin',{code,character:selectedCharacter},res=>{if(!res?.ok)return setCoopStatus(res?.error||'방 입장 실패',true);coop.myId=res.myId||socket.id;renderCoopRoom(res.room);});
+  });
+  document.querySelector('#coop-copy-btn')?.addEventListener('click',async()=>{
+    if(!coop.room?.code)return; try{await navigator.clipboard.writeText(coop.room.code);setCoopStatus(`방 코드 ${coop.room.code} 복사됨.`);}catch{setCoopStatus(`방 코드: ${coop.room.code}`);}
+  });
+  document.querySelector('#coop-start-btn')?.addEventListener('click',()=>socket?.emit('coopStart',{},res=>{if(!res?.ok)setCoopStatus(res?.error||'게임 시작 실패',true);}));
+  document.querySelector('#coop-leave-btn')?.addEventListener('click',()=>{socket?.emit('coopLeave');coop.room=null;coop.active=false;renderCoopRoom(null);setCoopStatus('방에서 나왔어.');});
 
   class SurvivorScene extends Phaser.Scene {
     constructor() {
@@ -253,8 +332,21 @@
     }
 
     init(data) {
-      this.characterKey = data.character || 'jjigae';
+      this.coopMode = !!data.coop;
+      this.networkRole = data.networkRole || 'solo';
+      this.localId = data.localId || null;
+      this.roomCode = data.roomCode || null;
+      this.coopPlayers = Array.isArray(data.players) ? data.players : [];
+      this.localPlayerInfo = this.coopPlayers.find(p => p.id === this.localId) || null;
+      this.remotePlayerInfo = this.coopPlayers.find(p => p.id !== this.localId) || null;
+      this.characterKey = this.localPlayerInfo?.character || data.character || 'jjigae';
+      this.remoteCharacterKey = this.remotePlayerInfo?.character || 'mandu';
+      this.remoteInput = blankMoveInput();
+      this.snapshotTimer = 0;
+      this.guestSendTimer = 0;
+      this.netEnemyMap = new Map(); this.netProjectileMap = new Map(); this.netEnemyBulletMap = new Map(); this.netGemMap = new Map(); this.netItemMap = new Map(); this.netExtraMap = new Map();
       this.charData = CHARACTERS[this.characterKey];
+      this.remoteCharData = CHARACTERS[this.remoteCharacterKey] || CHARACTERS.mandu;
       this.runTimeMs = 0;
       this.isGameOver = false;
       this.isChoiceOpen = false;
@@ -323,6 +415,7 @@
       this.createWorld();
       this.createGroups();
       this.createPlayer();
+      if (this.coopMode) this.setupCoopBuilds();
       this.createInput();
       this.createHud();
       this.createPhysics();
@@ -584,16 +677,80 @@
 
     createPlayer() {
       const center = this.worldSize / 2;
+      const localX = this.coopMode ? center - 34 : center;
       const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } };
-      this.player = this.physics.add.sprite(center, center, `player_${this.characterKey}`);
+      this.player = this.physics.add.sprite(localX, center, `player_${this.characterKey}`);
       this.player.setScale(spriteCfg.worldScale || 1.05).setDepth(10).setCollideWorldBounds(true);
       const hb = spriteCfg.hitbox || { w: 14, h: 14, ox: 10, oy: 12 };
       this.player.body.setSize(hb.w, hb.h).setOffset(hb.ox, hb.oy);
-      this.player.setDrag(900, 900);
-      this.player.setMaxVelocity(420, 420);
-      this.shadow = this.add.ellipse(center, center + 15, 34, 12, 0x111016, 0.22).setDepth(4);
+      this.player.setDrag(900, 900); this.player.setMaxVelocity(420, 420); this.player.netPlayerId = this.localId || 'solo';
+      this.shadow = this.add.ellipse(localX, center + 15, 34, 12, 0x111016, 0.22).setDepth(4);
+      if (this.coopMode && this.remotePlayerInfo) {
+        const remoteCfg = PLAYER_SPRITES[this.remoteCharacterKey] || spriteCfg;
+        this.ally = this.physics.add.sprite(center + 34, center, `player_${this.remoteCharacterKey}`);
+        this.ally.setScale(remoteCfg.worldScale || 1.05).setDepth(10).setCollideWorldBounds(true);
+        const ahb = remoteCfg.hitbox || hb;
+        this.ally.body.setSize(ahb.w, ahb.h).setOffset(ahb.ox, ahb.oy);
+        this.ally.setDrag(900,900); this.ally.setMaxVelocity(420,420); this.ally.netPlayerId = this.remotePlayerInfo.id;
+        this.allyShadow = this.add.ellipse(center + 34, center + 15, 34, 12, 0x111016, 0.22).setDepth(4);
+      }
     }
 
+    makePlayerBuild(id, characterKey, sprite, shadow) {
+      return {
+        id, characterKey, charData:CHARACTERS[characterKey]||CHARACTERS.jjigae, sprite, shadow,
+        attackPower:20, moveSpeed:190, maxHp:100, hp:100,
+        levelUpgradeCounts:{damage:0,speed:0,health:0,xpGain:0,attackSpeed:0}, xpGainMult:1, basicCooldown:1500,
+        extraBasicShots:0,basicPierce:0,basicExplosion:0,basicRicochet:0,basicSizeMult:1,shockwaveLevel:0,shockwaveTimer:0,
+        majorLevels:{},majorTimers:{poopOrbit:0,discThrow:0,barkRoar:0,yellowGas:0,yawnWave:0,territoryMark:0,squeakyToy:0},
+        poopOrbiters:[],gasClouds:[],territoryZones:[],discDirectionIndex:0,facingAngle:0,gemMagnetRange:135,playerDamageMult:1,
+        augments:[],basicTimer:350,playerInvulnUntil:0,shieldCharges:0,skillLevels:{},
+        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,down:false
+      };
+    }
+    setupCoopBuilds() {
+      this.builds=new Map();
+      const local=this.makePlayerBuild(this.localId,this.characterKey,this.player,this.shadow);this.builds.set(local.id,local);
+      if(this.remotePlayerInfo&&this.ally){const remote=this.makePlayerBuild(this.remotePlayerInfo.id,this.remoteCharacterKey,this.ally,this.allyShadow);this.builds.set(remote.id,remote);}
+      this.currentBuildId=this.localId;this.loadBuild(local);this.coopChoice=null;this.netIdCounter=1;
+      if(this.networkRole==='guest')this.physics.world.pause();
+    }
+    saveBuild(build){if(!build)return;BUILD_KEYS.forEach(k=>build[k]=this[k]);build.characterKey=this.characterKey;build.charData=this.charData;build.sprite=this.player;build.shadow=this.shadow;build.down=!!this.playerDown;}
+    loadBuild(build){if(!build)return;this.currentBuildId=build.id;this.characterKey=build.characterKey;this.charData=build.charData||CHARACTERS[build.characterKey];this.player=build.sprite;this.shadow=build.shadow;BUILD_KEYS.forEach(k=>this[k]=build[k]);this.playerDown=!!build.down;}
+    withBuild(buildOrId,fn){if(!this.coopMode||!this.builds)return fn();const target=typeof buildOrId==='string'?this.builds.get(buildOrId):buildOrId;if(!target)return fn();const prev=this.builds.get(this.currentBuildId);if(prev)this.saveBuild(prev);this.loadBuild(target);let r;try{r=fn();}finally{this.saveBuild(target);if(prev&&prev!==target)this.loadBuild(prev);}return r;}
+    getBuild(id){return this.builds?.get(id)||null;} getLocalBuild(){return this.getBuild(this.localId);} getRemoteBuild(){return this.remotePlayerInfo?this.getBuild(this.remotePlayerInfo.id):null;}
+    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges}:null;}
+
+    choiceOptions(kind, playerId){
+      const b=this.getBuild(playerId); const list=kind==='base'?LEVEL_UPGRADES:kind==='minor'?MILESTONE_AUGMENTS:kind==='major'?MAJOR_AUGMENTS:SKILLS;
+      return shuffle(list).slice(0,3).map(x=>({id:x.id,icon:x.icon,title:x.title,desc:x.desc,level:kind==='major'?(b?.majorLevels?.[x.id]||0):kind==='chest'?(b?.skillLevels?.[x.id]||0):null}));
+    }
+    showCoopWait(title='상대 플레이어 선택 대기 중',text='둘 다 선택하면 게임이 다시 시작돼.'){const w=document.querySelector('#coop-wait-screen'),t=document.querySelector('#coop-wait-title'),d=document.querySelector('#coop-wait-text');if(t)t.textContent=title;if(d)d.textContent=text;w?.classList.add('show');}
+    hideCoopWait(){document.querySelector('#coop-wait-screen')?.classList.remove('show');}
+    beginCoopChoice(kind,targetIds=null){
+      if(!this.coopMode||this.networkRole!=='host'||this.isGameOver)return;
+      const ids=targetIds||[...this.builds.keys()]; this.isChoiceOpen=true; this.scene.pause();
+      const pending=new Set(ids),optionsById=new Map(); ids.forEach(id=>optionsById.set(id,this.choiceOptions(kind,id))); this.coopChoice={kind,pending,optionsById};
+      const guestId=this.remotePlayerInfo?.id;if(guestId&&!pending.has(guestId))socket?.emit('coopChoiceState',{open:true,title:'상대 플레이어 선택 중',text:'상대가 보물상자 스킬을 고르고 있어.'});
+      ids.forEach(id=>{const opts=optionsById.get(id)||[];if(id===this.localId)this.showLocalCoopChoice(kind,opts);else socket?.emit('coopChoicePrompt',{targetId:id,kind,level:this.level,options:opts,eyebrow:kind==='base'?'LEVEL UP!':kind==='minor'?`LEVEL ${this.level} AUGMENT!`:kind==='major'?`LEVEL ${this.level} MAJOR AUGMENT!`:'TREASURE CHEST',title:kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?'내 5레벨 증강 하나를 선택해':kind==='major'?'내 10레벨 전투 증강 하나를 선택해':'내 보물상자 스킬 하나를 선택해'});});
+      if(!pending.has(this.localId))this.showCoopWait('상대 플레이어 선택 중','상대가 보물상자 스킬을 고르고 있어.');
+    }
+    showLocalCoopChoice(kind,options){
+      const screen=document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen'),root=document.querySelector(kind==='chest'?'#chest-choices':'#levelup-choices');if(!screen||!root)return;this.hideCoopWait();
+      if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=kind==='base'?'LEVEL UP!':kind==='minor'?`LEVEL ${this.level} AUGMENT!`:`LEVEL ${this.level} MAJOR AUGMENT!`;if(tt)tt.textContent=kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?'내 5레벨 증강 하나를 선택해':'내 10레벨 전투 증강 하나를 선택해';}
+      root.innerHTML='';options.forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>this.handleCoopChoicePick(this.localId,o.id,kind);root.appendChild(b);});screen.classList.add('show');
+    }
+    showGuestChoicePrompt(payload){
+      if(this.networkRole!=='guest')return;this.isChoiceOpen=true;const kind=payload.kind||'base',screen=document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen'),root=document.querySelector(kind==='chest'?'#chest-choices':'#levelup-choices');this.hideCoopWait();if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=payload.eyebrow||'LEVEL UP!';if(tt)tt.textContent=payload.title||'내 강화 하나를 선택해';}if(!screen||!root)return;root.innerHTML='';(payload.options||[]).forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>{socket?.emit('coopChoicePick',{choiceId:o.id,kind});screen.classList.remove('show');this.showCoopWait('상대 플레이어 선택 대기 중','내 선택 완료. 상대가 고르면 게임이 계속돼.');};root.appendChild(b);});screen.classList.add('show');
+    }
+    closeGuestChoiceUi(){this.isChoiceOpen=false;document.querySelector('#levelup-screen')?.classList.remove('show');document.querySelector('#chest-screen')?.classList.remove('show');this.hideCoopWait();}
+    handleCoopChoicePick(playerId,choiceId,kind){
+      if(!this.coopChoice||this.coopChoice.kind!==kind||!this.coopChoice.pending.has(playerId))return;const opts=this.coopChoice.optionsById.get(playerId)||[];if(!opts.some(o=>o.id===choiceId))return;const b=this.getBuild(playerId);if(!b)return;
+      this.withBuild(b,()=>{if(kind==='base')this.applyLevelUpgrade(choiceId);else if(kind==='minor')this.applyMilestoneAugment(choiceId);else if(kind==='major')this.applyMajorAugment(choiceId);else this.acquireSkill(choiceId);});this.coopChoice.pending.delete(playerId);
+      if(playerId===this.localId){document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen')?.classList.remove('show');if(this.coopChoice.pending.size)this.showCoopWait('상대 플레이어 선택 대기 중','내 선택 완료. 상대가 고르면 게임이 계속돼.');}
+      if(this.coopChoice.pending.size===0)this.finishCoopChoiceStage(kind);
+    }
+    finishCoopChoiceStage(kind){this.hideCoopWait();document.querySelector('#levelup-screen')?.classList.remove('show');document.querySelector('#chest-screen')?.classList.remove('show');this.coopChoice=null;socket?.emit('coopChoiceState',{open:false});if(kind==='base'&&this.level%10===0)return this.beginCoopChoice('major');if(kind==='base'&&this.level%5===0)return this.beginCoopChoice('minor');this.isChoiceOpen=false;this.scene.resume();socket?.emit('coopChoiceResume',{});this.checkLevelProgression();}
     renderPauseMenu() {
       const summary = document.querySelector('#pause-run-summary');
       const statGrid = document.querySelector('#pause-stat-grid');
@@ -644,33 +801,38 @@
 
     openManualPause() {
       if (this.isGameOver || this.isChoiceOpen || this.manualPause) return;
+      if (this.coopMode && this.networkRole === 'guest') { socket?.emit('coopPauseRequest'); return; }
       this.manualPause = true;
       this.renderPauseMenu();
       document.querySelector('#pause-screen').classList.add('show');
       this.physics.world.pause();
       this.time.paused = true;
+      if (this.coopMode && this.networkRole === 'host') socket?.emit('coopPauseState',{paused:true});
     }
 
     closeManualPause() {
       if (!this.manualPause) return;
+      if (this.coopMode && this.networkRole === 'guest') { socket?.emit('coopPauseRequest'); return; }
       this.manualPause = false;
       document.querySelector('#pause-screen').classList.remove('show');
       this.time.paused = false;
       this.physics.world.resume();
+      if (this.coopMode && this.networkRole === 'host') socket?.emit('coopPauseState',{paused:false});
     }
+    toggleCoopPauseFromRequest(){if(!this.coopMode||this.networkRole!=='host'||this.isChoiceOpen)return;if(this.manualPause)this.closeManualPause();else this.openManualPause();}
+    applyRemotePauseState(payload){if(this.networkRole!=='guest')return;this.manualPause=!!payload.paused;if(this.manualPause){this.renderPauseMenu();document.querySelector('#pause-screen')?.classList.add('show');}else document.querySelector('#pause-screen')?.classList.remove('show');}
 
     returnToLobby() {
       this.manualPause = false;
       document.querySelector('#pause-screen').classList.remove('show');
       document.querySelector('#levelup-screen').classList.remove('show');
       document.querySelector('#chest-screen').classList.remove('show');
-      this.time.paused = false;
-      this.physics.world.resume();
-      stopBgm();
-      this.scene.stop();
-      activeScene = null;
-      document.querySelector('#start-screen').classList.add('show');
+      document.querySelector('#coop-wait-screen')?.classList.remove('show');
+      this.time.paused = false; this.physics.world.resume(); stopBgm();
+      if(this.coopMode){if(this.networkRole==='host')socket?.emit('coopBackLobby');else{socket?.emit('coopLeave');coop.room=null;coop.active=false;renderCoopRoom(null);}}
+      this.scene.stop(); activeScene = null; document.querySelector('#start-screen').classList.add('show');
     }
+    handleCoopPartnerLeft(){if(!this.coopMode)return;this.showBanner('파트너 연결 종료','로비로 돌아가 다시 방을 만들어줘.');this.time.delayedCall(500,()=>this.returnToLobby());}
 
     createInput() {
       this.cursors = this.input.keyboard.createCursorKeys();
@@ -721,6 +883,12 @@
       this.physics.add.overlap(this.player, this.enemyProjectiles, this.onEnemyProjectileHit, null, this);
       this.physics.add.overlap(this.player, this.gems, this.collectGem, null, this);
       this.physics.add.overlap(this.player, this.items, this.collectItem, null, this);
+      if(this.coopMode&&this.ally){
+        this.physics.add.overlap(this.ally,this.enemies,this.onPlayerEnemyContact,null,this);
+        this.physics.add.overlap(this.ally,this.enemyProjectiles,this.onEnemyProjectileHit,null,this);
+        this.physics.add.overlap(this.ally,this.gems,this.collectGem,null,this);
+        this.physics.add.overlap(this.ally,this.items,this.collectItem,null,this);
+      }
     }
 
     showBanner(title, subtitle = '') {
@@ -830,6 +998,7 @@
         }
       }
 
+      if(this.coopMode){if(role==='boss'){baseHp*=3.0;damage*=1.32;spriteScale*=1.10;}if(role==='raidBoss'){baseHp*=4.2;damage*=1.45;spriteScale*=1.12;}}
       const e = this.enemies.create(x, y, texture);
       e.setScale(spriteScale).setDepth(8);
       e.enemyType = type;
@@ -1011,6 +1180,7 @@
       const texture = `proj_${kind}`;
       const p = this.projectiles.create(this.player.x, this.player.y, texture);
       p.setDepth(12);
+      p.ownerId = this.currentBuildId || this.localId || 'solo';
       p.kind = 'basic';
       p.damage = this.attackPower * (1 + (this.basicSizeMult - 1) * 0.52);
       p.hitSet = new Set();
@@ -1054,6 +1224,7 @@
     }
 
     onProjectileHit(projectile, enemy) {
+      if(this.coopMode&&this.networkRole==='host'&&projectile?.ownerId&&this.currentBuildId!==projectile.ownerId){const b=this.getBuild(projectile.ownerId);if(b)return this.withBuild(b,()=>this.onProjectileHit(projectile,enemy));}
       if (!projectile.active || !enemy.active || enemy.getData('dead')) return;
       if (projectile.hitSet && projectile.hitSet.has(enemy)) return;
       if (projectile.hitSet) projectile.hitSet.add(enemy);
@@ -1089,6 +1260,7 @@
     }
 
     onSkillHit(hitbox, enemy) {
+      if(this.coopMode&&this.networkRole==='host'&&hitbox?.ownerId&&this.currentBuildId!==hitbox.ownerId){const b=this.getBuild(hitbox.ownerId);if(b)return this.withBuild(b,()=>this.onSkillHit(hitbox,enemy));}
       if (!hitbox.active || !enemy.active || enemy.getData('dead')) return;
       if (!hitbox.hitSet) hitbox.hitSet = new Set();
       if (hitbox.hitSet.has(enemy)) return;
@@ -1170,36 +1342,37 @@
       return Math.max(36, late);
     }
 
-    collectGem(_player, gem) {
+    collectGem(picker, gem) {
       if (!gem.active) return;
       const val = gem.xpValue || 1;
       gem.destroy();
-      this.xp += val * (this.xpGainMult || 1);
-      this.checkLevelProgression();
-      this.updateHud();
+      if(this.coopMode){
+        if(this.networkRole!=='host')return;
+        const build=this.getBuild(picker?.netPlayerId)||this.getLocalBuild();
+        this.xp += val * (build?.xpGainMult || 1);
+      } else this.xp += val * (this.xpGainMult || 1);
+      this.checkLevelProgression(); this.updateHud();
     }
 
     checkLevelProgression() {
       if (this.isChoiceOpen || this.isGameOver) return;
       if (this.xp < this.xpNeed) return;
-      this.xp -= this.xpNeed;
-      this.level += 1;
-      this.xpNeed = this.xpRequirement(this.level);
+      this.xp -= this.xpNeed; this.level += 1; this.xpNeed = this.xpRequirement(this.level); this.updateHud();
+      if(this.coopMode){if(this.networkRole==='host')this.beginCoopChoice('base');return;}
       this.pendingAugmentType = this.level % 10 === 0 ? 'major' : (this.level % 5 === 0 ? 'minor' : null);
-      this.updateHud();
       this.openLevelUp();
     }
 
-    collectItem(_player, item) {
+    collectItem(picker, item) {
       if (!item.active) return;
-      const type = item.itemType;
-      item.destroy();
+      const type = item.itemType; item.destroy();
       if (type === 'magnet') {
         this.magnetUntil = this.runTimeMs + 5000;
         this.gems.getChildren().forEach(g => { if (g.active) g.magnetized = true; });
         this.showBanner('자석 획득!', '모든 경험치 보석 흡수');
       } else if (type === 'chest') {
-        this.openChest();
+        if(this.coopMode){if(this.networkRole==='host')this.beginCoopChoice('chest',[picker?.netPlayerId||this.localId]);}
+        else this.openChest();
       }
     }
 
@@ -1342,6 +1515,7 @@
       const angle = dirs[this.discDirectionIndex % dirs.length];
       this.discDirectionIndex += 1;
       const p = this.projectiles.create(this.player.x, this.player.y, 'disc').setDepth(14);
+      p.ownerId = this.currentBuildId || this.localId || 'solo';
       p.kind = 'disc';
       p.damage = this.attackPower * (1.72 + Math.min(2, level - 1) * 0.52);
       p.pierceLeft = Math.max(0, level - 3);
@@ -1410,14 +1584,19 @@
       const candidates = this.enemies.getChildren().filter(e => e.active && !e.getData('dead') && view.contains(e.x, e.y));
       const target = candidates.length ? Phaser.Utils.Array.GetRandom(candidates) : this.nearestEnemy();
       if (!target) return;
+      const ownerId=this.currentBuildId||this.localId||'solo';
+      const attackAtCast=this.attackPower;
       const toy = this.add.image(target.x, target.y - 105, 'squeakyToy').setDepth(30).setScale(1.05);
       const tx = target.x, ty = target.y;
       this.tweens.add({ targets: toy, y:ty, angle:Phaser.Math.Between(-35,35), duration:430, ease:'Quad.easeIn', onComplete:() => {
-        if (target.active && !target.getData('dead')) {
-          this.damageEnemy(target, this.attackPower * (1.85 + level * 0.28), 'squeakyToy');
-          target.stunUntil = this.runTimeMs + 320 + level * 35;
-          this.explodeAt(tx, ty, this.attackPower * (0.28 + level * 0.04), 34 + level * 2, target);
-        }
+        const hit=()=>{
+          if (target.active && !target.getData('dead')) {
+            this.damageEnemy(target, attackAtCast * (1.85 + level * 0.28), 'squeakyToy');
+            target.stunUntil = this.runTimeMs + 320 + level * 35;
+            this.explodeAt(tx, ty, attackAtCast * (0.28 + level * 0.04), 34 + level * 2, target);
+          }
+        };
+        if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,hit);else hit();
         noise(0.07,0.04,650); tone(420,0.06,'square',0.025,250);
         toy.destroy();
       }});
@@ -1463,9 +1642,11 @@
           const a = this.runTimeMs * 0.0032 + (Math.PI * 2 * i) / count;
           o.setPosition(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius);
           this.enemies.getChildren().forEach(e => {
-            if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReady || 0)) return;
+            const poopOwner=this.currentBuildId||'solo';
+            e.poopHitReadyBy=e.poopHitReadyBy||{};
+            if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReadyBy[poopOwner] || 0)) return;
             if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 27) {
-              e.poopHitReady = this.runTimeMs + 380;
+              e.poopHitReadyBy[poopOwner] = this.runTimeMs + 380;
               this.damageEnemy(e, this.attackPower * (0.32 + lv.poopOrbit * 0.050), 'poopOrbit');
               if (e.enemyRole !== 'raidBoss') {
                 const pa = Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
@@ -1542,44 +1723,32 @@
     }
 
     applyPlayerDamage(amount, sourceX, sourceY, invulnMs = 300) {
-      if (this.isGameOver || this.runTimeMs < this.playerInvulnUntil) return false;
+      if (this.isGameOver || this.playerDown || this.runTimeMs < this.playerInvulnUntil) return false;
       this.playerInvulnUntil = this.runTimeMs + invulnMs;
-
       if (this.shieldCharges > 0) {
-        this.shieldCharges -= 1;
-        this.showBanner('장막 방어!', '공격 1회 무효');
-        this.cameras.main.flash(90, 130, 210, 255);
-        this.updateHud();
-        return false;
+        this.shieldCharges -= 1; this.showBanner('장막 방어!', '공격 1회 무효');
+        if(!this.coopMode||this.currentBuildId===this.localId)this.cameras.main.flash(90,130,210,255); this.updateHud(); return false;
       }
-
-      const dmg = amount * (this.playerDamageMult || 1);
-      this.hp -= dmg;
-      if (Number.isFinite(sourceX) && Number.isFinite(sourceY)) {
-        const angle = Phaser.Math.Angle.Between(sourceX, sourceY, this.player.x, this.player.y);
-        this.player.body.velocity.x += Math.cos(angle) * 130;
-        this.player.body.velocity.y += Math.sin(angle) * 130;
+      const dmg = amount * (this.playerDamageMult || 1); this.hp -= dmg;
+      if (Number.isFinite(sourceX) && Number.isFinite(sourceY) && this.player?.body?.enable) {
+        const angle=Phaser.Math.Angle.Between(sourceX,sourceY,this.player.x,this.player.y);this.player.body.velocity.x+=Math.cos(angle)*130;this.player.body.velocity.y+=Math.sin(angle)*130;
       }
-      playPlayerHurtSfx();
-      this.cameras.main.shake(110, 0.004);
-      this.cameras.main.flash(80, 180, 35, 35);
-      this.updateHud();
-      if (this.hp <= 0) this.gameOver();
-      return true;
+      if(!this.coopMode||this.currentBuildId===this.localId){playPlayerHurtSfx();this.cameras.main.shake(110,0.004);this.cameras.main.flash(80,180,35,35);}
+      if(this.hp<=0){this.hp=0;if(this.coopMode)this.downCurrentPlayer();else this.gameOver();}
+      this.updateHud(); return true;
     }
-
-    onPlayerEnemyContact(_player, enemy) {
+    downCurrentPlayer(){
+      if(!this.coopMode||!this.player)return;this.playerDown=true;this.player.setAlpha(0.38);if(this.player.body){this.player.body.setVelocity(0,0);this.player.body.enable=false;}const b=this.getBuild(this.currentBuildId);if(b){b.down=true;b.hp=0;}this.showBanner(`${this.charData.name} 쓰러짐!`,'파트너가 버텨야 해!');if(![...this.builds.values()].some(x=>!x.down&&x.hp>0))this.gameOver();
+    }
+    onPlayerEnemyContact(targetPlayer, enemy) {
       if (!enemy.active || enemy.getData('dead') || this.isGameOver) return;
-      if (this.runTimeMs < enemy.nextTouchAt) return;
-      enemy.nextTouchAt = this.runTimeMs + 650;
-      const dmg = enemy.contactDamage * (enemy.contactDamageMult || 1);
-      this.applyPlayerDamage(dmg, enemy.x, enemy.y, 380);
+      if(this.coopMode){if(this.networkRole!=='host')return;const id=targetPlayer?.netPlayerId,b=this.getBuild(id);if(!b||b.down)return;enemy.nextTouchBy=enemy.nextTouchBy||{};if(this.runTimeMs<(enemy.nextTouchBy[id]||0))return;enemy.nextTouchBy[id]=this.runTimeMs+650;const dmg=enemy.contactDamage*(enemy.contactDamageMult||1);return this.withBuild(b,()=>this.applyPlayerDamage(dmg,enemy.x,enemy.y,380));}
+      if (this.runTimeMs < enemy.nextTouchAt) return; enemy.nextTouchAt=this.runTimeMs+650; this.applyPlayerDamage(enemy.contactDamage*(enemy.contactDamageMult||1),enemy.x,enemy.y,380);
     }
-
-    onEnemyProjectileHit(_player, bullet) {
+    onEnemyProjectileHit(targetPlayer, bullet) {
       if (!bullet.active || this.isGameOver) return;
-      const hit = this.applyPlayerDamage(bullet.damage || 10, bullet.x, bullet.y, bullet.strong ? 250 : 180);
-      if (hit || this.shieldCharges >= 0) bullet.destroy();
+      if(this.coopMode){if(this.networkRole!=='host')return;const b=this.getBuild(targetPlayer?.netPlayerId);if(!b||b.down)return;return this.withBuild(b,()=>{const hit=this.applyPlayerDamage(bullet.damage||10,bullet.x,bullet.y,bullet.strong?250:180);if(hit||this.shieldCharges>=0)bullet.destroy();});}
+      const hit=this.applyPlayerDamage(bullet.damage||10,bullet.x,bullet.y,bullet.strong?250:180);if(hit||this.shieldCharges>=0)bullet.destroy();
     }
 
     spawnEnemyBullet(x, y, angle, speed, damage, kind = 'enemy', lifeMs = 4200) {
@@ -1597,12 +1766,21 @@
       return b;
     }
 
-    fireEliteShot(enemy) {
-      const a = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
-      const count = enemy.enemyRole === 'elite' ? 1 : 3;
+    nearestActivePlayerTo(x,y){if(!this.coopMode||!this.builds)return this.player;let best=null,bestD=Infinity;this.builds.forEach(b=>{if(b.down||!b.sprite?.active)return;const d=Phaser.Math.Distance.Squared(x,y,b.sprite.x,b.sprite.y);if(d<bestD){bestD=d;best=b.sprite;}});return best||this.player;}
+    fireEliteShot(enemy,targetPlayer=null) {
+      const target=targetPlayer||this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+      const a = Phaser.Math.Angle.Between(enemy.x, enemy.y, target.x, target.y);
+      const count = enemy.enemyRole === 'elite' ? 1 : (this.coopMode ? 9 : 3);
       for (let i = 0; i < count; i++) {
-        const spread = count === 1 ? 0 : (i - 1) * 0.16;
-        this.spawnEnemyBullet(enemy.x, enemy.y, a + spread, enemy.enemyRole === 'boss' ? 215 : 185, enemy.contactDamage * 0.72, enemy.enemyRole === 'boss' ? 'boss' : 'enemy');
+        const spread = count === 1 ? 0 : (i - (count - 1) / 2) * (this.coopMode ? 0.105 : 0.16);
+        this.spawnEnemyBullet(enemy.x, enemy.y, a + spread, enemy.enemyRole === 'boss' ? 225 : 185, enemy.contactDamage * 0.72, enemy.enemyRole === 'boss' ? 'boss' : 'enemy');
+      }
+      if(this.coopMode && enemy.enemyRole==='boss'){
+        enemy.shotPhase=(enemy.shotPhase||0)+0.24;
+        for(let i=0;i<12;i++){
+          const ra=enemy.shotPhase+(Math.PI*2*i)/12;
+          this.spawnEnemyBullet(enemy.x,enemy.y,ra,155,enemy.contactDamage*0.52,'boss',5200);
+        }
       }
       playEnemyShotSfx(enemy.enemyRole === 'boss');
     }
@@ -1610,32 +1788,34 @@
     fireRaidPattern(enemy) {
       if (!enemy.active || enemy.getData('dead')) return;
       const pattern = (enemy.raidIndex || 0) % 3;
-      const base = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+      const targetPlayer=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+      const base = Phaser.Math.Angle.Between(enemy.x, enemy.y, targetPlayer.x, targetPlayer.y);
       this.raidShotPhase += 0.31;
 
       if (pattern === 0) {
-        const count = 18;
+        const count = this.coopMode ? 36 : 18;
         for (let i = 0; i < count; i++) {
           const a = this.raidShotPhase + (Math.PI * 2 * i) / count;
           this.spawnEnemyBullet(enemy.x, enemy.y, a, 185, 12 + this.raidBossCount * 1.5, 'raid', 5200);
         }
       } else if (pattern === 1) {
-        const count = 9;
+        const count = this.coopMode ? 19 : 9;
         for (let i = 0; i < count; i++) {
           const a = base + (i - (count - 1) / 2) * 0.13;
           this.spawnEnemyBullet(enemy.x, enemy.y, a, 245, 13 + this.raidBossCount * 1.5, 'raid', 4400);
         }
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < (this.coopMode ? 10 : 4); i++) {
           const a = base + Math.PI / 2 + i * Math.PI / 2 + this.raidShotPhase;
           this.spawnEnemyBullet(enemy.x, enemy.y, a, 160, 10 + this.raidBossCount, 'raid', 5200);
         }
       } else {
-        const count = 12;
+        const count = this.coopMode ? 28 : 12;
         for (let i = 0; i < count; i++) {
           const a = base + (Math.PI * 2 * i) / count + this.raidShotPhase;
           this.spawnEnemyBullet(enemy.x, enemy.y, a, i % 2 ? 155 : 225, 11 + this.raidBossCount * 1.4, 'raid', 5400);
         }
       }
+      if(this.coopMode){[...this.builds.values()].filter(b=>!b.down&&b.sprite?.active).forEach(b=>{const aim=Phaser.Math.Angle.Between(enemy.x,enemy.y,b.sprite.x,b.sprite.y);for(let i=-3;i<=3;i++)this.spawnEnemyBullet(enemy.x,enemy.y,aim+i*0.075,285,14+this.raidBossCount*1.7,'raid',4600);});}
       playEnemyShotSfx(true);
       this.cameras.main.shake(55, 0.002);
     }
@@ -1654,39 +1834,43 @@
           e.eliteFace.setFlipX(e.flipX);
         }
 
-        const a = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
+        const targetPlayer=this.nearestActivePlayerTo(e.x,e.y)||this.player;
+        const a = Phaser.Math.Angle.Between(e.x, e.y, targetPlayer.x, targetPlayer.y);
         let speed = e.speed;
         if (this.runTimeMs < (e.stunUntil || 0)) speed = 0;
         else if (this.runTimeMs < (e.slowUntil || 0)) speed *= (e.slowMult || 0.65);
         if (e.enemyRole === 'raidBoss') {
           if (this.runTimeMs >= e.nextRushAt) {
             e.rushUntil = this.runTimeMs + 850;
-            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3200, 5000);
+            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(this.coopMode?2000:3200,this.coopMode?3300:5000);
             this.showBanner('보스 돌진!', '피해!');
           }
           if (this.runTimeMs < e.rushUntil) speed *= 2.9;
           else {
-            const d = Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
+            const d = Phaser.Math.Distance.Between(e.x, e.y, targetPlayer.x, targetPlayer.y);
             if (d > 360) speed *= 1.55;
             if (d < 190) speed *= 0.55;
           }
         }
         e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
-        e.setFlipX(this.player.x < e.x);
+        e.setFlipX(targetPlayer.x < e.x);
 
         if ((e.enemyRole === 'elite' || e.enemyRole === 'boss' || e.enemyRole === 'raidBoss') && this.runTimeMs >= e.nextShotAt) {
           if (e.enemyRole === 'raidBoss') {
             this.fireRaidPattern(e);
-            e.nextShotAt = this.runTimeMs + Math.max(650, 1450 - this.raidBossCount * 70);
+            e.nextShotAt = this.runTimeMs + Math.max(this.coopMode?360:650,(this.coopMode?850:1450)-this.raidBossCount*65);
           } else {
-            this.fireEliteShot(e);
-            e.nextShotAt = this.runTimeMs + (e.enemyRole === 'boss' ? Phaser.Math.Between(1500, 2300) : Phaser.Math.Between(2200, 3400));
+            this.fireEliteShot(e,targetPlayer);
+            e.nextShotAt = this.runTimeMs + (e.enemyRole === 'boss' ? Phaser.Math.Between(this.coopMode?950:1500, this.coopMode?1450:2300) : Phaser.Math.Between(2200, 3400));
           }
         }
       });
     }
 
     updateGems() {
+      if(this.coopMode&&this.networkRole==='host'&&this.builds){
+        this.gems.getChildren().forEach(g=>{if(!g.active)return;const globalMagnet=this.runTimeMs<this.magnetUntil;let best=null,bestDist=Infinity,bestRange=135;this.builds.forEach(b=>{if(b.down||!b.sprite?.active)return;const d=Phaser.Math.Distance.Between(b.sprite.x,b.sprite.y,g.x,g.y),r=b.gemMagnetRange||135;if((globalMagnet||g.magnetized||d<r)&&d<bestDist){best=b;bestDist=d;bestRange=r;}});if(best){g.magnetized=true;const a=Phaser.Math.Angle.Between(g.x,g.y,best.sprite.x,best.sprite.y),sp=globalMagnet?520:Phaser.Math.Clamp(190+(bestRange-Math.min(bestRange,bestDist))*2.2,190,460);g.body.setVelocity(Math.cos(a)*sp,Math.sin(a)*sp);}else g.body.setVelocity(0,0);});return;
+      }
       const px = this.player.x, py = this.player.y;
       this.gems.getChildren().forEach(g => {
         if (!g.active) return;
@@ -1698,9 +1882,7 @@
           const a = Phaser.Math.Angle.Between(g.x, g.y, px, py);
           const sp = globalMagnet ? 520 : Phaser.Math.Clamp(190 + (range - Math.min(range, dist)) * 2.2, 190, 460);
           g.body.setVelocity(Math.cos(a) * sp, Math.sin(a) * sp);
-        } else {
-          g.body.setVelocity(0, 0);
-        }
+        } else g.body.setVelocity(0, 0);
       });
     }
 
@@ -1711,7 +1893,7 @@
           const target = this.nearestEnemy(p.x, p.y, 900);
           if (target) {
             const a = Phaser.Math.Angle.Between(p.x, p.y, target.x, target.y);
-            const speed = 260 + (this.skillLevels.magicMissile || 1) * 18;
+            const speed = 260 + (p.skillLevel || 1) * 18;
             p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, Math.cos(a) * speed, 0.08);
             p.body.velocity.y = Phaser.Math.Linear(p.body.velocity.y, Math.sin(a) * speed, 0.08);
             p.rotation = Math.atan2(p.body.velocity.y, p.body.velocity.x);
@@ -1796,6 +1978,7 @@
       for (let i = 0; i < count; i++) {
         const a = (Math.PI * 2 * i) / count;
         const p = this.projectiles.create(this.player.x + Math.cos(a) * 24, this.player.y + Math.sin(a) * 24, 'magicMissile');
+        p.ownerId = this.currentBuildId || this.localId || 'solo'; p.skillLevel = level;
         p.kind = 'magicMissile'; p.damage = this.attackPower * (0.8 + level * 0.12); p.hitSet = new Set();
         p.spawnAt = this.runTimeMs; p.lifeMs = 3500; p.setDepth(13);
         p.body.setVelocity(Math.cos(a) * 160, Math.sin(a) * 160);
@@ -1806,6 +1989,7 @@
       const damage = this.attackPower * (1.7 + level * 0.18);
       [-48, 48].forEach(offset => {
         const s = this.skillHitboxes.create(this.player.x, this.player.y + offset, 'slash').setDepth(15);
+        s.ownerId = this.currentBuildId || this.localId || 'solo';
         s.damage = damage; s.skillKind = 'sword'; s.hitSet = new Set();
         s.body.setSize(18, 64);
         this.tweens.add({ targets: s, alpha: 0, scaleY: 1.15, duration: 230, onComplete: () => s.destroy() });
@@ -1819,6 +2003,7 @@
       for (let i = 0; i < count; i++) {
         const a = (Math.PI * 2 * i) / count;
         const f = this.skillHitboxes.create(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius, 'firePillar').setDepth(14);
+        f.ownerId = this.currentBuildId || this.localId || 'solo';
         f.damage = damage; f.skillKind = 'fire'; f.hitSet = new Set();
         f.body.setSize(18, 30);
         f.setScale(0.8);
@@ -1829,15 +2014,13 @@
     castBulletBarrage(level) {
       const target = this.nearestEnemy();
       if (!target) return;
+      const ownerId=this.currentBuildId||this.localId||'solo'; const ownerSprite=this.player; const damage=this.attackPower*(0.45+level*0.05);
       for (let i = 0; i < 5; i++) {
         this.time.delayedCall(i * 90, () => {
-          if (!target.active || target.getData('dead')) return;
-          const p = this.projectiles.create(this.player.x, this.player.y, 'bullet').setDepth(13);
-          p.kind = 'bullet'; p.damage = this.attackPower * (0.45 + level * 0.05); p.hitSet = new Set();
-          p.spawnAt = this.runTimeMs; p.lifeMs = 1400;
-          const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
-          p.rotation = a;
-          this.physics.velocityFromRotation(a, 480, p.body.velocity);
+          if (!target.active || target.getData('dead') || !ownerSprite?.active) return;
+          const p = this.projectiles.create(ownerSprite.x, ownerSprite.y, 'bullet').setDepth(13);
+          p.ownerId=ownerId; p.kind='bullet'; p.damage=damage; p.hitSet=new Set(); p.spawnAt=this.runTimeMs; p.lifeMs=1400;
+          const a=Phaser.Math.Angle.Between(ownerSprite.x,ownerSprite.y,target.x,target.y); p.rotation=a; this.physics.velocityFromRotation(a,480,p.body.velocity);
         });
       }
     }
@@ -1854,14 +2037,38 @@
       }
     }
 
+    readLocalMoveInput(){return{left:!!(this.cursors?.left?.isDown||this.keys?.left?.isDown),right:!!(this.cursors?.right?.isDown||this.keys?.right?.isDown),up:!!(this.cursors?.up?.isDown||this.keys?.up?.isDown),down:!!(this.cursors?.down?.isDown||this.keys?.down?.isDown)};}
+    setRemoteInput(playerId,input){if(this.networkRole!=='host'||!this.getBuild(playerId))return;this.remoteInput={left:!!input.left,right:!!input.right,up:!!input.up,down:!!input.down};}
+    runPlayerBuildTick(build,input,delta){
+      if(!build||build.down||!build.sprite?.active)return;
+      this.withBuild(build,()=>{let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed,dy*this.moveSpeed);if(dx!==0)this.player.setFlipX(dx<0);this.shadow?.setPosition(this.player.x,this.player.y+15);this.updateSkills(delta);this.updateMajorAugments(delta,moving);this.updateShieldVisual();this.basicTimer+=delta;if(this.basicTimer>=this.basicCooldown){this.basicTimer=0;this.fireBasicProjectile();}});
+    }
+    entityNetId(o,prefix='e'){if(!o.netId)o.netId=`${prefix}${this.netIdCounter++}`;return o.netId;}
+    serializeGroup(group,prefix){return group.getChildren().filter(o=>o.active).map(o=>({id:this.entityNetId(o,prefix),x:o.x,y:o.y,texture:o.texture?.key,rotation:o.rotation||0,scaleX:o.scaleX||1,scaleY:o.scaleY||1,flipX:!!o.flipX,alpha:o.alpha,role:o.enemyRole||null,hp:o.hp,maxHp:o.maxHp,itemType:o.itemType||null}));}
+    buildNetworkSnapshot(){
+      if(!this.coopMode||this.networkRole!=='host')return null;const cur=this.getBuild(this.currentBuildId);if(cur)this.saveBuild(cur);
+      const players=[...this.builds.values()].map(b=>({...this.buildSummary(b),x:b.sprite?.x||0,y:b.sprite?.y||0,flipX:!!b.sprite?.flipX,alpha:b.sprite?.alpha??1}));
+      const extras=[];this.builds.forEach(b=>{(b.poopOrbiters||[]).forEach((o,i)=>{if(o?.active)extras.push({id:`poop-${b.id}-${i}`,kind:'image',texture:'poopOrbit',x:o.x,y:o.y,scale:o.scaleX||1,alpha:o.alpha??1});});(b.gasClouds||[]).forEach((z,i)=>{if(z.obj?.active)extras.push({id:`gas-${b.id}-${i}`,kind:'circle',x:z.x,y:z.y,radius:z.radius,color:0xe7d84d,alpha:z.obj.alpha??0.12});});(b.territoryZones||[]).forEach((z,i)=>{if(z.obj?.active)extras.push({id:`zone-${b.id}-${i}`,kind:'circle',x:z.x,y:z.y,radius:z.radius,color:0xe8ce48,alpha:z.obj.alpha??0.13});});});
+      const boss=this.enemies.getChildren().find(e=>e.active&&!e.getData('dead')&&(e.enemyRole==='raidBoss'||e.enemyRole==='boss'));
+      return{t:this.runTimeMs,level:this.level,xp:this.xp,xpNeed:this.xpNeed,kills:this.kills,wave:this.getWave(),players,enemies:this.serializeGroup(this.enemies,'e'),projectiles:this.serializeGroup(this.projectiles,'p'),enemyBullets:this.serializeGroup(this.enemyProjectiles,'b'),gems:this.serializeGroup(this.gems,'g'),items:this.serializeGroup(this.items,'i'),extras,boss:boss?{role:boss.enemyRole,hp:boss.hp,maxHp:boss.maxHp}:null};
+    }
+    syncNetworkGroup(map,list,group,depth=8){const keep=new Set();(list||[]).forEach(d=>{keep.add(d.id);let o=map.get(d.id);if(!o||!o.active){o=group.create(d.x,d.y,d.texture||'xpGem');map.set(d.id,o);}if(d.texture&&o.texture?.key!==d.texture)o.setTexture(d.texture);o.setPosition(d.x,d.y);o.setRotation(d.rotation||0);o.setScale(d.scaleX||1,d.scaleY||d.scaleX||1);o.setFlipX(!!d.flipX);o.setAlpha(d.alpha??1);o.setDepth(depth);o.enemyRole=d.role||null;o.hp=d.hp;o.maxHp=d.maxHp;o.itemType=d.itemType||null;if(d.role==='elite')o.setTint(0xc8a5a5);else if(d.role==='boss')o.setTint(0xe6b26f);else o.clearTint?.();});for(const[id,o]of map){if(!keep.has(id)){if(o?.active)o.destroy();map.delete(id);}}}
+    syncNetworkExtras(extras){const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(14);this.netExtraMap.set(d.id,o);}o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{o.setScale(d.scale||1);o.setAlpha(d.alpha??1);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}}
+    applyNetworkSnapshot(s){
+      if(!this.coopMode||this.networkRole!=='guest'||!s)return;this.runTimeMs=s.t||0;this.level=s.level||1;this.xp=s.xp||0;this.xpNeed=s.xpNeed||2;this.kills=s.kills||0;
+      (s.players||[]).forEach(ps=>{const b=this.getBuild(ps.id);if(!b)return;Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;if(b.sprite){b.sprite.setPosition(ps.x,ps.y).setFlipX(!!ps.flipX).setAlpha(ps.down?0.38:(ps.alpha??1));if(b.sprite.body)b.sprite.body.enable=false;}b.shadow?.setPosition(ps.x,ps.y+15).setAlpha(ps.down?0.08:0.22);});const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
+      this.syncNetworkGroup(this.netEnemyMap,s.enemies,this.enemies,8);this.syncNetworkGroup(this.netProjectileMap,s.projectiles,this.projectiles,12);this.syncNetworkGroup(this.netEnemyBulletMap,s.enemyBullets,this.enemyProjectiles,12);this.syncNetworkGroup(this.netGemMap,s.gems,this.gems,6);this.syncNetworkGroup(this.netItemMap,s.items,this.items,7);this.syncNetworkExtras(s.extras);this.timerText?.setText(formatTime((s.t||0)/1000));this.waveText?.setText(`WAVE ${s.wave||1} · 2P CO-OP`);this.updateHud();
+    }
+    updateCoopGuest(delta){if(this.isGameOver)return;this.guestSendTimer=(this.guestSendTimer||0)+delta;if(this.guestSendTimer>=45&&!this.isChoiceOpen&&!this.manualPause){this.guestSendTimer=0;socket?.emit('coopInput',{input:this.readLocalMoveInput()});}const lb=this.getLocalBuild();if(lb?.sprite)this.cameras.main.startFollow(lb.sprite,true,0.15,0.15);}
+    updateCoopHost(delta){if(this.isGameOver||this.manualPause||this.isChoiceOpen)return;this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP`);this.updateHud();this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=90){this.snapshotTimer=0;socket?.emit('coopSnapshot',this.buildNetworkSnapshot());}}
     updateHud() {
       if (!this.hpBar) return;
       const hpPct = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
       const xpPct = Phaser.Math.Clamp(this.xp / this.xpNeed, 0, 1);
       this.hpBar.width = 210 * hpPct;
       this.xpBar.width = 210 * xpPct;
-      this.hudName.setText(`${this.charData.name}  Lv.${this.level}`);
-      this.hudInfo.setText(`HP ${Math.ceil(this.hp)}/${this.maxHp}\nKILL ${this.kills}`);
+      this.hudName.setText(`${this.charData.name}  Lv.${this.level}${this.coopMode ? ' · TEAM' : ''}`);
+      if(this.coopMode&&this.builds){const partner=[...this.builds.values()].find(b=>b.id!==this.currentBuildId);const ph=partner?(partner.down?'DOWN':`${Math.ceil(partner.hp)}/${Math.ceil(partner.maxHp)}`):'-';this.hudInfo.setText(`내 HP ${Math.ceil(this.hp)}/${Math.ceil(this.maxHp)} · 파트너 ${ph}\nTEAM KILL ${this.kills}`);}else this.hudInfo.setText(`HP ${Math.ceil(this.hp)}/${this.maxHp}\nKILL ${this.kills}`);
       const names = SKILLS.filter(s => this.skillLevels[s.id]).map(s => `${s.title} Lv.${this.skillLevels[s.id]}`);
       const majors = MAJOR_AUGMENTS.filter(a => this.majorLevels?.[a.id]).map(a => `${a.title} Lv.${this.majorLevels[a.id]}`);
       if (majors.length) names.unshift(`10Lv: ${majors.join(', ')}`);
@@ -1880,17 +2087,16 @@
     }
 
     gameOver() {
-      if (this.isGameOver) return;
-      this.isGameOver = true;
-      stopBgm();
-      this.physics.world.pause();
-      this.time.paused = true;
-      const sec = this.runTimeMs / 1000;
-      document.querySelector('#gameover-stats').textContent = `생존 ${formatTime(sec)} · Lv.${this.level} · 처치 ${this.kills}`;
-      document.querySelector('#gameover-screen').classList.add('show');
+      if (this.isGameOver) return; this.isGameOver=true; stopBgm(); this.physics.world.pause(); this.time.paused=true;
+      const sec=this.runTimeMs/1000,text=`생존 ${formatTime(sec)} · Lv.${this.level} · 처치 ${this.kills}`;
+      document.querySelector('#gameover-stats').textContent=text;
+      const restart=document.querySelector('#restart-btn'); if(restart)restart.textContent=this.coopMode?'협동 로비로':'다시 시작';
+      document.querySelector('#gameover-screen').classList.add('show');if(this.coopMode&&this.networkRole==='host')socket?.emit('coopGameOver',{text});
     }
+    showRemoteGameOver(payload){this.isGameOver=true;stopBgm();this.closeGuestChoiceUi();document.querySelector('#gameover-stats').textContent=payload.text||'2인 협동 종료';const restart=document.querySelector('#restart-btn');if(restart)restart.textContent='협동 로비로';document.querySelector('#gameover-screen').classList.add('show');}
 
     update(_time, delta) {
+      if(this.coopMode){if(this.networkRole==='guest')return this.updateCoopGuest(delta);if(this.networkRole==='host')return this.updateCoopHost(delta);}
       if (this.isGameOver || this.manualPause) return;
       this.runTimeMs += delta;
       const sec = this.runTimeMs / 1000;
@@ -1928,7 +2134,8 @@
     }
   }
 
-  function startGame() {
+  function startGame(options = {}) {
+    const restart=document.querySelector('#restart-btn'); if(restart)restart.textContent=options.coop?'협동 로비로':'다시 시작';
     ensureAudio();
     startBgmPlaylist();
     document.querySelector('#start-screen').classList.remove('show');
@@ -1936,6 +2143,7 @@
     document.querySelector('#levelup-screen').classList.remove('show');
     document.querySelector('#chest-screen').classList.remove('show');
     document.querySelector('#pause-screen').classList.remove('show');
+    document.querySelector('#coop-wait-screen')?.classList.remove('show');
 
     if (!game) {
       game = new Phaser.Game({
@@ -1961,7 +2169,7 @@
     if (game.scene.isActive('SurvivorScene') || game.scene.isPaused('SurvivorScene')) {
       game.scene.stop('SurvivorScene');
     }
-    game.scene.start('SurvivorScene', { character: selectedCharacter });
+    game.scene.start('SurvivorScene', { character: selectedCharacter, ...options });
   }
 
   const bgmSlider = document.querySelector('#bgm-volume');
@@ -1982,12 +2190,13 @@
     });
   }
 
-  document.querySelector('#start-btn').addEventListener('click', startGame);
+  document.querySelector('#start-btn').addEventListener('click', () => startGame({}));
   document.querySelector('#restart-btn').addEventListener('click', () => {
+    if(activeScene?.coopMode){activeScene.returnToLobby?.();return;}
     if (activeScene) {
       activeScene.time.paused = false;
       activeScene.physics.world.resume();
     }
-    startGame();
+    startGame({});
   });
 })();

@@ -70,3 +70,14 @@ h2{font-size:28px;margin:4px 0 18px}
 .pause-chip-list{display:flex;flex-wrap:wrap;gap:7px}.pause-chip{background:#1c2020;border:1px solid #496d60;color:#c9f1df;padding:5px 8px;font-size:11px}
 .pause-augment-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pause-augment-item{background:#1a181f;border:2px solid #413b49;padding:9px 10px}.pause-augment-item b{display:block;font-size:12px;color:#ffeab0}.pause-augment-item small{display:block;color:#aaa1ae;font-size:10px;margin-top:3px;line-height:1.4}.pause-empty{color:#8e8791;font-size:11px;padding:8px 0}
 @media(max-width:820px){.pause-panel{grid-template-columns:1fr}.pause-left{border-right:0;border-bottom:2px solid #47404f;padding-right:0;padding-bottom:16px}.pause-buttons{flex-direction:row}.pause-stat-grid{grid-template-columns:repeat(2,1fr)}.pause-augment-list{grid-template-columns:1fr}}
+
+/* 2P online co-op */
+.coop-box{margin:14px auto 16px;padding:13px;background:#17151d;border:2px solid #4a4352;max-width:680px}
+.coop-title{font-weight:900;color:#8ee1bd;margin-bottom:9px}.coop-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.coop-actions input{background:#111015;border:2px solid #5a5162;color:#fff3c7;padding:10px 12px;min-width:150px;text-transform:uppercase;outline:none}
+.coop-actions input:focus{border-color:#f1cf63}.coop-status{font-size:11px;color:#aaa1ae;margin-top:9px;min-height:16px}
+.coop-room-panel{margin-top:11px;border-top:1px solid #45404b;padding-top:10px}.coop-room-panel.hidden,.hidden{display:none!important}
+#coop-room-code{color:#f1cf63;font-size:20px;font-weight:900;letter-spacing:3px}.coop-player-list{display:flex;gap:8px;justify-content:center;margin:10px 0;flex-wrap:wrap}
+.coop-player{border:2px solid #45404d;background:#211e27;padding:8px 12px;font-size:11px}.coop-player.me{border-color:#7ed3a6}.coop-player.host:before{content:'★ ';color:#f1cf63}
+.mini-btn{padding:6px 9px;background:#292530;color:#ddd5df;border:1px solid #5c5363;font:inherit;cursor:pointer}.danger-mini{color:#ffaaa2}.solo-btn{margin-top:2px}
+@media(max-width:760px){.coop-actions{flex-direction:column}.coop-actions>*{width:100%}}
