@@ -23,16 +23,16 @@
   const PLAYER_SPRITES = {
     gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
     gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
-    mandu: { src: '/assets/players/mandu.png', previewSize: 46, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
+    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 0.98, hitbox: { w: 13, h: 13, ox: 10, oy: 12 } },
     jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } }
   };
 
   const LEVEL_UPGRADES = [
-    { id: 'damage', icon: '⚔', title: '공격력 증가', desc: '모든 공격 피해량이 5% 증가한다.' },
-    { id: 'speed', icon: '➜', title: '이동속도 증가', desc: '이동 속도가 2% 증가한다.' },
-    { id: 'health', icon: '♥', title: '최대 체력 회복', desc: '최대 HP가 10 증가하고 최대 HP의 35%를 회복한다.' },
-    { id: 'xpGain', icon: '✦', title: '경험치 증가', desc: '경험치 획득량이 8% 증가한다.' },
-    { id: 'attackSpeed', icon: '⚡', title: '공속 증가', desc: '기본 공격 속도가 2% 빨라진다.' }
+    { id: 'damage', icon: '⚔', title: '공격력 증가', desc: '모든 공격 피해량이 6% 증가한다.' },
+    { id: 'speed', icon: '➜', title: '이동속도 증가', desc: '이동 속도가 3% 증가한다.' },
+    { id: 'health', icon: '♥', title: '최대 체력 회복', desc: '최대 HP가 12 증가하고 최대 HP의 40%를 회복한다.' },
+    { id: 'xpGain', icon: '✦', title: '경험치 증가', desc: '경험치 획득량이 10% 증가한다.' },
+    { id: 'attackSpeed', icon: '⚡', title: '공속 증가', desc: '기본 공격 속도가 3% 빨라진다.' }
   ];
 
   const SKILLS = [
@@ -47,10 +47,11 @@
 
 
   const MILESTONE_AUGMENTS = [
-    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 10% 빨라지고 공격력이 5% 증가한다.' },
-    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 55px 넓어진다.' },
-    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 20 증가하고 체력을 절반 회복하며 받는 피해가 5% 감소한다.' },
-    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 9% 증가하고 기본 공격 속도가 4% 빨라진다.' }
+    { id: 'goodDeal', icon: '✚', title: '개이득', desc: '기본 투사체를 1발 더 발사한다. 추가 탄환은 기본 공격력의 60% 피해를 주며 반복 획득할 수 있다.' },
+    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 12% 빨라지고 공격력이 6% 증가한다.' },
+    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 65px 넓어진다.' },
+    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 24 증가하고 체력을 55% 회복하며 받는 피해가 6% 감소한다.' },
+    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 10% 증가하고 기본 공격 속도가 5% 빨라진다.' }
   ];
 
 
@@ -90,7 +91,7 @@
   let game = null;
   let activeScene = null;
 
-  const socket = window.io ? window.io() : null;
+  const socket = window.io ? window.io({ transports:['websocket'], upgrade:false, reconnection:true }) : null;
   const coop = { active:false, room:null, myId:null, isHost:false };
   const blankMoveInput = () => ({ left:false, right:false, up:false, down:false });
   const BUILD_KEYS = [
@@ -344,6 +345,9 @@
       this.remoteInput = blankMoveInput();
       this.snapshotTimer = 0;
       this.guestSendTimer = 0;
+      this.lastSentInputKey = '';
+      this.lastInputSendAt = 0;
+      this.hudUpdateTimer = 0;
       this.netEnemyMap = new Map(); this.netProjectileMap = new Map(); this.netEnemyBulletMap = new Map(); this.netGemMap = new Map(); this.netItemMap = new Map(); this.netExtraMap = new Map();
       this.charData = CHARACTERS[this.characterKey];
       this.remoteCharData = CHARACTERS[this.remoteCharacterKey] || CHARACTERS.mandu;
@@ -424,6 +428,14 @@
       this.cameras.main.setRoundPixels(true);
       this.cameras.main.fadeIn(300, 14, 12, 17);
       this.showBanner(`${this.charData.name} 출격!`, this.charData.weapon);
+      this.time.delayedCall(120, () => {
+        if (this.isGameOver) return;
+        if (this.coopMode) {
+          if (this.networkRole === 'host') this.beginCoopChoice('minor');
+        } else {
+          this.openMilestoneAugment();
+        }
+      });
     }
 
     createTextures() {
@@ -722,7 +734,8 @@
     buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges}:null;}
 
     choiceOptions(kind, playerId){
-      const b=this.getBuild(playerId); const list=kind==='base'?LEVEL_UPGRADES:kind==='minor'?MILESTONE_AUGMENTS:kind==='major'?MAJOR_AUGMENTS:SKILLS;
+      const b=this.getBuild(playerId);
+      let list=kind==='base'?LEVEL_UPGRADES:kind==='minor'?MILESTONE_AUGMENTS:kind==='major'?MAJOR_AUGMENTS:SKILLS;
       return shuffle(list).slice(0,3).map(x=>({id:x.id,icon:x.icon,title:x.title,desc:x.desc,level:kind==='major'?(b?.majorLevels?.[x.id]||0):kind==='chest'?(b?.skillLevels?.[x.id]||0):null}));
     }
     showCoopWait(title='상대 플레이어 선택 대기 중',text='둘 다 선택하면 게임이 다시 시작돼.'){const w=document.querySelector('#coop-wait-screen'),t=document.querySelector('#coop-wait-title'),d=document.querySelector('#coop-wait-text');if(t)t.textContent=title;if(d)d.textContent=text;w?.classList.add('show');}
@@ -732,12 +745,12 @@
       const ids=targetIds||[...this.builds.keys()]; this.isChoiceOpen=true; this.scene.pause();
       const pending=new Set(ids),optionsById=new Map(); ids.forEach(id=>optionsById.set(id,this.choiceOptions(kind,id))); this.coopChoice={kind,pending,optionsById};
       const guestId=this.remotePlayerInfo?.id;if(guestId&&!pending.has(guestId))socket?.emit('coopChoiceState',{open:true,title:'상대 플레이어 선택 중',text:'상대가 보물상자 스킬을 고르고 있어.'});
-      ids.forEach(id=>{const opts=optionsById.get(id)||[];if(id===this.localId)this.showLocalCoopChoice(kind,opts);else socket?.emit('coopChoicePrompt',{targetId:id,kind,level:this.level,options:opts,eyebrow:kind==='base'?'LEVEL UP!':kind==='minor'?`LEVEL ${this.level} AUGMENT!`:kind==='major'?`LEVEL ${this.level} MAJOR AUGMENT!`:'TREASURE CHEST',title:kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?'내 5레벨 증강 하나를 선택해':kind==='major'?'내 10레벨 전투 증강 하나를 선택해':'내 보물상자 스킬 하나를 선택해'});});
+      ids.forEach(id=>{const opts=optionsById.get(id)||[];if(id===this.localId)this.showLocalCoopChoice(kind,opts);else socket?.emit('coopChoicePrompt',{targetId:id,kind,level:this.level,options:opts,eyebrow:kind==='base'?'LEVEL UP!':kind==='minor'?(this.level===1?'START AUGMENT!':`LEVEL ${this.level} AUGMENT!`):kind==='major'?`LEVEL ${this.level} MAJOR AUGMENT!`:'TREASURE CHEST',title:kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?(this.level===1?'시작 특별 증강 하나를 선택해':'내 특별 증강 하나를 선택해'):kind==='major'?'내 10레벨 전투 증강 하나를 선택해':'내 보물상자 스킬 하나를 선택해'});});
       if(!pending.has(this.localId))this.showCoopWait('상대 플레이어 선택 중','상대가 보물상자 스킬을 고르고 있어.');
     }
     showLocalCoopChoice(kind,options){
       const screen=document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen'),root=document.querySelector(kind==='chest'?'#chest-choices':'#levelup-choices');if(!screen||!root)return;this.hideCoopWait();
-      if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=kind==='base'?'LEVEL UP!':kind==='minor'?`LEVEL ${this.level} AUGMENT!`:`LEVEL ${this.level} MAJOR AUGMENT!`;if(tt)tt.textContent=kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?'내 5레벨 증강 하나를 선택해':'내 10레벨 전투 증강 하나를 선택해';}
+      if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=kind==='base'?'LEVEL UP!':kind==='minor'?(this.level===1?'START AUGMENT!':`LEVEL ${this.level} AUGMENT!`):`LEVEL ${this.level} MAJOR AUGMENT!`;if(tt)tt.textContent=kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?(this.level===1?'시작 특별 증강 하나를 선택해':'내 특별 증강 하나를 선택해'):'내 10레벨 전투 증강 하나를 선택해';}
       root.innerHTML='';options.forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>this.handleCoopChoicePick(this.localId,o.id,kind);root.appendChild(b);});screen.classList.add('show');
     }
     showGuestChoicePrompt(payload){
@@ -784,7 +797,7 @@
 
       const items = [];
       if (this.augments?.length) {
-        this.augments.forEach(name => items.push({ title:name, detail:'5레벨 특별 증강' }));
+        this.augments.forEach(name => items.push({ title:name, detail:'특별 증강' }));
       }
       MAJOR_AUGMENTS.forEach(a => {
         const lv = this.majorLevels?.[a.id] || 0;
@@ -1003,9 +1016,10 @@
       e.setScale(spriteScale).setDepth(8);
       e.enemyType = type;
       e.enemyRole = role;
-      e.maxHp = baseHp * scaling.hp;
+      const usesTimeScaling = role === 'normal' || role === 'elite';
+      e.maxHp = baseHp * (usesTimeScaling ? scaling.hp : 1);
       e.hp = e.maxHp;
-      e.speed = baseSpeed * scaling.speed;
+      e.speed = baseSpeed * (usesTimeScaling ? scaling.speed : 1);
       e.contactDamage = damage;
       e.contactDamageMult = 1;
       e.shrinkUntil = 0;
@@ -1169,20 +1183,21 @@
       const baseAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
       for (let i = 0; i < shotCount; i++) {
         const spread = shotCount === 1 ? 0 : (i - (shotCount - 1) / 2) * 0.13;
-        this.spawnBasicProjectile(baseAngle + spread);
+        const damageMult = i === 0 ? 1 : 0.60;
+        this.spawnBasicProjectile(baseAngle + spread, damageMult);
       }
       playShotSfx(this.charData.projectile);
       this.player.setFlipX(target.x < this.player.x);
     }
 
-    spawnBasicProjectile(angle) {
+    spawnBasicProjectile(angle, damageMult = 1) {
       const kind = this.charData.projectile;
       const texture = `proj_${kind}`;
       const p = this.projectiles.create(this.player.x, this.player.y, texture);
       p.setDepth(12);
       p.ownerId = this.currentBuildId || this.localId || 'solo';
       p.kind = 'basic';
-      p.damage = this.attackPower * (1 + (this.basicSizeMult - 1) * 0.52);
+      p.damage = this.attackPower * (1 + (this.basicSizeMult - 1) * 0.52) * damageMult;
       p.hitSet = new Set();
       p.pierceLeft = this.basicPierce || 0;
       p.ricochetLeft = this.basicRicochet || 0;
@@ -1410,16 +1425,17 @@
     openMilestoneAugment() {
       if (this.isChoiceOpen || this.isGameOver) return;
       this.isChoiceOpen = true;
+      this.scene.pause();
       const screen = document.querySelector('#levelup-screen');
       const root = document.querySelector('#levelup-choices');
-      document.querySelector('#levelup-eyebrow').textContent = `LEVEL ${this.level} AUGMENT!`;
-      document.querySelector('#levelup-title').textContent = '5레벨 증강 하나를 선택해';
+      document.querySelector('#levelup-eyebrow').textContent = this.level === 1 ? 'START AUGMENT!' : `LEVEL ${this.level} AUGMENT!`;
+      document.querySelector('#levelup-title').textContent = this.level === 1 ? '시작 특별 증강 하나를 선택해' : '특별 증강 하나를 선택해';
       root.innerHTML = '';
-      const picks = shuffle(MILESTONE_AUGMENTS).slice(0, 3);
+      const picks=shuffle(MILESTONE_AUGMENTS).slice(0,3);
       picks.forEach(a => {
         const b = document.createElement('button');
         b.className = 'choice-card';
-        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">5레벨 보너스 증강</span>`;
+        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">${this.level === 1 ? '시작 특별 증강' : '특별 증강'}</span>`;
         b.onclick = () => {
           this.applyMilestoneAugment(a.id);
           screen.classList.remove('show');
@@ -1460,32 +1476,33 @@
 
     applyLevelUpgrade(id) {
       if (this.levelUpgradeCounts && Object.prototype.hasOwnProperty.call(this.levelUpgradeCounts, id)) this.levelUpgradeCounts[id] += 1;
-      if (id === 'damage') this.attackPower *= 1.05;
-      if (id === 'speed') this.moveSpeed *= 1.02;
+      if (id === 'damage') this.attackPower *= 1.06;
+      if (id === 'speed') this.moveSpeed *= 1.03;
       if (id === 'health') {
-        this.maxHp += 10;
-        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.35);
+        this.maxHp += 12;
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.40);
       }
-      if (id === 'xpGain') this.xpGainMult *= 1.08;
-      if (id === 'attackSpeed') this.basicCooldown = Math.max(520, this.basicCooldown * 0.98);
+      if (id === 'xpGain') this.xpGainMult *= 1.10;
+      if (id === 'attackSpeed') this.basicCooldown = Math.max(520, this.basicCooldown * 0.97);
       this.updateHud();
     }
 
     applyMilestoneAugment(id) {
       const data = MILESTONE_AUGMENTS.find(a => a.id === id);
+      if (id === 'goodDeal') this.extraBasicShots += 1;
       if (id === 'hunterInstinct') {
-        this.basicCooldown = Math.max(520, this.basicCooldown * 0.90);
-        this.attackPower *= 1.05;
+        this.basicCooldown = Math.max(520, this.basicCooldown * 0.88);
+        this.attackPower *= 1.06;
       }
-      if (id === 'sniffer') this.gemMagnetRange += 55;
+      if (id === 'sniffer') this.gemMagnetRange += 65;
       if (id === 'ironStomach') {
-        this.maxHp += 20;
-        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.50);
-        this.playerDamageMult *= 0.95;
+        this.maxHp += 24;
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.55);
+        this.playerDamageMult *= 0.94;
       }
       if (id === 'zoomies') {
-        this.moveSpeed *= 1.09;
-        this.basicCooldown = Math.max(520, this.basicCooldown * 0.96);
+        this.moveSpeed *= 1.10;
+        this.basicCooldown = Math.max(520, this.basicCooldown * 0.95);
       }
       if (data) this.augments.push(data.title);
       this.showBanner(data?.title || '증강 획득!', `Lv.${this.level} 특별 증강`);
@@ -1505,7 +1522,7 @@
       this.poopOrbiters = [];
       const count = this.majorLevels.poopOrbit || 0;
       for (let i = 0; i < count; i++) {
-        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.28);
+        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.35);
         this.poopOrbiters.push(o);
       }
     }
@@ -1517,18 +1534,18 @@
       const p = this.projectiles.create(this.player.x, this.player.y, 'disc').setDepth(14);
       p.ownerId = this.currentBuildId || this.localId || 'solo';
       p.kind = 'disc';
-      p.damage = this.attackPower * (1.72 + Math.min(2, level - 1) * 0.52);
+      p.damage = this.attackPower * (1.82 + Math.min(2, level - 1) * 0.55);
       p.pierceLeft = Math.max(0, level - 3);
       p.hitSet = new Set();
       p.spawnAt = this.runTimeMs; p.lifeMs = 2600;
       p.setRotation(angle);
-      this.physics.velocityFromRotation(angle, 390 + Math.min(100, level * 12), p.body.velocity);
+      this.physics.velocityFromRotation(angle, 410 + Math.min(110, level * 13), p.body.velocity);
       noise(0.045, 0.025, 900); tone(260, 0.05, 'triangle', 0.018, 180);
     }
 
     castBarkRoar(level) {
-      const radius = 150 + (level - 1) * 36;
-      const damage = this.attackPower * (0.78 + level * 0.10);
+      const radius = 160 + (level - 1) * 38;
+      const damage = this.attackPower * (0.85 + level * 0.11);
       const ring = this.add.image(this.player.x, this.player.y, 'shockwave').setDepth(16).setScale(0.35).setAlpha(0.9);
       this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 420, onComplete: () => ring.destroy() });
       this.enemies.getChildren().forEach(e => {
@@ -1546,16 +1563,16 @@
     }
 
     spawnGasCloud(level) {
-      const radius = 36 + Math.min(24, level * 4);
+      const radius = 40 + Math.min(26, level * 4.5);
       const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.16).setStrokeStyle(2, 0xbda934, 0.25).setDepth(3);
-      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 3800 + level * 260, nextTick:this.runTimeMs });
+      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 4200 + level * 280, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: 0.04, scale: 1.18, duration: 3200 + level * 220 });
     }
 
     castYawnWave(level) {
-      const range = 205 + (level - 1) * 22;
+      const range = 215 + (level - 1) * 24;
       const halfAngle = 0.54 + Math.min(0.24, (level - 1) * 0.038);
-      const damage = this.attackPower * (0.40 + level * 0.045);
+      const damage = this.attackPower * (0.44 + level * 0.05);
       const spread = Math.tan(halfAngle) * range;
       const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.16).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
       this.tweens.add({ targets: tri, alpha: 0, scaleX: 1.08, duration: 420, onComplete: () => tri.destroy() });
@@ -1573,7 +1590,7 @@
     }
 
     spawnTerritoryZone(level) {
-      const radius = 68 + Math.min(30, level * 5);
+      const radius = 74 + Math.min(32, level * 5.5);
       const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.20).setStrokeStyle(3, 0xd4aa38, 0.52).setDepth(2);
       this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 2400 + level * 300, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: { from:0.18, to:0.08 }, duration:700, yoyo:true, repeat:-1 });
@@ -1591,9 +1608,9 @@
       this.tweens.add({ targets: toy, y:ty, angle:Phaser.Math.Between(-35,35), duration:430, ease:'Quad.easeIn', onComplete:() => {
         const hit=()=>{
           if (target.active && !target.getData('dead')) {
-            this.damageEnemy(target, attackAtCast * (1.85 + level * 0.28), 'squeakyToy');
+            this.damageEnemy(target, attackAtCast * (2.0 + level * 0.30), 'squeakyToy');
             target.stunUntil = this.runTimeMs + 320 + level * 35;
-            this.explodeAt(tx, ty, attackAtCast * (0.28 + level * 0.04), 34 + level * 2, target);
+            this.explodeAt(tx, ty, attackAtCast * (0.32 + level * 0.045), 36 + level * 2, target);
           }
         };
         if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,hit);else hit();
@@ -1610,7 +1627,7 @@
           z.nextTick = now + 500;
           this.enemies.getChildren().forEach(e => {
             if (!e.active || e.getData('dead')) return;
-            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.105 + z.level * 0.030), 'yellowGas');
+            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.115 + z.level * 0.032), 'yellowGas');
           });
         }
         return true;
@@ -1623,8 +1640,8 @@
             if (!e.active || e.getData('dead')) return;
             if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) {
               e.vulnerableUntil = now + 750;
-              e.vulnerableMult = 1.14 + z.level * 0.030;
-              this.damageEnemy(e, this.attackPower * (0.10 + z.level * 0.028), 'territoryMark');
+              e.vulnerableMult = 1.16 + z.level * 0.032;
+              this.damageEnemy(e, this.attackPower * (0.11 + z.level * 0.030), 'territoryMark');
             }
           });
         }
@@ -1637,7 +1654,7 @@
       if (lv.poopOrbit) {
         if (this.poopOrbiters.length !== lv.poopOrbit) this.rebuildPoopOrbiters();
         const count = this.poopOrbiters.length;
-        const radius = 72 + Math.min(28, lv.poopOrbit * 4);
+        const radius = 78 + Math.min(30, lv.poopOrbit * 4.5);
         this.poopOrbiters.forEach((o,i) => {
           const a = this.runTimeMs * 0.0032 + (Math.PI * 2 * i) / count;
           o.setPosition(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius);
@@ -1645,12 +1662,12 @@
             const poopOwner=this.currentBuildId||'solo';
             e.poopHitReadyBy=e.poopHitReadyBy||{};
             if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReadyBy[poopOwner] || 0)) return;
-            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 27) {
+            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 30) {
               e.poopHitReadyBy[poopOwner] = this.runTimeMs + 380;
-              this.damageEnemy(e, this.attackPower * (0.32 + lv.poopOrbit * 0.050), 'poopOrbit');
+              this.damageEnemy(e, this.attackPower * (0.36 + lv.poopOrbit * 0.055), 'poopOrbit');
               if (e.enemyRole !== 'raidBoss') {
                 const pa = Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
-                e.x += Math.cos(pa) * 11; e.y += Math.sin(pa) * 11;
+                e.x += Math.cos(pa) * 13; e.y += Math.sin(pa) * 13;
               }
             }
           });
@@ -1658,12 +1675,12 @@
       }
       if (lv.discThrow) {
         this.majorTimers.discThrow += delta;
-        const interval = Math.max(1700, 3050 - (lv.discThrow - 1) * 190);
+        const interval = Math.max(1600, 2950 - (lv.discThrow - 1) * 195);
         if (this.majorTimers.discThrow >= interval) { this.majorTimers.discThrow = 0; this.castDisc(lv.discThrow); }
       }
       if (lv.barkRoar) {
         this.majorTimers.barkRoar += delta;
-        if (this.majorTimers.barkRoar >= 5400) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
+        if (this.majorTimers.barkRoar >= 5200) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
       }
       if (lv.yellowGas && moving) {
         this.majorTimers.yellowGas += delta;
@@ -1672,15 +1689,15 @@
       }
       if (lv.yawnWave) {
         this.majorTimers.yawnWave += delta;
-        if (this.majorTimers.yawnWave >= 5000) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
+        if (this.majorTimers.yawnWave >= 4800) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
       }
       if (lv.territoryMark) {
         this.majorTimers.territoryMark += delta;
-        if (this.majorTimers.territoryMark >= 5900) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
+        if (this.majorTimers.territoryMark >= 5600) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
       }
       if (lv.squeakyToy) {
         this.majorTimers.squeakyToy += delta;
-        const interval = Math.max(2400, 4500 - (lv.squeakyToy - 1) * 190);
+        const interval = Math.max(2250, 4300 - (lv.squeakyToy - 1) * 195);
         if (this.majorTimers.squeakyToy >= interval) { this.majorTimers.squeakyToy = 0; this.dropSqueakyToy(lv.squeakyToy); }
       }
       this.updatePersistentMajorZones();
@@ -2044,23 +2061,141 @@
       this.withBuild(build,()=>{let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed,dy*this.moveSpeed);if(dx!==0)this.player.setFlipX(dx<0);this.shadow?.setPosition(this.player.x,this.player.y+15);this.updateSkills(delta);this.updateMajorAugments(delta,moving);this.updateShieldVisual();this.basicTimer+=delta;if(this.basicTimer>=this.basicCooldown){this.basicTimer=0;this.fireBasicProjectile();}});
     }
     entityNetId(o,prefix='e'){if(!o.netId)o.netId=`${prefix}${this.netIdCounter++}`;return o.netId;}
-    serializeGroup(group,prefix){return group.getChildren().filter(o=>o.active).map(o=>({id:this.entityNetId(o,prefix),x:o.x,y:o.y,texture:o.texture?.key,rotation:o.rotation||0,scaleX:o.scaleX||1,scaleY:o.scaleY||1,flipX:!!o.flipX,alpha:o.alpha,role:o.enemyRole||null,hp:o.hp,maxHp:o.maxHp,itemType:o.itemType||null}));}
+    networkInterestPoints(){
+      if(!this.coopMode||!this.builds)return this.player?[{x:this.player.x,y:this.player.y}]:[];
+      return [...this.builds.values()].filter(b=>!b.down&&b.sprite?.active).map(b=>({x:b.sprite.x,y:b.sprite.y}));
+    }
+    isNetworkRelevantPoint(x,y,radius=1050){
+      const r2=radius*radius;
+      const points=this._netInterestPoints||this.networkInterestPoints();
+      if(!points.length)return true;
+      return points.some(p=>Phaser.Math.Distance.Squared(x,y,p.x,p.y)<=r2);
+    }
+    serializeGroup(group,prefix,kind='generic',radius=1050){
+      const out=[];
+      group.getChildren().forEach(o=>{
+        if(!o.active)return;
+        const force=kind==='enemy'&&(o.enemyRole==='boss'||o.enemyRole==='raidBoss');
+        if(!force&&!this.isNetworkRelevantPoint(o.x,o.y,radius))return;
+        const d={i:this.entityNetId(o,prefix),x:Math.round(o.x),y:Math.round(o.y),t:o.texture?.key||null};
+        const rot=o.rotation||0;if(Math.abs(rot)>0.001)d.r=Math.round(rot*100)/100;
+        const sx=o.scaleX||1,sy=o.scaleY||sx;if(Math.abs(sx-1)>0.001)d.sx=Math.round(sx*100)/100;if(Math.abs(sy-sx)>0.001)d.sy=Math.round(sy*100)/100;
+        if(o.flipX)d.f=1;
+        if(kind==='enemy'){
+          if(o.enemyRole)d.ro=o.enemyRole;
+          if(o.enemyRole==='boss'||o.enemyRole==='raidBoss'){d.h=Math.round(o.hp||0);d.m=Math.round(o.maxHp||0);}
+        }
+        if(kind==='item'&&o.itemType)d.it=o.itemType;
+        return out.push(d);
+      });
+      return out;
+    }
     buildNetworkSnapshot(){
-      if(!this.coopMode||this.networkRole!=='host')return null;const cur=this.getBuild(this.currentBuildId);if(cur)this.saveBuild(cur);
-      const players=[...this.builds.values()].map(b=>({...this.buildSummary(b),x:b.sprite?.x||0,y:b.sprite?.y||0,flipX:!!b.sprite?.flipX,alpha:b.sprite?.alpha??1}));
-      const extras=[];this.builds.forEach(b=>{(b.poopOrbiters||[]).forEach((o,i)=>{if(o?.active)extras.push({id:`poop-${b.id}-${i}`,kind:'image',texture:'poopOrbit',x:o.x,y:o.y,scale:o.scaleX||1,alpha:o.alpha??1});});(b.gasClouds||[]).forEach((z,i)=>{if(z.obj?.active)extras.push({id:`gas-${b.id}-${i}`,kind:'circle',x:z.x,y:z.y,radius:z.radius,color:0xe7d84d,alpha:z.obj.alpha??0.12});});(b.territoryZones||[]).forEach((z,i)=>{if(z.obj?.active)extras.push({id:`zone-${b.id}-${i}`,kind:'circle',x:z.x,y:z.y,radius:z.radius,color:0xe8ce48,alpha:z.obj.alpha??0.13});});});
+      if(!this.coopMode||this.networkRole!=='host')return null;
+      const cur=this.getBuild(this.currentBuildId);if(cur)this.saveBuild(cur);
+      this._netInterestPoints=this.networkInterestPoints();
+      const players=[...this.builds.values()].map(b=>({...this.buildSummary(b),x:Math.round(b.sprite?.x||0),y:Math.round(b.sprite?.y||0),flipX:!!b.sprite?.flipX,alpha:b.sprite?.alpha??1}));
+      const extras=[];
+      this.builds.forEach(b=>{
+        (b.poopOrbiters||[]).forEach((o,i)=>{if(o?.active&&this.isNetworkRelevantPoint(o.x,o.y,900))extras.push({id:`poop-${b.id}-${i}`,kind:'image',texture:'poopOrbit',x:Math.round(o.x),y:Math.round(o.y),scale:Math.round((o.scaleX||1)*100)/100,alpha:o.alpha??1});});
+        (b.gasClouds||[]).forEach((z,i)=>{if(z.obj?.active&&this.isNetworkRelevantPoint(z.x,z.y,900))extras.push({id:`gas-${b.id}-${i}`,kind:'circle',x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:0xe7d84d,alpha:z.obj.alpha??0.12});});
+        (b.territoryZones||[]).forEach((z,i)=>{if(z.obj?.active&&this.isNetworkRelevantPoint(z.x,z.y,900))extras.push({id:`zone-${b.id}-${i}`,kind:'circle',x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:0xe8ce48,alpha:z.obj.alpha??0.13});});
+      });
       const boss=this.enemies.getChildren().find(e=>e.active&&!e.getData('dead')&&(e.enemyRole==='raidBoss'||e.enemyRole==='boss'));
-      return{t:this.runTimeMs,level:this.level,xp:this.xp,xpNeed:this.xpNeed,kills:this.kills,wave:this.getWave(),players,enemies:this.serializeGroup(this.enemies,'e'),projectiles:this.serializeGroup(this.projectiles,'p'),enemyBullets:this.serializeGroup(this.enemyProjectiles,'b'),gems:this.serializeGroup(this.gems,'g'),items:this.serializeGroup(this.items,'i'),extras,boss:boss?{role:boss.enemyRole,hp:boss.hp,maxHp:boss.maxHp}:null};
+      const snapshot={
+        t:Math.round(this.runTimeMs),level:this.level,xp:Math.round(this.xp*100)/100,xpNeed:this.xpNeed,kills:this.kills,wave:this.getWave(),players,
+        enemies:this.serializeGroup(this.enemies,'e','enemy',1150),
+        projectiles:this.serializeGroup(this.projectiles,'p','projectile',1000),
+        enemyBullets:this.serializeGroup(this.enemyProjectiles,'b','bullet',1050),
+        gems:this.serializeGroup(this.gems,'g','gem',900),
+        items:this.serializeGroup(this.items,'i','item',900),extras,
+        boss:boss?{role:boss.enemyRole,hp:Math.round(boss.hp),maxHp:Math.round(boss.maxHp)}:null
+      };
+      this._netInterestPoints=null;
+      return snapshot;
     }
-    syncNetworkGroup(map,list,group,depth=8){const keep=new Set();(list||[]).forEach(d=>{keep.add(d.id);let o=map.get(d.id);if(!o||!o.active){o=group.create(d.x,d.y,d.texture||'xpGem');map.set(d.id,o);}if(d.texture&&o.texture?.key!==d.texture)o.setTexture(d.texture);o.setPosition(d.x,d.y);o.setRotation(d.rotation||0);o.setScale(d.scaleX||1,d.scaleY||d.scaleX||1);o.setFlipX(!!d.flipX);o.setAlpha(d.alpha??1);o.setDepth(depth);o.enemyRole=d.role||null;o.hp=d.hp;o.maxHp=d.maxHp;o.itemType=d.itemType||null;if(d.role==='elite')o.setTint(0xc8a5a5);else if(d.role==='boss')o.setTint(0xe6b26f);else o.clearTint?.();});for(const[id,o]of map){if(!keep.has(id)){if(o?.active)o.destroy();map.delete(id);}}}
-    syncNetworkExtras(extras){const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(14);this.netExtraMap.set(d.id,o);}o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{o.setScale(d.scale||1);o.setAlpha(d.alpha??1);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}}
+    syncNetworkGroup(map,list,group,depth=8){
+      const keep=new Set();
+      (list||[]).forEach(d=>{
+        const id=d.i||d.id;if(!id)return;keep.add(id);
+        const tx=d.x||0,ty=d.y||0,texture=d.t||d.texture||'xpGem';
+        let o=map.get(id),fresh=!o||!o.active;
+        if(fresh){o=group.create(tx,ty,texture);map.set(id,o);o.netTargetX=tx;o.netTargetY=ty;}
+        if(texture&&o.texture?.key!==texture)o.setTexture(texture);
+        o.netTargetX=tx;o.netTargetY=ty;
+        if(!fresh&&Phaser.Math.Distance.Between(o.x,o.y,tx,ty)>260)o.setPosition(tx,ty);
+        o.setRotation(d.r??d.rotation??0);
+        const sx=d.sx??d.scaleX??1,sy=d.sy??d.scaleY??sx;o.setScale(sx,sy);
+        o.setFlipX(!!(d.f??d.flipX));o.setAlpha(d.a??d.alpha??1);o.setDepth(depth);
+        o.enemyRole=d.ro??d.role??null;
+        if(Number.isFinite(d.h??d.hp))o.hp=d.h??d.hp;if(Number.isFinite(d.m??d.maxHp))o.maxHp=d.m??d.maxHp;
+        o.itemType=d.it??d.itemType??null;
+        if(o.enemyRole==='elite')o.setTint(0xc8a5a5);else if(o.enemyRole==='boss')o.setTint(0xe6b26f);else o.clearTint?.();
+      });
+      for(const[id,o]of map){if(!keep.has(id)){if(o?.active)o.destroy();map.delete(id);}}
+    }
+    interpolateNetworkMap(map,delta,tau=70){
+      const f=1-Math.exp(-Math.max(1,delta)/tau);
+      for(const o of map.values()){
+        if(!o?.active||!Number.isFinite(o.netTargetX)||!Number.isFinite(o.netTargetY))continue;
+        o.x=Phaser.Math.Linear(o.x,o.netTargetX,f);o.y=Phaser.Math.Linear(o.y,o.netTargetY,f);
+      }
+    }
+    syncNetworkExtras(extras){
+      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(14);this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{o.setScale(d.scale||1);o.setAlpha(d.alpha??1);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
+    }
     applyNetworkSnapshot(s){
-      if(!this.coopMode||this.networkRole!=='guest'||!s)return;this.runTimeMs=s.t||0;this.level=s.level||1;this.xp=s.xp||0;this.xpNeed=s.xpNeed||2;this.kills=s.kills||0;
-      (s.players||[]).forEach(ps=>{const b=this.getBuild(ps.id);if(!b)return;Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;if(b.sprite){b.sprite.setPosition(ps.x,ps.y).setFlipX(!!ps.flipX).setAlpha(ps.down?0.38:(ps.alpha??1));if(b.sprite.body)b.sprite.body.enable=false;}b.shadow?.setPosition(ps.x,ps.y+15).setAlpha(ps.down?0.08:0.22);});const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
-      this.syncNetworkGroup(this.netEnemyMap,s.enemies,this.enemies,8);this.syncNetworkGroup(this.netProjectileMap,s.projectiles,this.projectiles,12);this.syncNetworkGroup(this.netEnemyBulletMap,s.enemyBullets,this.enemyProjectiles,12);this.syncNetworkGroup(this.netGemMap,s.gems,this.gems,6);this.syncNetworkGroup(this.netItemMap,s.items,this.items,7);this.syncNetworkExtras(s.extras);this.timerText?.setText(formatTime((s.t||0)/1000));this.waveText?.setText(`WAVE ${s.wave||1} · 2P CO-OP`);this.updateHud();
+      if(!this.coopMode||this.networkRole!=='guest'||!s)return;
+      this.runTimeMs=s.t||0;this.level=s.level||1;this.xp=s.xp||0;this.xpNeed=s.xpNeed||2;this.kills=s.kills||0;
+      (s.players||[]).forEach(ps=>{
+        const b=this.getBuild(ps.id);if(!b)return;
+        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;
+        if(b.sprite){
+          const first=!b.netReady;b.netReady=true;
+          if(first||Phaser.Math.Distance.Between(b.sprite.x,b.sprite.y,ps.x,ps.y)>260)b.sprite.setPosition(ps.x,ps.y);
+          b.sprite.setFlipX(!!ps.flipX).setAlpha(ps.down?0.38:(ps.alpha??1));if(b.sprite.body)b.sprite.body.enable=false;
+        }
+        b.shadow?.setAlpha(ps.down?0.08:0.22);
+      });
+      const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
+      this.syncNetworkGroup(this.netEnemyMap,s.enemies,this.enemies,8);
+      this.syncNetworkGroup(this.netProjectileMap,s.projectiles,this.projectiles,12);
+      this.syncNetworkGroup(this.netEnemyBulletMap,s.enemyBullets,this.enemyProjectiles,12);
+      this.syncNetworkGroup(this.netGemMap,s.gems,this.gems,6);
+      this.syncNetworkGroup(this.netItemMap,s.items,this.items,7);
+      this.syncNetworkExtras(s.extras);
+      this.timerText?.setText(formatTime((s.t||0)/1000));this.waveText?.setText(`WAVE ${s.wave||1} · 2P CO-OP`);this.updateHud();
     }
-    updateCoopGuest(delta){if(this.isGameOver)return;this.guestSendTimer=(this.guestSendTimer||0)+delta;if(this.guestSendTimer>=45&&!this.isChoiceOpen&&!this.manualPause){this.guestSendTimer=0;socket?.emit('coopInput',{input:this.readLocalMoveInput()});}const lb=this.getLocalBuild();if(lb?.sprite)this.cameras.main.startFollow(lb.sprite,true,0.15,0.15);}
-    updateCoopHost(delta){if(this.isGameOver||this.manualPause||this.isChoiceOpen)return;this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP`);this.updateHud();this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=90){this.snapshotTimer=0;socket?.emit('coopSnapshot',this.buildNetworkSnapshot());}}
+    updateCoopGuest(delta){
+      if(this.isGameOver)return;
+      const input=this.readLocalMoveInput();
+      this.guestSendTimer=(this.guestSendTimer||0)+delta;
+      const inputKey=`${+input.left}${+input.right}${+input.up}${+input.down}`;
+      const changed=inputKey!==this.lastSentInputKey;
+      if(!this.isChoiceOpen&&!this.manualPause&&(changed||this.guestSendTimer>=110)){
+        this.guestSendTimer=0;this.lastSentInputKey=inputKey;(socket?.volatile||socket)?.emit?.('coopInput',{input});
+      }
+      const lb=this.getLocalBuild();
+      if(lb?.sprite){
+        if(!lb.down&&!this.isChoiceOpen&&!this.manualPause){
+          let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;
+          const dt=Math.min(delta,40)/1000;lb.sprite.x=Phaser.Math.Clamp(lb.sprite.x+dx*(lb.moveSpeed||190)*dt,0,this.worldSize);lb.sprite.y=Phaser.Math.Clamp(lb.sprite.y+dy*(lb.moveSpeed||190)*dt,0,this.worldSize);if(dx!==0)lb.sprite.setFlipX(dx<0);
+        }
+        if(Number.isFinite(lb.netX)&&Number.isFinite(lb.netY)){
+          const d=Phaser.Math.Distance.Between(lb.sprite.x,lb.sprite.y,lb.netX,lb.netY);const f=d>150?0.28:(1-Math.exp(-Math.max(1,delta)/260));lb.sprite.x=Phaser.Math.Linear(lb.sprite.x,lb.netX,f);lb.sprite.y=Phaser.Math.Linear(lb.sprite.y,lb.netY,f);
+        }
+        lb.shadow?.setPosition(lb.sprite.x,lb.sprite.y+15);
+      }
+      const rb=this.getRemoteBuild();if(rb?.sprite&&Number.isFinite(rb.netX)&&Number.isFinite(rb.netY)){const f=1-Math.exp(-Math.max(1,delta)/70);rb.sprite.x=Phaser.Math.Linear(rb.sprite.x,rb.netX,f);rb.sprite.y=Phaser.Math.Linear(rb.sprite.y,rb.netY,f);rb.shadow?.setPosition(rb.sprite.x,rb.sprite.y+15);}
+      this.interpolateNetworkMap(this.netEnemyMap,delta,78);this.interpolateNetworkMap(this.netProjectileMap,delta,42);this.interpolateNetworkMap(this.netEnemyBulletMap,delta,38);this.interpolateNetworkMap(this.netGemMap,delta,80);this.interpolateNetworkMap(this.netItemMap,delta,90);this.interpolateNetworkMap(this.netExtraMap,delta,90);
+    }
+    updateCoopHost(delta){
+      if(this.isGameOver||this.manualPause||this.isChoiceOpen)return;
+      this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);
+      this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();
+      this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP`);this.updateHud();}
+      this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=110){this.snapshotTimer=0;(socket?.volatile||socket)?.emit?.('coopSnapshot',this.buildNetworkSnapshot());}
+    }
     updateHud() {
       if (!this.hpBar) return;
       const hpPct = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);

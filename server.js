@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const io = new Server(server, { transports: ['websocket', 'polling'] });
+const io = new Server(server, { transports: ['websocket'], perMessageDeflate: false });
 const rooms = new Map();
 const CHARS = new Set(['jjigae','mandu','gamja','gucci']);
 
@@ -101,11 +101,11 @@ io.on('connection', socket => {
   });
   socket.on('coopInput', payload => {
     const room=getRoom(socket); if(!room?.started || socket.id===room.hostId) return;
-    io.to(room.hostId).emit('coopRemoteInput', { id:socket.id, input:payload?.input||{} });
+    io.to(room.hostId).volatile.emit('coopRemoteInput', { id:socket.id, input:payload?.input||{} });
   });
   socket.on('coopSnapshot', payload => {
     const room=getRoom(socket); if(!room?.started || room.hostId!==socket.id) return;
-    socket.to(room.code).emit('coopSnapshot', payload);
+    socket.to(room.code).volatile.emit('coopSnapshot', payload);
   });
   socket.on('coopChoicePrompt', payload => {
     const room=getRoom(socket); if(!room?.started || room.hostId!==socket.id) return;
