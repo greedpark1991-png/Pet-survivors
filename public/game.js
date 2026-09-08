@@ -110,6 +110,42 @@
 
   const TRUE_BOSS_NAMES = ['거대 포도', '거대 초콜릿', '거대 양파'];
 
+  // TRUE BOSS 패턴은 메타데이터 + 실행 키로 관리한다.
+  // 향후 패턴을 추가할 때 기존 AI 분기를 크게 건드리지 않아도 된다.
+  const TRUE_BOSS_PATTERNS = {
+    grape: [
+      { id:'grapeSpiralRing', phase:1, weight:4, cooldown:1550, minDistance:0, condition:'any', execute:'grapeSpiralRing' },
+      { id:'grapePredictFan', phase:1, weight:3, cooldown:1650, minDistance:120, condition:'any', execute:'grapePredictFan' },
+      { id:'grapeStaggeredRings', phase:1, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'grapeStaggeredRings' },
+      { id:'grapeRingPredict', phase:2, weight:4, cooldown:1600, minDistance:0, condition:'any', execute:'grapeRingPredict' },
+      { id:'grapeDashBurst', phase:2, weight:3, cooldown:1900, minDistance:120, condition:'canRush', execute:'grapeDashBurst' },
+      { id:'grapeShiftedGap', phase:2, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'grapeShiftedGap' }
+    ],
+    choco: [
+      { id:'chocoFan', phase:1, weight:4, cooldown:1500, minDistance:0, condition:'any', execute:'chocoFan' },
+      { id:'chocoSideClamp', phase:1, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'chocoSideClamp' },
+      { id:'chocoDelayedLock', phase:1, weight:3, cooldown:1850, minDistance:100, condition:'any', execute:'chocoDelayedLock' },
+      { id:'chocoSweep', phase:2, weight:4, cooldown:1650, minDistance:0, condition:'any', execute:'chocoSweep' },
+      { id:'chocoCrossfire', phase:2, weight:3, cooldown:1800, minDistance:80, condition:'any', execute:'chocoCrossfire' },
+      { id:'chocoBurstPair', phase:2, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'chocoBurstPair' }
+    ],
+    onion: [
+      { id:'onionSpiral', phase:1, weight:4, cooldown:1550, minDistance:0, condition:'any', execute:'onionSpiral' },
+      { id:'onionReverse', phase:1, weight:3, cooldown:1650, minDistance:0, condition:'any', execute:'onionReverse' },
+      { id:'onionPulse', phase:1, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'onionPulse' },
+      { id:'onionTriSpeed', phase:2, weight:4, cooldown:1600, minDistance:0, condition:'any', execute:'onionTriSpeed' },
+      { id:'onionReverseDouble', phase:2, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'onionReverseDouble' },
+      { id:'onionGapShift', phase:2, weight:3, cooldown:1750, minDistance:0, condition:'any', execute:'onionGapShift' }
+    ]
+  };
+
+  const HEALING = {
+    snackPct:0.20,
+    levelUpPct:0.03,
+    eliteSnackChance:0.10,
+    cleanupXpRatio:0.50
+  };
+
   let selectedCharacter = 'jjigae';
   let game = null;
   let activeScene = null;
@@ -480,7 +516,14 @@
       this.nextPressureEventAt = 480;
       this.nextBossAt = 300;
       this.regularBossCount = 0;
+      this.lastRegularBossSpawnAt = -999999;
+      this.lastTrueBossEndedAt = -999999;
       this.nextRaidWave = 35;
+      this.pendingTrueBoss = null;
+      this.trueBossFinishWindowMs = 24000;
+      this.trueBossMinBossGapMs = 60000;
+      this.raidPendingSeq = 0;
+      this.lastNetRaidPendingSeq = 0;
       this.raidBossActive = false;
       this.raidBossTransition = false;
       this.raidBossCount = 0;
@@ -490,6 +533,8 @@
       this.raidPhaseSeq = 0;
       this.lastNetRaidIntroSeq = 0;
       this.lastNetRaidPhaseSeq = 0;
+      this.raidTelegraphs = [];
+      this.pendingCleanupProgression = false;
       this.magnetUntil = 0;
       this.playerInvulnUntil = 0;
       this.shieldCharges = 0;
@@ -708,6 +753,16 @@
         g.fillStyle(0x9a5b33, 1); g.fillRect(3, 4, 22, 8);
         g.fillStyle(0xf0ca5f, 1); g.fillRect(3, 10, 22, 3); g.fillRect(12, 8, 4, 9);
         g.fillStyle(0x2c1b19, 1); g.fillRect(13, 10, 2, 3);
+      });
+      create('snackItem', 22, 16, g => {
+        g.fillStyle(0x2b1d1a,1); g.fillRect(3,5,16,7);
+        g.fillStyle(0xd59a57,1); g.fillRect(4,4,14,8); g.fillRect(1,5,5,6); g.fillRect(16,5,5,6);
+        g.fillStyle(0xf0c77a,1); g.fillRect(6,6,10,4); g.fillStyle(0xffedb2,1); g.fillRect(8,6,3,2);
+      });
+      create('rushWarning', 220, 14, g => {
+        g.fillStyle(0x3a0a0d,0.28); g.fillRect(0,3,220,8);
+        g.fillStyle(0xff3d33,0.62); g.fillRect(0,5,202,4);
+        g.fillStyle(0xffdf51,0.9); g.fillTriangle(202,1,220,7,202,13);
       });
 
       create('proj_bark', 22, 14, g => {
@@ -1213,6 +1268,8 @@
       if(e.eliteFace?.active)e.eliteFace.destroy();
       if(e.eliteMutationText?.active)e.eliteMutationText.destroy();
       if(e.netMutationMarker?.active)e.netMutationMarker.destroy();
+      if(e.raidTelegraph?.active)e.raidTelegraph.destroy();
+      e.raidTelegraph=null;
     }
 
     spawnSplitterChildren(enemy) {
@@ -1226,7 +1283,7 @@
     }
 
     spawnRingEvent() {
-      if (this.raidBossActive) return;
+      if (this.raidBossActive || this.pendingTrueBoss) return;
       const cx = this.player.x, cy = this.player.y;
       const radius = Math.max(this.cameras.main.width, this.cameras.main.height) * 0.72;
       for (let i = 0; i < 50; i++) {
@@ -1239,7 +1296,7 @@
     }
 
     spawnPressureEvent() {
-      if(this.raidBossActive)return;
+      if(this.raidBossActive || this.pendingTrueBoss)return;
       const minutes=this.runTimeMs/60000;
       const count=Math.min(44,24+Math.floor(minutes/5)*4);
       const eliteCount=Math.min(4,1+Math.floor(minutes/7));
@@ -1250,8 +1307,9 @@
     }
 
     spawnBoss() {
-      if (this.raidBossActive) return;
+      if (this.raidBossActive || this.pendingTrueBoss) return;
       this.regularBossCount += 1;
+      this.lastRegularBossSpawnAt = this.runTimeMs;
       const view = this.cameras.main.worldView;
       const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const r = Math.max(view.width, view.height) * 0.72;
@@ -1263,28 +1321,102 @@
     }
 
     spawnElite(count = 1, announce = true) {
-      if (this.raidBossActive) return;
+      if (this.raidBossActive || this.pendingTrueBoss) return;
       this.spawnOutsideView('elite', count);
       if(announce)this.showBanner('정예 위험식품!', '후반에는 정예마다 한 가지 변이가 붙을 수 있다');
     }
 
+    getActiveRegularBoss() {
+      return this.enemies.getChildren().find(e=>e.active&&!e.getData('dead')&&e.enemyRole==='boss') || null;
+    }
+
+    queueTrueBossEncounter(triggerWave=this.getWave()) {
+      if(this.raidBossActive||this.raidBossTransition||this.pendingTrueBoss)return;
+      const boss=this.getActiveRegularBoss();
+      const earliestStartAt=Math.max(this.runTimeMs,(this.lastRegularBossSpawnAt||-999999)+this.trueBossMinBossGapMs);
+      this.pendingTrueBoss={
+        triggerWave,
+        queuedAt:this.runTimeMs,
+        deadlineAt:this.runTimeMs+this.trueBossFinishWindowMs,
+        earliestStartAt,
+        resolvedAt:boss?null:this.runTimeMs,
+        blockSpawns:!!boss
+      };
+      this.raidPendingSeq+=1;
+      this.zombieTimer=0;this.batTimer=0;this.eliteTimer=0;
+      const waitSec=Math.max(0,Math.ceil((earliestStartAt-this.runTimeMs)/1000));
+      if(boss)this.showBanner('TRUE BOSS 접근 중...','현재 보스를 마무리하세요! · 신규 적 스폰 중지');
+      else this.showBanner('TRUE BOSS 접근 중...',waitSec>0?`전장 정리 중 · 약 ${waitSec}초 후 출현`:'전장 정리 후 곧 출현');
+    }
+
+    forceResolveRegularBossForRaid(boss) {
+      if(!boss?.active||boss.getData('dead'))return;
+      const x=boss.x,y=boss.y;
+      boss.setData('dead',true);
+      this.destroyEnemyDecorations(boss);
+      this.dropRegularBossRewards(x,y,true);
+      boss.destroy();
+      this.showBanner('보스 마무리 시간 종료','전투 보상 1세트를 보장하고 TRUE BOSS를 준비한다');
+    }
+
+    updatePendingTrueBoss() {
+      const pending=this.pendingTrueBoss;
+      if(!pending||this.raidBossActive||this.raidBossTransition)return true;
+      let boss=this.getActiveRegularBoss();
+      if(boss && this.runTimeMs>=pending.deadlineAt){
+        this.forceResolveRegularBossForRaid(boss);
+        boss=null;
+        pending.resolvedAt=this.runTimeMs;
+      }
+      if(boss)return true;
+      if(!Number.isFinite(pending.resolvedAt))pending.resolvedAt=this.runTimeMs;
+      const readyAt=Math.max(pending.earliestStartAt,pending.resolvedAt+1000);
+      if(this.runTimeMs>=readyAt){this.startRaidBossEncounter();return true;}
+      // 실제 일반 보스를 마무리하는 중이었다면 전장을 비워 주고,
+      // 보스가 이미 없던 경우에는 최소 간격을 기다리는 동안 일반 웨이브를 유지한다.
+      return !!pending.blockSpawns;
+    }
+
     clearBattlefieldForRaid() {
+      let rawXp=0,removed=0;
       [...this.enemies.getChildren()].forEach(e => {
+        if(!e?.active)return;
+        const role=e.enemyRole||'normal';
+        if(role==='normal'||role==='elite'){
+          rawXp+=Math.max(0,e.xpValue||0);
+          removed+=1;
+        }else if(role==='boss'){
+          // 예약 로직이 놓친 보스가 있어도 보상 없이 삭제하지 않는 최종 안전장치.
+          this.dropRegularBossRewards(e.x,e.y,true);
+        }
         this.destroyEnemyDecorations(e);
-        if (e.active) e.destroy();
+        e.destroy();
       });
       this.enemyProjectiles.clear(true, true);
+      const cleanupXp=Math.max(0,Math.floor(rawXp*HEALING.cleanupXpRatio));
+      if(cleanupXp>0){
+        this.xp+=cleanupXp;
+        this.pendingCleanupProgression=true;
+      }
+      return { cleanupXp, removed };
     }
 
     startRaidBossEncounter() {
       if(this.raidBossActive||this.raidBossTransition)return;
+      const stillBoss=this.getActiveRegularBoss();
+      if(stillBoss){
+        if(!this.pendingTrueBoss)this.queueTrueBossEncounter(this.getWave());
+        return;
+      }
+      this.pendingTrueBoss=null;
       this.raidBossActive = true;
       this.raidBossTransition = true;
-      this.clearBattlefieldForRaid();
+      const cleanup=this.clearBattlefieldForRaid();
       this.raidBossCount += 1;
       this.raidBossName=TRUE_BOSS_NAMES[(this.raidBossCount-1)%TRUE_BOSS_NAMES.length];
       this.raidIntroSeq += 1;
-      this.showBanner('⚠ TRUE BOSS 경고 ⚠', `${this.raidBossName} 출현 감지`);
+      const cleanupText=cleanup.cleanupXp>0?` · 전장 정리 XP +${cleanup.cleanupXp}`:'';
+      this.showBanner('⚠ TRUE BOSS 경고 ⚠', `${this.raidBossName} 출현 감지${cleanupText}`);
       this.cameras.main.flash(420,255,80,55);
       playEnemyShotSfx(true);
       this.time.delayedCall(1250,()=>{
@@ -1301,11 +1433,19 @@
       const boss = this.spawnEnemy('raidBoss', x, y);
       boss.raidIndex = this.raidBossCount - 1;
       boss.raidName=this.raidBossName;
+      boss.raidPatternHistory=[];
+      boss.raidPatternId='';
+      boss.rushTelegraphUntil=0;boss.rushUntil=0;boss.rushAngle=0;boss.rushPostDone=true;
       this.raidBossTransition=false;
       this.showBanner(this.raidBossName, `WAVE ${this.getWave()} · 탄막전 시작!`);
       this.cameras.main.flash(500, 255, 60, 35);
       this.cameras.main.shake(650, 0.012);
       playEnemyShotSfx(true);
+      if(this.pendingCleanupProgression){
+        this.pendingCleanupProgression=false;
+        this.updateHud();
+        this.checkLevelProgression();
+      }
     }
 
     updateWaveSpawns(delta) {
@@ -1313,9 +1453,13 @@
       const minutes=sec/60;
       const wave = this.getWave();
 
-      if (!this.raidBossActive && wave >= this.nextRaidWave) {
-        this.startRaidBossEncounter();
+      if (!this.raidBossActive && !this.pendingTrueBoss && wave >= this.nextRaidWave) {
+        this.queueTrueBossEncounter(this.nextRaidWave);
         this.nextRaidWave += 35;
+      }
+      if (this.pendingTrueBoss) {
+        const blockSpawns=this.updatePendingTrueBoss();
+        if(blockSpawns||this.raidBossActive||this.raidBossTransition)return;
       }
       if (this.raidBossActive) return;
 
@@ -1370,6 +1514,12 @@
         this.nextPressureEventAt+=300;
       }
       while (sec >= this.nextBossAt) {
+        // TRUE BOSS 직후에는 일반 보스를 바로 겹쳐 내보내지 않는다.
+        // 해당 5분 보스 1회만 건너뛰고 다음 정규 5분 주기는 유지한다.
+        if(this.runTimeMs-(this.lastTrueBossEndedAt||-999999)<this.trueBossMinBossGapMs){
+          this.nextBossAt += 300;
+          continue;
+        }
         this.spawnBoss();
         this.nextBossAt += 300;
       }
@@ -1543,6 +1693,8 @@
     activateRaidPhase2(enemy){
       if(!enemy?.active||enemy.raidPhase2)return;
       enemy.raidPhase2=true;
+      enemy.raidPatternHistory=[];
+      enemy.nextShotAt=Math.max(enemy.nextShotAt||0,this.runTimeMs+520);
       this.raidPhaseSeq+=1;
       this.showBanner(`${enemy.raidName||this.raidBossName} 2 PHASE`,'패턴이 변한다!');
       this.cameras.main.flash(300,255,120,70);
@@ -1561,17 +1713,20 @@
       if (role === 'raidBoss') {
         this.raidBossActive = false;
         this.raidBossTransition = false;
-        this.dropMagnet(x - 34, y);
-        this.dropChest(x + 34, y);
-        this.dropChest(x, y + 34);
-        this.showBanner('TRUE BOSS 격파!', '잡몹 웨이브 재개 · 보상 대량 드롭');
+        this.lastTrueBossEndedAt = this.runTimeMs;
+        this.dropMagnet(x - 42, y);
+        this.dropChest(x + 42, y);
+        this.dropChest(x, y + 36);
+        this.dropSnack(x - 22, y + 40);
+        this.dropSnack(x + 22, y + 40);
+        this.showBanner('TRUE BOSS 격파!', '잡몹 웨이브 재개 · 보물상자 2 · 간식 2');
         this.cameras.main.flash(420, 255, 224, 100);
       } else if (role === 'boss') {
-        if (Math.random() < 0.5) this.dropMagnet(x, y);
-        else this.dropChest(x, y);
+        this.dropRegularBossRewards(x,y,false);
       } else {
         if ((enemy.xpValue ?? 1) > 0) this.dropGem(x, y, enemy.xpValue ?? 1);
         if (role === 'elite' && Math.random() < 0.18) this.dropChest(x + 14, y);
+        if (role === 'elite' && Math.random() < HEALING.eliteSnackChance) this.dropSnack(x - 14, y + 8);
       }
       enemy.destroy();
     }
@@ -1598,6 +1753,20 @@
       this.tweens.add({ targets: item, y: y - 5, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
+    dropSnack(x,y) {
+      const item=this.items.create(x,y,'snackItem').setDepth(7).setScale(1.15);
+      item.itemType='snack';
+      this.tweens.add({targets:item,y:y-4,duration:520,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+      return item;
+    }
+
+    dropRegularBossRewards(x,y,forced=false) {
+      if(Math.random()<0.5)this.dropMagnet(x-16,y);
+      else this.dropChest(x-16,y);
+      this.dropSnack(x+18,y+8);
+      if(forced)this.cameras.main.flash(180,240,180,90);
+    }
+
     xpRequirement(level) {
       const early = { 1:2, 2:3, 3:4, 4:6, 5:8, 6:11, 7:15, 8:20, 9:26, 10:33 };
       if (early[level]) return early[level];
@@ -1620,10 +1789,23 @@
     checkLevelProgression() {
       if (this.isChoiceOpen || this.isGameOver) return;
       if (this.xp < this.xpNeed) return;
-      this.xp -= this.xpNeed; this.level += 1; this.xpNeed = this.xpRequirement(this.level); this.updateHud();
+      this.xp -= this.xpNeed; this.level += 1; this.xpNeed = this.xpRequirement(this.level);
+      this.applyLevelUpRecovery();
+      this.updateHud();
       if(this.coopMode){if(this.networkRole==='host')this.beginCoopChoice('base');return;}
       this.pendingAugmentType = this.level % 10 === 0 ? 'major' : (this.level % 5 === 0 ? 'minor' : null);
       this.openLevelUp();
+    }
+
+    applyLevelUpRecovery() {
+      if(this.coopMode){
+        if(this.networkRole!=='host'||!this.builds)return;
+        const cur=this.getBuild(this.currentBuildId);if(cur)this.saveBuild(cur);
+        this.builds.forEach(b=>{if(!b.down&&b.hp>0)b.hp=Math.min(b.maxHp,b.hp+b.maxHp*HEALING.levelUpPct);});
+        const local=this.getLocalBuild();if(local)this.loadBuild(local);
+        return;
+      }
+      if(!this.playerDown&&this.hp>0)this.hp=Math.min(this.maxHp,this.hp+this.maxHp*HEALING.levelUpPct);
     }
 
     collectItem(picker, item) {
@@ -1636,6 +1818,12 @@
       } else if (type === 'chest') {
         if(this.coopMode){if(this.networkRole==='host')this.beginCoopChoice('chest',[picker?.netPlayerId||this.localId]);}
         else this.openChest();
+      } else if (type === 'snack') {
+        if(this.coopMode){
+          if(this.networkRole!=='host')return;
+          const build=this.getBuild(picker?.netPlayerId)||this.getLocalBuild();
+          if(build&&!build.down)this.withBuild(build,()=>this.heal(this.maxHp*HEALING.snackPct));
+        }else this.heal(this.maxHp*HEALING.snackPct);
       }
     }
 
@@ -2140,58 +2328,264 @@
       playEnemyShotSfx(true);
     }
 
-    fireRaidPattern(enemy) {
-      if (!enemy.active || enemy.getData('dead')) return;
-      const pattern = (enemy.raidIndex || 0) % 3;
-      const phase2=!!enemy.raidPhase2;
-      const targetPlayer=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
-      const base = Phaser.Math.Angle.Between(enemy.x, enemy.y, targetPlayer.x, targetPlayer.y);
-      this.raidShotPhase += phase2?0.43:0.31;
+    activeRaidTargets() {
+      if(this.coopMode&&this.builds)return [...this.builds.values()].filter(b=>!b.down&&b.hp>0&&b.sprite?.active).map(b=>b.sprite);
+      return this.playerDown||!this.player?.active?[]:[this.player];
+    }
 
-      if (pattern === 0) {
-        const count = this.coopMode ? (phase2?32:28) : 18;
-        for (let i = 0; i < count; i++) {
-          const a = this.raidShotPhase + (Math.PI * 2 * i) / count;
-          const speed=phase2?(i%2?155:225):185;
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, speed, 12 + this.raidBossCount * 1.5, 'raid', 5200);
+    raidBossKind(enemy) {
+      return ['grape','choco','onion'][Math.max(0,enemy?.raidIndex||0)%3];
+    }
+
+    predictedAimAngle(enemy,target,leadMs=450,leadFactor=0.68) {
+      if(!target)return 0;
+      const vx=target.body?.velocity?.x||0,vy=target.body?.velocity?.y||0;
+      const dt=(leadMs/1000)*leadFactor;
+      const px=target.x+vx*dt,py=target.y+vy*dt;
+      return Phaser.Math.Angle.Between(enemy.x,enemy.y,px,py);
+    }
+
+    scheduleRaidAction(enemy,delay,fn) {
+      const phaseAtSchedule=!!enemy?.raidPhase2;
+      this.time.delayedCall(delay,()=>{
+        if(this.isGameOver||!this.raidBossActive||!enemy?.active||enemy.getData('dead'))return;
+        if(!!enemy.raidPhase2!==phaseAtSchedule)return;
+        fn();
+      });
+    }
+
+    spawnRaidRing(enemy,{count=16,speed=180,damage=12,offset=0,gapCenter=null,gapWidth=0,lifeMs=5400,speedPattern=null}={}) {
+      if(!enemy?.active)return;
+      for(let i=0;i<count;i++){
+        const a=offset+(Math.PI*2*i)/count;
+        if(Number.isFinite(gapCenter)&&gapWidth>0){
+          const diff=Math.abs(Phaser.Math.Angle.Wrap(a-gapCenter));
+          if(diff<gapWidth*0.5)continue;
         }
-      } else if (pattern === 1) {
-        const count = this.coopMode ? (phase2?17:15) : 9;
-        for (let i = 0; i < count; i++) {
-          const a = base + (i - (count - 1) / 2) * (phase2?0.105:0.13);
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, phase2?255:245, 13 + this.raidBossCount * 1.5, 'raid', 4400);
+        const sp=Array.isArray(speedPattern)&&speedPattern.length?speedPattern[i%speedPattern.length]:speed;
+        this.spawnEnemyBullet(enemy.x,enemy.y,a,sp,damage,'raid',lifeMs);
+      }
+    }
+
+    fireRaidFanAt(enemy,target,{count=5,spread=0.09,speed=260,damage=12,predictMs=0,angleOffset=0}={}) {
+      if(!enemy?.active||!target?.active)return;
+      const base=(predictMs>0?this.predictedAimAngle(enemy,target,predictMs):Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y))+angleOffset;
+      for(let i=0;i<count;i++){
+        const a=base+(i-(count-1)/2)*spread;
+        this.spawnEnemyBullet(enemy.x,enemy.y,a,speed,damage,'raid',4500);
+      }
+    }
+
+    selectRaidPattern(enemy) {
+      const kind=this.raidBossKind(enemy),phase=enemy.raidPhase2?2:1;
+      const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+      const dist=target?Phaser.Math.Distance.Between(enemy.x,enemy.y,target.x,target.y):999;
+      const all=(TRUE_BOSS_PATTERNS[kind]||[]).filter(p=>p.phase===phase);
+      let candidates=all.filter(p=>dist>=(p.minDistance||0)&&(p.condition!=='canRush'||(!(enemy.rushTelegraphUntil>this.runTimeMs)&&!(enemy.rushUntil>this.runTimeMs))));
+      if(!candidates.length)candidates=all.slice();
+      const history=enemy.raidPatternHistory||[];
+      const recent=new Set(history.slice(-2));
+      const fresh=candidates.filter(p=>!recent.has(p.id));
+      if(fresh.length)candidates=fresh;
+      else if(candidates.length>1){
+        const last=history[history.length-1];
+        const noLast=candidates.filter(p=>p.id!==last);
+        if(noLast.length)candidates=noLast;
+      }
+      let total=candidates.reduce((n,p)=>n+(p.weight||1),0),roll=Math.random()*Math.max(1,total),chosen=candidates[0];
+      for(const p of candidates){roll-=p.weight||1;if(roll<=0){chosen=p;break;}}
+      enemy.raidPatternHistory=[...history,chosen?.id].filter(Boolean).slice(-4);
+      enemy.raidPatternId=chosen?.id||'';
+      return chosen;
+    }
+
+    executeRaidPattern(enemy,def) {
+      const targets=this.activeRaidTargets();
+      const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||targets[0]||this.player;
+      const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):0;
+      const bossDmg=11+this.raidBossCount*1.45;
+      this.raidShotPhase+=enemy.raidPhase2?0.41:0.29;
+      const coop=this.coopMode;
+      const fireTargets=(fn)=>{(targets.length?targets:[target]).filter(Boolean).forEach(fn);};
+
+      switch(def?.execute){
+        // ===== 거대 포도 =====
+        case 'grapeSpiralRing': {
+          const gap=base+(Math.sin(this.raidShotPhase)>=0?0.62:-0.62);
+          this.spawnRaidRing(enemy,{count:coop?22:18,speed:185,damage:bossDmg,offset:this.raidShotPhase,gapCenter:gap,gapWidth:0.50});
+          break;
         }
-        const sideCount=this.coopMode?(phase2?10:8):(phase2?6:4);
-        for (let i = 0; i < sideCount; i++) {
-          const a = base + Math.PI / 2 + (Math.PI*2*i)/sideCount + this.raidShotPhase;
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, 160, 10 + this.raidBossCount, 'raid', 5200);
+        case 'grapePredictFan': {
+          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?5:5,spread:0.085,speed:268,damage:bossDmg+1.5,predictMs:520}));
+          break;
         }
-        if(phase2){
-          this.time.delayedCall(280,()=>{
-            if(!enemy.active||enemy.getData('dead'))return;
-            const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
-            const aim=Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y);
-            const burst=this.coopMode?7:5;
-            for(let i=0;i<burst;i++)this.spawnEnemyBullet(enemy.x,enemy.y,aim+(i-(burst-1)/2)*0.075,285,11+this.raidBossCount*1.3,'raid',4000);
+        case 'grapeStaggeredRings': {
+          const gap1=base-0.55,gap2=base+0.62;
+          this.spawnRaidRing(enemy,{count:coop?18:14,speed:138,damage:bossDmg-1,offset:this.raidShotPhase,gapCenter:gap1,gapWidth:0.58,lifeMs:5800});
+          this.scheduleRaidAction(enemy,720,()=>this.spawnRaidRing(enemy,{count:coop?16:12,speed:232,damage:bossDmg+0.5,offset:this.raidShotPhase+0.27,gapCenter:gap2,gapWidth:0.52,lifeMs:4800}));
+          break;
+        }
+        case 'grapeRingPredict': {
+          this.spawnRaidRing(enemy,{count:coop?20:16,speed:150,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.48,gapWidth:0.48,lifeMs:5800});
+          this.scheduleRaidAction(enemy,650,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?5:5,spread:0.08,speed:286,damage:bossDmg+1.8,predictMs:470})));
+          break;
+        }
+        case 'grapeDashBurst': {
+          if(!this.beginRaidRushTelegraph(enemy,target,true))fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.08,speed:282,damage:bossDmg+1.5,predictMs:420}));
+          break;
+        }
+        case 'grapeShiftedGap': {
+          this.spawnRaidRing(enemy,{count:coop?20:16,speed:172,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.72,gapWidth:0.46});
+          this.scheduleRaidAction(enemy,620,()=>{
+            const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target;
+            const b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;
+            this.spawnRaidRing(enemy,{count:coop?18:14,speed:238,damage:bossDmg+1,offset:-this.raidShotPhase*0.7,gapCenter:b+0.72,gapWidth:0.46,lifeMs:4700});
           });
+          break;
         }
-      } else {
-        const count = this.coopMode ? (phase2?24:20) : (phase2?14:12);
-        for (let i = 0; i < count; i++) {
-          const phaseOffset=phase2?-this.raidShotPhase*0.65:this.raidShotPhase;
-          const a = base + (Math.PI * 2 * i) / count + phaseOffset;
-          const speeds=phase2?[135,205,255]:[155,225];
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, speeds[i%speeds.length], 11 + this.raidBossCount * 1.4, 'raid', 5400);
+
+        // ===== 거대 초콜릿 =====
+        case 'chocoFan': {
+          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?7:9,spread:coop?0.10:0.115,speed:248,damage:bossDmg+2,predictMs:170}));
+          break;
         }
+        case 'chocoSideClamp': {
+          const lobes=coop?4:3;
+          for(const side of [-1,1])for(let i=0;i<lobes;i++){
+            const a=base+side*(0.52+i*0.10);
+            this.spawnEnemyBullet(enemy.x,enemy.y,a,205,bossDmg+0.5,'raid',5000);
+          }
+          break;
+        }
+        case 'chocoDelayedLock': {
+          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.075,speed:240,damage:bossDmg+1,predictMs:280}));
+          this.scheduleRaidAction(enemy,540,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.072,speed:292,damage:bossDmg+1.8,predictMs:500})));
+          break;
+        }
+        case 'chocoSweep': {
+          [-0.20,0,0.20].forEach((off,idx)=>this.scheduleRaidAction(enemy,idx*230,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.075,speed:266+idx*9,damage:bossDmg+1.5,predictMs:320,angleOffset:off}))));
+          break;
+        }
+        case 'chocoCrossfire': {
+          const lobes=coop?4:3;
+          for(const side of [-1,1])for(let i=0;i<lobes;i++)this.spawnEnemyBullet(enemy.x,enemy.y,base+side*(0.48+i*0.11),218,bossDmg+1,'raid',5000);
+          this.scheduleRaidAction(enemy,600,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?5:7,spread:0.08,speed:298,damage:bossDmg+2,predictMs:480})));
+          break;
+        }
+        case 'chocoBurstPair': {
+          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?6:7,spread:0.095,speed:254,damage:bossDmg+1.4,predictMs:220}));
+          this.scheduleRaidAction(enemy,470,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.07,speed:305,damage:bossDmg+2.2,predictMs:500})));
+          break;
+        }
+
+        // ===== 거대 양파 =====
+        case 'onionSpiral': {
+          this.spawnRaidRing(enemy,{count:coop?16:12,damage:bossDmg,offset:this.raidShotPhase,speedPattern:[150,215],lifeMs:5600});
+          break;
+        }
+        case 'onionReverse': {
+          this.spawnRaidRing(enemy,{count:coop?18:14,speed:188,damage:bossDmg+0.5,offset:-this.raidShotPhase*0.9,gapCenter:base+0.52,gapWidth:0.38});
+          break;
+        }
+        case 'onionPulse': {
+          this.spawnRaidRing(enemy,{count:coop?14:10,speed:132,damage:bossDmg-0.5,offset:this.raidShotPhase,lifeMs:6000});
+          this.scheduleRaidAction(enemy,760,()=>this.spawnRaidRing(enemy,{count:coop?14:10,speed:246,damage:bossDmg+1.3,offset:this.raidShotPhase+Math.PI/(coop?14:10),lifeMs:4700}));
+          break;
+        }
+        case 'onionTriSpeed': {
+          this.spawnRaidRing(enemy,{count:coop?20:15,damage:bossDmg+0.6,offset:this.raidShotPhase,gapCenter:base-0.45,gapWidth:0.34,speedPattern:[128,192,252],lifeMs:5800});
+          break;
+        }
+        case 'onionReverseDouble': {
+          this.spawnRaidRing(enemy,{count:coop?16:12,speed:148,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.55,gapWidth:0.40,lifeMs:6100});
+          this.scheduleRaidAction(enemy,660,()=>this.spawnRaidRing(enemy,{count:coop?16:12,speed:238,damage:bossDmg+1.5,offset:-this.raidShotPhase*0.85,gapCenter:base+0.58,gapWidth:0.40,lifeMs:5000}));
+          break;
+        }
+        case 'onionGapShift': {
+          this.spawnRaidRing(enemy,{count:coop?18:14,speed:170,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.78,gapWidth:0.52});
+          this.scheduleRaidAction(enemy,600,()=>{
+            const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target;
+            const b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;
+            this.spawnRaidRing(enemy,{count:coop?18:14,speed:228,damage:bossDmg+1.2,offset:this.raidShotPhase+0.22,gapCenter:b+0.78,gapWidth:0.52});
+          });
+          break;
+        }
+        default:
+          this.spawnRaidRing(enemy,{count:12,speed:180,damage:bossDmg,offset:this.raidShotPhase});
       }
-      if(this.coopMode){
-        [...this.builds.values()].filter(b=>!b.down&&b.sprite?.active).forEach(b=>{
-          const aim=Phaser.Math.Angle.Between(enemy.x,enemy.y,b.sprite.x,b.sprite.y),half=2;
-          for(let i=-half;i<=half;i++)this.spawnEnemyBullet(enemy.x,enemy.y,aim+i*0.085,280,13+this.raidBossCount*1.6,'raid',4500);
-        });
-      }
+    }
+
+    fireRaidPattern(enemy) {
+      if (!enemy?.active || enemy.getData('dead')) return 1500;
+      const def=this.selectRaidPattern(enemy);
+      this.executeRaidPattern(enemy,def);
       playEnemyShotSfx(true);
-      this.cameras.main.shake(55, 0.002);
+      this.cameras.main.shake(55,0.002);
+      const escalation=Math.max(0.82,1-Math.max(0,this.raidBossCount-1)*0.025);
+      const coopMult=this.coopMode?0.92:1;
+      return Math.max(900,(def?.cooldown||1500)*escalation*coopMult);
+    }
+
+    destroyRaidRushTelegraph(enemy) {
+      if(enemy?.raidTelegraph?.active)enemy.raidTelegraph.destroy();
+      if(enemy)enemy.raidTelegraph=null;
+    }
+
+    beginRaidRushTelegraph(enemy,target=null,forced=false) {
+      if(!enemy?.active||enemy.getData('dead'))return false;
+      if((enemy.rushTelegraphUntil||0)>this.runTimeMs||(enemy.rushUntil||0)>this.runTimeMs)return false;
+      const t=target||this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+      if(!t)return false;
+      enemy.rushAngle=this.predictedAimAngle(enemy,t,forced?260:120,0.45);
+      enemy.rushTelegraphUntil=this.runTimeMs+(enemy.raidPhase2?560:640);
+      enemy.rushPostDone=false;
+      const distance=176;
+      const w=this.add.image(enemy.x+Math.cos(enemy.rushAngle)*distance,enemy.y+Math.sin(enemy.rushAngle)*distance,'rushWarning').setDepth(25).setRotation(enemy.rushAngle).setScale(1.6,1).setAlpha(0.8);
+      enemy.raidTelegraph=w;
+      this.showBanner('돌진 예고!','붉은 선을 보고 방향을 바꿔!');
+      return true;
+    }
+
+    finishRaidRush(enemy) {
+      if(!enemy?.active||enemy.rushPostDone)return;
+      enemy.rushPostDone=true;
+      this.destroyRaidRushTelegraph(enemy);
+      const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+      const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):enemy.rushAngle||0;
+      this.spawnRaidRing(enemy,{count:this.coopMode?12:10,speed:178,damage:10+this.raidBossCount*1.35,offset:(enemy.rushAngle||0)+0.18,gapCenter:base,gapWidth:0.55,lifeMs:4800});
+      const minRush=this.coopMode?3000:3600,maxRush=this.coopMode?4500:5400;
+      const phaseCut=enemy.raidPhase2?500:0;
+      enemy.nextRushAt=this.runTimeMs+Phaser.Math.Between(Math.max(2200,minRush-phaseCut),Math.max(3200,maxRush-phaseCut));
+      enemy.nextShotAt=Math.max(enemy.nextShotAt||0,this.runTimeMs+550);
+    }
+
+    updateRaidRushState(enemy,targetPlayer,baseSpeed) {
+      if(!enemy?.active)return false;
+      if((enemy.rushTelegraphUntil||0)>0){
+        if(this.runTimeMs<enemy.rushTelegraphUntil){
+          enemy.body.setVelocity(0,0);
+          const distance=176;
+          enemy.raidTelegraph?.setPosition(enemy.x+Math.cos(enemy.rushAngle||0)*distance,enemy.y+Math.sin(enemy.rushAngle||0)*distance).setRotation(enemy.rushAngle||0);
+          return true;
+        }
+        enemy.rushTelegraphUntil=0;
+        this.destroyRaidRushTelegraph(enemy);
+        enemy.rushUntil=this.runTimeMs+(enemy.raidPhase2?900:820);
+      }
+      if((enemy.rushUntil||0)>0){
+        if(this.runTimeMs<enemy.rushUntil){
+          const mult=enemy.raidPhase2?3.0:2.85;
+          enemy.body.setVelocity(Math.cos(enemy.rushAngle||0)*baseSpeed*mult,Math.sin(enemy.rushAngle||0)*baseSpeed*mult);
+          return true;
+        }
+        enemy.rushUntil=0;
+        this.finishRaidRush(enemy);
+      }
+      if(this.runTimeMs>=(enemy.nextRushAt||Infinity)){
+        this.beginRaidRushTelegraph(enemy,targetPlayer,false);
+        return true;
+      }
+      return false;
     }
 
     updateEnemyAI() {
@@ -2217,29 +2611,26 @@
         if(e.enemyRole==='normal'&&supportElites.some(s=>Phaser.Math.Distance.Squared(e.x,e.y,s.x,s.y)<=180*180))speed*=1.12;
         if (this.runTimeMs < (e.stunUntil || 0)) speed = 0;
         else if (this.runTimeMs < (e.slowUntil || 0)) speed *= (e.slowMult || 0.65);
+        let raidBusy=false;
         if (e.enemyRole === 'raidBoss') {
-          if (this.runTimeMs >= e.nextRushAt) {
-            e.rushUntil = this.runTimeMs + (e.raidPhase2?920:850);
-            const minRush=this.coopMode?2600:3200,maxRush=this.coopMode?4000:5000;
-            const phaseCut=e.raidPhase2?650:0;
-            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(Math.max(1900,minRush-phaseCut),Math.max(2800,maxRush-phaseCut));
-            this.showBanner('보스 돌진!', '피해!');
-          }
-          if (this.runTimeMs < e.rushUntil) speed *= e.raidPhase2?3.05:2.9;
-          else {
+          raidBusy=this.updateRaidRushState(e,targetPlayer,speed);
+          if(!raidBusy){
             const d = Phaser.Math.Distance.Between(e.x, e.y, targetPlayer.x, targetPlayer.y);
             if (d > 360) speed *= 1.55;
             if (d < 190) speed *= 0.55;
+            e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
           }
+        } else {
+          e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
         }
-        e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
         e.setFlipX(targetPlayer.x < e.x);
 
         if ((e.enemyRole === 'elite' || e.enemyRole === 'boss' || e.enemyRole === 'raidBoss') && this.runTimeMs >= e.nextShotAt) {
           if (e.enemyRole === 'raidBoss') {
-            this.fireRaidPattern(e);
-            const baseInterval=Math.max(this.coopMode?650:760,(this.coopMode?1050:1450)-this.raidBossCount*(this.coopMode?45:55));
-            e.nextShotAt = this.runTimeMs + baseInterval*(e.raidPhase2?0.78:1);
+            if(!raidBusy){
+              const cooldown=this.fireRaidPattern(e);
+              e.nextShotAt = this.runTimeMs + cooldown;
+            }
           } else if(e.enemyRole==='boss') {
             this.fireEliteShot(e,targetPlayer);
             const mult=e.bossShotIntervalMult||1;
@@ -2479,6 +2870,11 @@
         (b.gasClouds||[]).forEach((z,i)=>{if(z.obj?.active&&this.isNetworkRelevantPoint(z.x,z.y,900))extras.push({id:`gas-${b.id}-${i}`,kind:'circle',x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:0xe7d84d,alpha:z.obj.alpha??0.12});});
         (b.territoryZones||[]).forEach((z,i)=>{if(z.obj?.active&&this.isNetworkRelevantPoint(z.x,z.y,900))extras.push({id:`zone-${b.id}-${i}`,kind:'circle',x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:0xe8ce48,alpha:z.obj.alpha??0.13});});
       });
+      this.enemies.getChildren().forEach(e=>{
+        if(e?.active&&e.enemyRole==='raidBoss'&&e.raidTelegraph?.active){
+          extras.push({id:`rush-${this.entityNetId(e,'e')}`,kind:'image',texture:'rushWarning',x:Math.round(e.raidTelegraph.x),y:Math.round(e.raidTelegraph.y),rotation:Math.round((e.raidTelegraph.rotation||0)*100)/100,scaleX:Math.round((e.raidTelegraph.scaleX||1)*100)/100,scaleY:Math.round((e.raidTelegraph.scaleY||1)*100)/100,alpha:e.raidTelegraph.alpha??0.8});
+        }
+      });
       const boss=this.enemies.getChildren().find(e=>e.active&&!e.getData('dead')&&(e.enemyRole==='raidBoss'||e.enemyRole==='boss'));
       const snapshot={
         t:Math.round(this.runTimeMs),level:this.level,xp:Math.round(this.xp*100)/100,xpNeed:this.xpNeed,kills:this.kills,wave:this.getWave(),players,
@@ -2487,6 +2883,7 @@
         enemyBullets:this.serializeGroup(this.enemyProjectiles,'b','bullet',1050),
         gems:this.serializeGroup(this.gems,'g','gem',900),
         items:this.serializeGroup(this.items,'i','item',900),extras,
+        raidPendingSeq:this.raidPendingSeq||0,raidPendingActive:!!this.pendingTrueBoss,
         raidIntroSeq:this.raidIntroSeq||0,raidIntroActive:!!this.raidBossTransition,raidBossName:this.raidBossName||'',raidPhaseSeq:this.raidPhaseSeq||0,
         boss:boss?{role:boss.enemyRole,hp:Math.round(boss.hp),maxHp:Math.round(boss.maxHp),name:boss.raidName||'',phase2:!!boss.raidPhase2,bossIndex:boss.bossIndex||0}:null
       };
@@ -2526,7 +2923,7 @@
       }
     }
     syncNetworkExtras(extras){
-      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(14);this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{o.setScale(d.scale||1);o.setAlpha(d.alpha??1);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
+      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(d.texture==='rushWarning'?25:14);this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{const sx=d.scaleX??d.scale??1,sy=d.scaleY??d.scale??sx;o.setScale(sx,sy);o.setRotation(d.rotation||0);o.setAlpha(d.alpha??1);o.setDepth(d.texture==='rushWarning'?25:14);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
     }
     applyNetworkSnapshot(s){
       if(!this.coopMode||this.networkRole!=='guest'||!s)return;
@@ -2543,6 +2940,7 @@
         this.updateReviveUi(b);
       });
       const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
+      if((s.raidPendingSeq||0)>this.lastNetRaidPendingSeq){this.lastNetRaidPendingSeq=s.raidPendingSeq||0;this.showBanner('TRUE BOSS 접근 중...','현재 전투를 마무리하세요! · 신규 적 스폰 억제');}
       if((s.raidIntroSeq||0)>this.lastNetRaidIntroSeq){this.lastNetRaidIntroSeq=s.raidIntroSeq||0;this.showBanner('⚠ TRUE BOSS 경고 ⚠',`${s.raidBossName||'위험 개체'} 출현 감지`);}
       if((s.raidPhaseSeq||0)>this.lastNetRaidPhaseSeq){this.lastNetRaidPhaseSeq=s.raidPhaseSeq||0;this.showBanner(`${s.raidBossName||'TRUE BOSS'} 2 PHASE`,'패턴이 변한다!');}
       this.syncNetworkGroup(this.netEnemyMap,s.enemies,this.enemies,8);
@@ -2551,7 +2949,7 @@
       this.syncNetworkGroup(this.netGemMap,s.gems,this.gems,6);
       this.syncNetworkGroup(this.netItemMap,s.items,this.items,7);
       this.syncNetworkExtras(s.extras);
-      this.timerText?.setText(formatTime((s.t||0)/1000));this.waveText?.setText(`WAVE ${s.wave||1} · 2P CO-OP`);this.updateHud();
+      this.timerText?.setText(formatTime((s.t||0)/1000));this.waveText?.setText(`WAVE ${s.wave||1} · 2P CO-OP${s.raidPendingActive?' · TRUE BOSS 접근':''}`);this.updateHud();
     }
     updateCoopGuest(delta){
       if(this.isGameOver)return;
@@ -2581,7 +2979,7 @@
       this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);
       this.updateRevives(delta);
       this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();
-      this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP`);this.updateHud();}
+      this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP${this.pendingTrueBoss?' · TRUE BOSS 접근':''}`);this.updateHud();}
       this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=110){this.snapshotTimer=0;(socket?.volatile||socket)?.emit?.('coopSnapshot',this.buildNetworkSnapshot());}
     }
     updateHud() {
@@ -2656,7 +3054,7 @@
 
       this.timerText.setText(formatTime(sec));
       const threat=this.getScaling();
-      this.waveText.setText(`WAVE ${this.getWave()} · 위협 HP×${threat.hp.toFixed(1)} / SPD×${threat.speed.toFixed(2)}`);
+      this.waveText.setText(`WAVE ${this.getWave()} · 위협 HP×${threat.hp.toFixed(1)} / SPD×${threat.speed.toFixed(2)}${this.pendingTrueBoss?' · TRUE BOSS 접근':''}`);
       this.updateHud();
     }
   }
