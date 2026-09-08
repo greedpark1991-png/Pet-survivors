@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#17151d" />
   <title>멍냥 서바이버즈</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -10,66 +11,113 @@
   <div id="game-shell">
     <div id="game-container"></div>
 
-    <div id="audio-controls" class="audio-controls">
-      <label>BGM <input id="bgm-volume" type="range" min="0" max="100" value="22"></label>
-      <label>SFX <input id="sfx-volume" type="range" min="0" max="100" value="72"></label>
+    <div id="audio-widget" class="audio-widget">
+      <button id="audio-toggle-btn" class="audio-toggle" type="button" aria-expanded="false" aria-label="사운드 설정">♪</button>
+      <div id="audio-controls" class="audio-controls" aria-hidden="true">
+        <div class="audio-popover-title">SOUND</div>
+        <label><span>BGM</span><input id="bgm-volume" type="range" min="0" max="100" value="22"></label>
+        <label><span>SFX</span><input id="sfx-volume" type="range" min="0" max="100" value="72"></label>
+      </div>
     </div>
 
-    <section id="start-screen" class="overlay show">
-      <div class="panel start-panel">
-        <div class="eyebrow">PIXEL PET SURVIVORS</div>
-        <h1>멍냥 서바이버즈</h1>
-        <p class="lead">몰려오는 적을 피하면서 자동 공격으로 버티고, 보석을 모아 강해져라.</p>
+    <div id="boss-warning-ui" class="boss-warning-ui" aria-hidden="true">
+      <div class="boss-warning-kicker">DANGER FOOD DETECTED</div>
+      <div id="boss-warning-title" class="boss-warning-title">위험 음식 출현!</div>
+      <div id="boss-warning-name" class="boss-warning-name">TRUE BOSS</div>
+      <div id="boss-warning-sub" class="boss-warning-sub"></div>
+    </div>
 
-        <div class="character-grid" id="character-grid">
-          <button class="char-card selected" data-char="jjigae">
-            <canvas width="112" height="88"></canvas>
-            <b>찌개</b><small>갈색 말티푸 · 앙앙 소리탄</small><span class="char-passive"></span>
-          </button>
-          <button class="char-card" data-char="mandu">
-            <canvas width="112" height="88"></canvas>
-            <b>만두</b><small>하얀 말티푸 · 콧물탄</small><span class="char-passive"></span>
-          </button>
-          <button class="char-card" data-char="gamja">
-            <canvas width="112" height="88"></canvas>
-            <b>감자</b><small>크림 토이푸들 · 오줌빔</small><span class="char-passive"></span>
-          </button>
-          <button class="char-card" data-char="gucci">
-            <canvas width="112" height="88"></canvas>
-            <b>구찌</b><small>하양+주황 코숏 · 털뭉치</small><span class="char-passive"></span>
-          </button>
-        </div>
-
-        <div class="controls-box">
-          <b>조작</b>
-          <span>WASD / 방향키 이동</span>
-          <span>공격은 자동</span>
-          <span>ESC 일시정지</span>
-        </div>
-
-        <div class="coop-box">
-          <div class="coop-title">2인 온라인 협동</div>
-          <div class="coop-actions">
-            <button id="coop-create-btn" class="secondary">2인 방 만들기</button>
-            <input id="coop-code-input" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" />
-            <button id="coop-join-btn" class="secondary">방 입장</button>
+    <section id="start-screen" class="overlay lobby-overlay show">
+      <div class="lobby-backdrop" aria-hidden="true">
+        <span class="park-blob park-blob-a"></span><span class="park-blob park-blob-b"></span><span class="park-blob park-blob-c"></span>
+      </div>
+      <div class="panel start-panel lobby-shell">
+        <header class="lobby-brand">
+          <div>
+            <div class="eyebrow">PIXEL PET SURVIVORS</div>
+            <h1>멍냥 서바이버즈</h1>
+            <p class="lead">몰려오는 위험 음식을 피해 살아남아라!</p>
           </div>
-          <div id="coop-status" class="coop-status">친구와 같은 링크에서 방 코드를 공유하면 돼.</div>
-          <div id="coop-room-panel" class="coop-room-panel hidden">
-            <div><b>ROOM</b> <span id="coop-room-code">-----</span> <button id="coop-copy-btn" class="mini-btn">코드 복사</button></div>
-            <div id="coop-player-list" class="coop-player-list"></div>
-            <button id="coop-start-btn" class="primary hidden">2인 게임 시작</button>
-            <button id="coop-leave-btn" class="mini-btn danger-mini">방 나가기</button>
-          </div>
-        </div>
+          <div class="lobby-badge">WASD · AUTO ATTACK · ESC</div>
+        </header>
 
-        <button id="start-btn" class="primary solo-btn">혼자 시작</button>
+        <div class="lobby-main">
+          <section class="hero-card" aria-label="선택 캐릭터 정보">
+            <div class="hero-preview-wrap">
+              <div class="hero-paw-mark" aria-hidden="true">•</div>
+              <canvas id="selected-char-preview" class="hero-preview" width="240" height="220" data-hero="true"></canvas>
+              <div class="hero-shadow" aria-hidden="true"></div>
+            </div>
+            <div class="hero-copy">
+              <div class="hero-kicker">SELECTED PET</div>
+              <div class="hero-name-row">
+                <h2 id="selected-char-name">찌개</h2>
+                <span id="selected-char-role" class="tag tag-mint">소리탄 특화</span>
+              </div>
+              <p id="selected-char-weapon" class="hero-weapon">갈색 말티푸 · 앙앙 소리탄</p>
+              <div class="passive-card">
+                <span class="passive-icon">🐾</span>
+                <div><small>고유 특성</small><b id="selected-passive-name">왕성한 성량</b><p id="selected-passive-desc">앙앙 소리탄의 크기와 판정이 10% 커진다.</p></div>
+              </div>
+            </div>
+
+            <div class="character-grid" id="character-grid" aria-label="캐릭터 선택">
+              <button class="char-card selected" data-char="jjigae" type="button">
+                <canvas width="72" height="64"></canvas><span><b>찌개</b><small class="char-role">소리탄 특화</small></span>
+              </button>
+              <button class="char-card" data-char="mandu" type="button">
+                <canvas width="72" height="64"></canvas><span><b>만두</b><small class="char-role">튼튼한 생존</small></span>
+              </button>
+              <button class="char-card" data-char="gamja" type="button">
+                <canvas width="72" height="64"></canvas><span><b>감자</b><small class="char-role">기동력 특화</small></span>
+              </button>
+              <button class="char-card" data-char="gucci" type="button">
+                <canvas width="72" height="64"></canvas><span><b>구찌</b><small class="char-role">기본 공격 특화</small></span>
+              </button>
+            </div>
+          </section>
+
+          <aside class="play-card">
+            <div class="play-card-head">
+              <span class="play-step">PLAY</span>
+              <h2>산책 준비 완료!</h2>
+              <p>공격은 자동. 이동과 빌드 선택에 집중하면 돼.</p>
+            </div>
+
+            <button id="start-btn" class="btn primary solo-btn" type="button">
+              <span class="btn-main">혼자 시작</span><span class="btn-sub">바로 공원으로 출발</span>
+            </button>
+
+            <div class="mode-divider"><span>FRIEND CO-OP</span></div>
+
+            <div class="coop-box">
+              <div class="coop-title-row"><div><b>2인 온라인 협동</b><small>경험치/레벨 공유 · 빌드는 각자</small></div><span class="tag">2P</span></div>
+              <button id="coop-create-btn" class="btn secondary" type="button">2인 방 만들기</button>
+              <div class="join-row">
+                <input id="coop-code-input" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" aria-label="방 코드" />
+                <button id="coop-join-btn" class="btn secondary join-btn" type="button">입장</button>
+              </div>
+              <div id="coop-status" class="coop-status">같은 링크에서 방 코드만 공유하면 돼.</div>
+              <div id="coop-room-panel" class="coop-room-panel hidden">
+                <div class="room-code-row"><span>ROOM</span><strong id="coop-room-code">-----</strong><button id="coop-copy-btn" class="mini-btn" type="button">복사</button></div>
+                <div id="coop-player-list" class="coop-player-list"></div>
+                <button id="coop-start-btn" class="btn primary compact hidden" type="button">2인 게임 시작</button>
+                <button id="coop-leave-btn" class="mini-btn danger-mini" type="button">방 나가기</button>
+              </div>
+            </div>
+
+            <div class="control-strip">
+              <span><kbd>WASD</kbd> 이동</span><span><kbd>자동</kbd> 공격</span><span><kbd>ESC</kbd> 빌드</span>
+            </div>
+          </aside>
+        </div>
       </div>
     </section>
 
     <section id="coop-wait-screen" class="overlay choice-overlay">
-      <div class="panel small-panel">
+      <div class="panel small-panel status-panel">
         <div class="eyebrow">CO-OP</div>
+        <div class="status-paw">🐾</div>
         <h2 id="coop-wait-title">상대 플레이어 선택 대기 중</h2>
         <p id="coop-wait-text">경험치와 레벨은 공유하지만 강화와 증강은 각자 따로 선택해.</p>
       </div>
@@ -77,16 +125,22 @@
 
     <section id="levelup-screen" class="overlay choice-overlay">
       <div class="panel choice-panel">
-        <div class="eyebrow" id="levelup-eyebrow">LEVEL UP!</div>
-        <h2 id="levelup-title">강화 하나를 선택해</h2>
+        <div class="choice-heading">
+          <div class="eyebrow" id="levelup-eyebrow">LEVEL UP!</div>
+          <h2 id="levelup-title">강화 하나를 선택해</h2>
+          <p>가장 중요한 효과부터 보고 골라도 충분해.</p>
+        </div>
         <div id="levelup-choices" class="choice-grid"></div>
       </div>
     </section>
 
     <section id="chest-screen" class="overlay choice-overlay">
       <div class="panel choice-panel chest-panel">
-        <div class="eyebrow">TREASURE CHEST</div>
-        <h2>스킬 하나를 획득해</h2>
+        <div class="choice-heading">
+          <div class="eyebrow">TREASURE CHEST</div>
+          <h2>보물상자 스킬 하나를 획득해</h2>
+          <p>같은 스킬을 다시 고르면 레벨이 올라가.</p>
+        </div>
         <div id="chest-choices" class="choice-grid skill-grid"></div>
       </div>
     </section>
@@ -96,30 +150,43 @@
         <div class="pause-left">
           <div class="eyebrow">PAUSED</div>
           <h2>일시정지</h2>
+          <div class="pause-character">
+            <canvas id="pause-char-preview" width="132" height="124" data-hero="true"></canvas>
+            <div><small>현재 캐릭터</small><strong id="pause-char-name">-</strong><span id="pause-char-passive">-</span></div>
+          </div>
           <p id="pause-run-summary" class="pause-summary">현재 진행 상황</p>
           <div class="pause-buttons">
-            <button id="pause-resume-btn" class="primary">돌아가기</button>
-            <button id="pause-lobby-btn" class="secondary">로비로 가기</button>
+            <button id="pause-resume-btn" class="btn primary" type="button">돌아가기</button>
+            <button id="pause-lobby-btn" class="btn secondary" type="button">로비로 가기</button>
           </div>
           <p class="pause-hint">ESC를 다시 눌러도 게임으로 돌아갈 수 있어.</p>
         </div>
         <div class="pause-details">
-          <h3>능력치</h3>
-          <div id="pause-stat-grid" class="pause-stat-grid"></div>
-          <h3>기본 강화 누적</h3>
-          <div id="pause-basic-upgrades" class="pause-chip-list"></div>
-          <h3>먹은 증강 / 스킬</h3>
-          <div id="pause-augment-list" class="pause-augment-list"></div>
+          <section class="pause-section">
+            <h3>핵심 능력치</h3>
+            <div id="pause-stat-grid" class="pause-stat-grid"></div>
+          </section>
+          <section class="pause-section">
+            <h3>기본 강화 누적</h3>
+            <div id="pause-basic-upgrades" class="pause-chip-list"></div>
+          </section>
+          <section class="pause-section build-section">
+            <div class="build-column"><h3>특별 / 전용 증강</h3><div id="pause-special-list" class="pause-augment-list"></div></div>
+            <div class="build-column"><h3>Lv.10 전투 증강</h3><div id="pause-major-list" class="pause-augment-list"></div></div>
+            <div class="build-column"><h3>보물상자 스킬</h3><div id="pause-skill-list" class="pause-augment-list"></div></div>
+          </section>
+          <div id="pause-augment-list" class="hidden" aria-hidden="true"></div>
         </div>
       </div>
     </section>
 
     <section id="gameover-screen" class="overlay choice-overlay">
-      <div class="panel small-panel">
-        <div class="eyebrow">GAME OVER</div>
+      <div class="panel small-panel gameover-panel">
+        <div class="eyebrow">RUN COMPLETE</div>
+        <div class="gameover-icon">×</div>
         <h2>쓰러졌다!</h2>
         <p id="gameover-stats"></p>
-        <button id="restart-btn" class="primary">다시 시작</button>
+        <button id="restart-btn" class="btn primary" type="button">다시 시작</button>
       </div>
     </section>
   </div>
