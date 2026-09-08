@@ -28,11 +28,11 @@
   };
 
   const LEVEL_UPGRADES = [
-    { id: 'damage', icon: '⚔', title: '공격력 증가', desc: '모든 공격 피해량이 6% 증가한다.' },
-    { id: 'speed', icon: '➜', title: '이동속도 증가', desc: '이동 속도가 3% 증가한다.' },
-    { id: 'health', icon: '♥', title: '최대 체력 회복', desc: '최대 HP가 12 증가하고 최대 HP의 40%를 회복한다.' },
-    { id: 'xpGain', icon: '✦', title: '경험치 증가', desc: '경험치 획득량이 10% 증가한다.' },
-    { id: 'attackSpeed', icon: '⚡', title: '공속 증가', desc: '기본 공격 속도가 3% 빨라진다.' }
+    { id: 'damage', icon: '⚔', title: '공격력 증가', desc: '모든 공격 피해량이 7% 증가한다.' },
+    { id: 'speed', icon: '➜', title: '이동속도 증가', desc: '이동 속도가 3.5% 증가한다.' },
+    { id: 'health', icon: '♥', title: '최대 체력 회복', desc: '최대 HP가 14 증가하고 최대 HP의 45%를 회복한다.' },
+    { id: 'xpGain', icon: '✦', title: '경험치 증가', desc: '경험치 획득량이 12% 증가한다.' },
+    { id: 'attackSpeed', icon: '⚡', title: '공속 증가', desc: '기본 공격 속도가 4% 빨라진다.' }
   ];
 
   const SKILLS = [
@@ -47,11 +47,11 @@
 
 
   const MILESTONE_AUGMENTS = [
-    { id: 'goodDeal', icon: '✚', title: '개이득', desc: '기본 투사체를 1발 더 발사한다. 추가 탄환은 기본 공격력의 60% 피해를 주며 반복 획득할 수 있다.' },
-    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 12% 빨라지고 공격력이 6% 증가한다.' },
-    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 65px 넓어진다.' },
-    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 24 증가하고 체력을 55% 회복하며 받는 피해가 6% 감소한다.' },
-    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 10% 증가하고 기본 공격 속도가 5% 빨라진다.' }
+    { id: 'goodDeal', icon: '✚', title: '개이득', desc: '기본 투사체를 1발 더 발사한다. 추가 탄환은 기본 공격력의 65% 피해를 주며 반복 획득할 수 있다.' },
+    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 14% 빨라지고 공격력이 7% 증가한다.' },
+    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 75px 넓어진다.' },
+    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 28 증가하고 체력을 60% 회복하며 받는 피해가 7% 감소한다.' },
+    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 12% 증가하고 기본 공격 속도가 6% 빨라진다.' }
   ];
 
 
@@ -1183,7 +1183,7 @@
       const baseAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
       for (let i = 0; i < shotCount; i++) {
         const spread = shotCount === 1 ? 0 : (i - (shotCount - 1) / 2) * 0.13;
-        const damageMult = i === 0 ? 1 : 0.60;
+        const damageMult = i === 0 ? 1 : 0.65;
         this.spawnBasicProjectile(baseAngle + spread, damageMult);
       }
       playShotSfx(this.charData.projectile);
@@ -1476,14 +1476,14 @@
 
     applyLevelUpgrade(id) {
       if (this.levelUpgradeCounts && Object.prototype.hasOwnProperty.call(this.levelUpgradeCounts, id)) this.levelUpgradeCounts[id] += 1;
-      if (id === 'damage') this.attackPower *= 1.06;
-      if (id === 'speed') this.moveSpeed *= 1.03;
+      if (id === 'damage') this.attackPower *= 1.07;
+      if (id === 'speed') this.moveSpeed *= 1.035;
       if (id === 'health') {
-        this.maxHp += 12;
-        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.40);
+        this.maxHp += 14;
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.45);
       }
-      if (id === 'xpGain') this.xpGainMult *= 1.10;
-      if (id === 'attackSpeed') this.basicCooldown = Math.max(520, this.basicCooldown * 0.97);
+      if (id === 'xpGain') this.xpGainMult *= 1.12;
+      if (id === 'attackSpeed') this.basicCooldown = Math.max(520, this.basicCooldown * 0.96);
       this.updateHud();
     }
 
@@ -1491,18 +1491,18 @@
       const data = MILESTONE_AUGMENTS.find(a => a.id === id);
       if (id === 'goodDeal') this.extraBasicShots += 1;
       if (id === 'hunterInstinct') {
-        this.basicCooldown = Math.max(520, this.basicCooldown * 0.88);
-        this.attackPower *= 1.06;
+        this.basicCooldown = Math.max(520, this.basicCooldown * 0.86);
+        this.attackPower *= 1.07;
       }
-      if (id === 'sniffer') this.gemMagnetRange += 65;
+      if (id === 'sniffer') this.gemMagnetRange += 75;
       if (id === 'ironStomach') {
-        this.maxHp += 24;
-        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.55);
-        this.playerDamageMult *= 0.94;
+        this.maxHp += 28;
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.60);
+        this.playerDamageMult *= 0.93;
       }
       if (id === 'zoomies') {
-        this.moveSpeed *= 1.10;
-        this.basicCooldown = Math.max(520, this.basicCooldown * 0.95);
+        this.moveSpeed *= 1.12;
+        this.basicCooldown = Math.max(520, this.basicCooldown * 0.94);
       }
       if (data) this.augments.push(data.title);
       this.showBanner(data?.title || '증강 획득!', `Lv.${this.level} 특별 증강`);
@@ -1522,7 +1522,7 @@
       this.poopOrbiters = [];
       const count = this.majorLevels.poopOrbit || 0;
       for (let i = 0; i < count; i++) {
-        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.35);
+        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.42);
         this.poopOrbiters.push(o);
       }
     }
@@ -1534,18 +1534,18 @@
       const p = this.projectiles.create(this.player.x, this.player.y, 'disc').setDepth(14);
       p.ownerId = this.currentBuildId || this.localId || 'solo';
       p.kind = 'disc';
-      p.damage = this.attackPower * (1.82 + Math.min(2, level - 1) * 0.55);
+      p.damage = this.attackPower * (1.95 + Math.min(2, level - 1) * 0.60);
       p.pierceLeft = Math.max(0, level - 3);
       p.hitSet = new Set();
       p.spawnAt = this.runTimeMs; p.lifeMs = 2600;
       p.setRotation(angle);
-      this.physics.velocityFromRotation(angle, 410 + Math.min(110, level * 13), p.body.velocity);
+      this.physics.velocityFromRotation(angle, 425 + Math.min(120, level * 14), p.body.velocity);
       noise(0.045, 0.025, 900); tone(260, 0.05, 'triangle', 0.018, 180);
     }
 
     castBarkRoar(level) {
-      const radius = 160 + (level - 1) * 38;
-      const damage = this.attackPower * (0.85 + level * 0.11);
+      const radius = 170 + (level - 1) * 40;
+      const damage = this.attackPower * (0.92 + level * 0.12);
       const ring = this.add.image(this.player.x, this.player.y, 'shockwave').setDepth(16).setScale(0.35).setAlpha(0.9);
       this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 420, onComplete: () => ring.destroy() });
       this.enemies.getChildren().forEach(e => {
@@ -1563,16 +1563,16 @@
     }
 
     spawnGasCloud(level) {
-      const radius = 40 + Math.min(26, level * 4.5);
+      const radius = 44 + Math.min(30, level * 5);
       const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.16).setStrokeStyle(2, 0xbda934, 0.25).setDepth(3);
-      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 4200 + level * 280, nextTick:this.runTimeMs });
+      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 4500 + level * 300, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: 0.04, scale: 1.18, duration: 3200 + level * 220 });
     }
 
     castYawnWave(level) {
-      const range = 215 + (level - 1) * 24;
-      const halfAngle = 0.54 + Math.min(0.24, (level - 1) * 0.038);
-      const damage = this.attackPower * (0.44 + level * 0.05);
+      const range = 230 + (level - 1) * 26;
+      const halfAngle = 0.57 + Math.min(0.26, (level - 1) * 0.040);
+      const damage = this.attackPower * (0.50 + level * 0.055);
       const spread = Math.tan(halfAngle) * range;
       const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.16).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
       this.tweens.add({ targets: tri, alpha: 0, scaleX: 1.08, duration: 420, onComplete: () => tri.destroy() });
@@ -1583,16 +1583,16 @@
         const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
         if (Math.abs(Phaser.Math.Angle.Wrap(a - (this.facingAngle || 0))) > halfAngle) return;
         this.damageEnemy(e, damage, 'yawnWave');
-        e.slowUntil = this.runTimeMs + 2800 + level * 140;
+        e.slowUntil = this.runTimeMs + 3000 + level * 150;
         e.slowMult = Math.max(0.42, 0.63 - level * 0.028);
       });
       noise(0.10, 0.025, 350); tone(165, 0.18, 'sine', 0.025, 95);
     }
 
     spawnTerritoryZone(level) {
-      const radius = 74 + Math.min(32, level * 5.5);
+      const radius = 80 + Math.min(36, level * 6);
       const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.20).setStrokeStyle(3, 0xd4aa38, 0.52).setDepth(2);
-      this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 2400 + level * 300, nextTick:this.runTimeMs });
+      this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 2700 + level * 320, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: { from:0.18, to:0.08 }, duration:700, yoyo:true, repeat:-1 });
     }
 
@@ -1608,9 +1608,9 @@
       this.tweens.add({ targets: toy, y:ty, angle:Phaser.Math.Between(-35,35), duration:430, ease:'Quad.easeIn', onComplete:() => {
         const hit=()=>{
           if (target.active && !target.getData('dead')) {
-            this.damageEnemy(target, attackAtCast * (2.0 + level * 0.30), 'squeakyToy');
+            this.damageEnemy(target, attackAtCast * (2.15 + level * 0.32), 'squeakyToy');
             target.stunUntil = this.runTimeMs + 320 + level * 35;
-            this.explodeAt(tx, ty, attackAtCast * (0.32 + level * 0.045), 36 + level * 2, target);
+            this.explodeAt(tx, ty, attackAtCast * (0.36 + level * 0.05), 36 + level * 2, target);
           }
         };
         if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,hit);else hit();
@@ -1627,7 +1627,7 @@
           z.nextTick = now + 500;
           this.enemies.getChildren().forEach(e => {
             if (!e.active || e.getData('dead')) return;
-            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.115 + z.level * 0.032), 'yellowGas');
+            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.125 + z.level * 0.035), 'yellowGas');
           });
         }
         return true;
@@ -1640,8 +1640,8 @@
             if (!e.active || e.getData('dead')) return;
             if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) {
               e.vulnerableUntil = now + 750;
-              e.vulnerableMult = 1.16 + z.level * 0.032;
-              this.damageEnemy(e, this.attackPower * (0.11 + z.level * 0.030), 'territoryMark');
+              e.vulnerableMult = 1.18 + z.level * 0.035;
+              this.damageEnemy(e, this.attackPower * (0.12 + z.level * 0.033), 'territoryMark');
             }
           });
         }
@@ -1654,7 +1654,7 @@
       if (lv.poopOrbit) {
         if (this.poopOrbiters.length !== lv.poopOrbit) this.rebuildPoopOrbiters();
         const count = this.poopOrbiters.length;
-        const radius = 78 + Math.min(30, lv.poopOrbit * 4.5);
+        const radius = 82 + Math.min(32, lv.poopOrbit * 5);
         this.poopOrbiters.forEach((o,i) => {
           const a = this.runTimeMs * 0.0032 + (Math.PI * 2 * i) / count;
           o.setPosition(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius);
@@ -1662,12 +1662,12 @@
             const poopOwner=this.currentBuildId||'solo';
             e.poopHitReadyBy=e.poopHitReadyBy||{};
             if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReadyBy[poopOwner] || 0)) return;
-            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 30) {
+            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 32) {
               e.poopHitReadyBy[poopOwner] = this.runTimeMs + 380;
-              this.damageEnemy(e, this.attackPower * (0.36 + lv.poopOrbit * 0.055), 'poopOrbit');
+              this.damageEnemy(e, this.attackPower * (0.40 + lv.poopOrbit * 0.060), 'poopOrbit');
               if (e.enemyRole !== 'raidBoss') {
                 const pa = Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
-                e.x += Math.cos(pa) * 13; e.y += Math.sin(pa) * 13;
+                e.x += Math.cos(pa) * 14; e.y += Math.sin(pa) * 14;
               }
             }
           });
@@ -1675,29 +1675,29 @@
       }
       if (lv.discThrow) {
         this.majorTimers.discThrow += delta;
-        const interval = Math.max(1600, 2950 - (lv.discThrow - 1) * 195);
+        const interval = Math.max(1550, 2800 - (lv.discThrow - 1) * 200);
         if (this.majorTimers.discThrow >= interval) { this.majorTimers.discThrow = 0; this.castDisc(lv.discThrow); }
       }
       if (lv.barkRoar) {
         this.majorTimers.barkRoar += delta;
-        if (this.majorTimers.barkRoar >= 5200) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
+        if (this.majorTimers.barkRoar >= 5000) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
       }
       if (lv.yellowGas && moving) {
         this.majorTimers.yellowGas += delta;
-        const interval = Math.max(480, 820 - lv.yellowGas * 45);
+        const interval = Math.max(450, 780 - lv.yellowGas * 45);
         if (this.majorTimers.yellowGas >= interval) { this.majorTimers.yellowGas = 0; this.spawnGasCloud(lv.yellowGas); }
       }
       if (lv.yawnWave) {
         this.majorTimers.yawnWave += delta;
-        if (this.majorTimers.yawnWave >= 4800) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
+        if (this.majorTimers.yawnWave >= 4600) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
       }
       if (lv.territoryMark) {
         this.majorTimers.territoryMark += delta;
-        if (this.majorTimers.territoryMark >= 5600) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
+        if (this.majorTimers.territoryMark >= 5300) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
       }
       if (lv.squeakyToy) {
         this.majorTimers.squeakyToy += delta;
-        const interval = Math.max(2250, 4300 - (lv.squeakyToy - 1) * 195);
+        const interval = Math.max(2200, 4100 - (lv.squeakyToy - 1) * 200);
         if (this.majorTimers.squeakyToy >= interval) { this.majorTimers.squeakyToy = 0; this.dropSqueakyToy(lv.squeakyToy); }
       }
       this.updatePersistentMajorZones();
