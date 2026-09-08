@@ -4,19 +4,23 @@
   const CHARACTERS = {
     jjigae: {
       name: '찌개', species: '갈색 말티푸', main: 0x8d5f3e, dark: 0x5f3d29, light: 0xc89a72,
-      weapon: '앙앙 소리탄', projectile: 'bark', description: '짖는 소리 파동이 가장 가까운 적을 향해 날아간다.'
+      weapon: '앙앙 소리탄', projectile: 'bark', description: '짖는 소리 파동이 가장 가까운 적을 향해 날아간다.',
+      passive: { name:'왕성한 성량', desc:'앙앙 소리탄의 크기와 판정이 10% 커진다.' }
     },
     mandu: {
       name: '만두', species: '하얀 말티푸', main: 0xf0ede5, dark: 0xbcb6ad, light: 0xffffff,
-      weapon: '콧물탄', projectile: 'snot', description: '초록빛 콧물 덩어리를 툭 발사한다.'
+      weapon: '콧물탄', projectile: 'snot', description: '초록빛 콧물 덩어리를 툭 발사한다.',
+      passive: { name:'튼튼한 위장', desc:'시작 최대 HP가 8% 높다.' }
     },
     gamja: {
       name: '감자', species: '크림 토이푸들', main: 0xf0d49a, dark: 0xb88950, light: 0xffefc4,
-      weapon: '오줌빔', projectile: 'pee', description: '가늘고 빠른 노란 일직선 탄을 쏜다.'
+      weapon: '오줌빔', projectile: 'pee', description: '가늘고 빠른 노란 일직선 탄을 쏜다.',
+      passive: { name:'쪼꼬미 질주', desc:'시작 이동속도가 6% 빠르다.' }
     },
     gucci: {
       name: '구찌', species: '하양+주황 코숏', main: 0xf8f3e8, dark: 0xdd7b34, light: 0xffffff,
-      weapon: '털뭉치', projectile: 'hairball', description: '뭉친 털공을 가장 가까운 적에게 날린다.'
+      weapon: '털뭉치', projectile: 'hairball', description: '뭉친 털공을 가장 가까운 적에게 날린다.',
+      passive: { name:'사냥꾼의 털뭉치', desc:'기본 공격 피해가 5% 증가한다.' }
     }
   };
 
@@ -55,6 +59,16 @@
   ];
 
 
+  // 기존 특별 증강 5종은 그대로 유지하고, 이후 캐릭터 전용 증강을 쉽게 추가할 수 있도록 별도 데이터로 분리한다.
+  // Lv.5 이상 특별 증강 때 35% 확률로 전용 후보 1개가 '추가 선택지'로 붙으므로 기존 3개 글로벌 후보 확률은 보존된다.
+  const CHARACTER_AUGMENTS = [
+    { id:'vocalBurst', character:'jjigae', icon:'◉', title:'목청 폭발', desc:'소리탄 적중 시 일정 확률로 작은 충격파가 터진다.' },
+    { id:'stickySnot', character:'mandu', icon:'≈', title:'끈적한 콧물', desc:'콧물탄에 맞은 적이 잠시 느려진다.' },
+    { id:'highPressurePee', character:'gamja', icon:'⇢', title:'초고압 오줌', desc:'오줌빔의 탄속과 관통 횟수가 증가한다.' },
+    { id:'sheddingSeason', character:'gucci', icon:'✺', title:'털갈이 시즌', desc:'기본 공격 시 일정 확률로 추가 털뭉치를 발사한다.' }
+  ];
+
+
   const MAJOR_AUGMENTS = [
     { id: 'poopOrbit', icon: '●', title: '똥강아지', desc: '캐릭터 주변을 똥이 회전하며 닿는 적을 갉아먹고 밀어낸다. 레벨마다 똥 +1.' },
     { id: 'discThrow', icon: '◉', title: '원반 던지기', desc: '바라보는 방향·위·아래로 강한 원반을 주기적으로 던진다. 초반엔 피해가 오르고 Lv.4부터 관통한다.' },
@@ -87,6 +101,15 @@
   const FOOD_FAST         = ['coffee','greenTea','candy','gum'];
   const FOOD_ALL          = Object.keys(FOOD_ENEMIES);
 
+  const ELITE_MUTATIONS = {
+    swift:   { name:'신속', icon:'≫', color:0x7edbff, hpMult:0.82, speedMult:1.34, damageMult:0.92, shotMult:0.82 },
+    armored: { name:'중장갑', icon:'◆', color:0xffc56f, hpMult:1.65, speedMult:0.72, damageMult:1.12, shotMult:1.08 },
+    splitter:{ name:'분열', icon:'✣', color:0xf29ad4, hpMult:1.05, speedMult:0.98, damageMult:0.98, shotMult:1.00 },
+    support: { name:'지원', icon:'✚', color:0x8fe29d, hpMult:0.92, speedMult:0.90, damageMult:0.90, shotMult:0.95 }
+  };
+
+  const TRUE_BOSS_NAMES = ['거대 포도', '거대 초콜릿', '거대 양파'];
+
   let selectedCharacter = 'jjigae';
   let game = null;
   let activeScene = null;
@@ -96,10 +119,69 @@
   const blankMoveInput = () => ({ left:false, right:false, up:false, down:false });
   const BUILD_KEYS = [
     'attackPower','moveSpeed','maxHp','hp','levelUpgradeCounts','xpGainMult','basicCooldown','extraBasicShots',
-    'basicPierce','basicExplosion','basicRicochet','basicSizeMult','shockwaveLevel','shockwaveTimer','majorLevels',
+    'basicPierce','basicExplosion','basicRicochet','basicSizeMult','basicDamageMult','basicProjectileScale','shockwaveLevel','shockwaveTimer','majorLevels',
     'majorTimers','poopOrbiters','gasClouds','territoryZones','discDirectionIndex','facingAngle','gemMagnetRange',
-    'playerDamageMult','augments','basicTimer','playerInvulnUntil','shieldCharges','skillLevels','skillTimers','shieldVisual'
+    'playerDamageMult','augments','characterAugmentLevels','basicTimer','playerInvulnUntil','shieldCharges','skillLevels','skillTimers','shieldVisual',
+    'juiceComboUntil','juiceComboHits','reviveProgress','reviveNeedMs','deathCount'
   ];
+
+  function characterStartStats(key) {
+    const stats = { attackPower:20, moveSpeed:190, maxHp:100, hp:100, basicDamageMult:1, basicProjectileScale:1 };
+    if (key === 'mandu') { stats.maxHp = 108; stats.hp = 108; }
+    if (key === 'gamja') stats.moveSpeed *= 1.06;
+    if (key === 'gucci') stats.basicDamageMult = 1.05;
+    if (key === 'jjigae') stats.basicProjectileScale = 1.10;
+    return stats;
+  }
+
+  function characterAugmentFor(key) { return CHARACTER_AUGMENTS.find(a => a.character === key) || null; }
+
+  function characterAugmentDescription(id, nextLevel = 1) {
+    const lv = Math.max(1, nextLevel || 1);
+    if (id === 'vocalBurst') {
+      const chance = Math.min(35, 15 + (lv - 1) * 5);
+      const damage = Math.round((0.34 + lv * 0.04) * 100);
+      const radius = 52 + lv * 5;
+      return `소리탄 적중 시 ${chance}% 확률로 작은 충격파 · 피해 ${damage}% · 반경 ${radius}px.`;
+    }
+    if (id === 'stickySnot') {
+      const slow = Math.round((1 - Math.max(0.68, 0.86 - lv * 0.04)) * 100);
+      const duration = Math.round((1200 + lv * 180) / 100) / 10;
+      return `콧물탄 적중 시 ${duration}초 동안 이동속도 ${slow}% 감소.`;
+    }
+    if (id === 'highPressurePee') {
+      return `오줌빔 관통 +${lv} · 탄속 +${lv * 38} · 사거리 소폭 증가.`;
+    }
+    if (id === 'sheddingSeason') {
+      const chance = Math.min(35, 15 + (lv - 1) * 5);
+      return `기본 공격 시 ${chance}% 확률로 피해 60%의 추가 털뭉치 1발.`;
+    }
+    return CHARACTER_AUGMENTS.find(a => a.id === id)?.desc || '';
+  }
+
+  function treasureSkillStats(id, level) {
+    const lv = Math.max(1, level || 1);
+    if (id === 'magicMissile') return { interval:Math.max(2500,5000-(lv-1)*350), count:3+Math.floor((lv-1)/2), damageMult:0.8+lv*0.12 };
+    if (id === 'shrinkRay') return { stepScale:Math.max(0.84,0.90-(lv-1)*0.01), minScale:Math.max(0.44,0.66-lv*0.04), contactDamageMult:Math.max(0.65,0.85-(lv-1)*0.04), duration:Math.min(6000,3000+(lv-1)*500) };
+    if (id === 'juiceBox') return { healPct:Math.min(0.07,0.05+Math.min(2,lv-1)*0.005+Math.max(0,lv-3)*0.0025), repeatFactor:Math.min(0.50,0.35+(lv-1)*0.03), comboWindow:220 };
+    if (id === 'veil') return { interval:Math.max(18000,30000-(lv-1)*1800), maxCharges:1+Math.floor((lv-1)/3) };
+    if (id === 'sword') return { interval:Math.max(1700,3000-(lv-1)*180), damageMult:1.7+lv*0.18 };
+    if (id === 'hellConductor') return { interval:Math.max(2600,4500-(lv-1)*250), count:8+Math.min(4,lv-1), radius:105+lv*4, damageMult:1.25+lv*0.16 };
+    if (id === 'bulletBarrage') return { interval:Math.max(2400,4000-(lv-1)*220), count:5, damageMult:0.45+lv*0.05 };
+    return {};
+  }
+
+  function treasureSkillDescription(id, level) {
+    const lv=Math.max(1,level||1), st=treasureSkillStats(id,lv);
+    if(id==='magicMissile')return `Lv.${lv}: ${Math.round(st.interval/100)/10}초마다 ${st.count}발 · 1발 피해 ${Math.round(st.damageMult*100)}%.`;
+    if(id==='shrinkRay')return `Lv.${lv}: 최소 크기 ${Math.round(st.minScale*100)}% · 접촉 피해 ${Math.round((1-st.contactDamageMult)*100)}% 감소 · ${Math.round(st.duration/100)/10}초 유지.`;
+    if(id==='juiceBox')return `Lv.${lv}: 첫 적중 최대 HP ${Math.round(st.healPct*1000)/10}% 회복 · 연속 다발탄은 ${Math.round(st.repeatFactor*100)}% 효율로 추가 회복.`;
+    if(id==='veil')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 장막 생성 · 최대 ${st.maxCharges}개 저장.`;
+    if(id==='sword')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 위·아래 베기 · 피해 ${Math.round(st.damageMult*100)}%.`;
+    if(id==='hellConductor')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 불기둥 ${st.count}개 · 피해 ${Math.round(st.damageMult*100)}%.`;
+    if(id==='bulletBarrage')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 ${st.count}연사 · 1발 피해 ${Math.round(st.damageMult*100)}%.`;
+    return SKILLS.find(s=>s.id===id)?.desc||'';
+  }
 
   let audioCtx = null;
   let bgmIndex = 0;
@@ -247,6 +329,8 @@
   document.querySelectorAll('.char-card').forEach(card => {
     const key = card.dataset.char;
     drawPreview(card.querySelector('canvas'), key);
+    const passive=card.querySelector('.char-passive'),pdata=CHARACTERS[key]?.passive;
+    if(passive&&pdata)passive.textContent=`${pdata.name} · ${pdata.desc}`;
     card.addEventListener('click', () => {
       selectedCharacter = key;
       document.querySelectorAll('.char-card').forEach(x => x.classList.toggle('selected', x === card));
@@ -359,11 +443,12 @@
       this.level = 1;
       this.xp = 0;
       this.xpNeed = 2;
-      this.attackPower = 20;
-      this.moveSpeed = 190;
-      this.maxHp = 100;
+      const startStats = characterStartStats(this.characterKey);
+      this.attackPower = startStats.attackPower;
+      this.moveSpeed = startStats.moveSpeed;
+      this.maxHp = startStats.maxHp;
       this.levelUpgradeCounts = { damage:0, speed:0, health:0, xpGain:0, attackSpeed:0 };
-      this.hp = 100;
+      this.hp = startStats.hp;
       this.xpGainMult = 1;
       this.basicCooldown = 1500;
       this.extraBasicShots = 0;
@@ -371,6 +456,8 @@
       this.basicExplosion = 0;
       this.basicRicochet = 0;
       this.basicSizeMult = 1;
+      this.basicDamageMult = startStats.basicDamageMult;
+      this.basicProjectileScale = startStats.basicProjectileScale;
       this.shockwaveLevel = 0;
       this.shockwaveTimer = 0;
       this.majorLevels = {};
@@ -383,20 +470,34 @@
       this.gemMagnetRange = 135;
       this.playerDamageMult = 1;
       this.augments = [];
+      this.characterAugmentLevels = {};
       this.pendingAugmentType = null;
       this.basicTimer = 350;
       this.zombieTimer = 0;
       this.batTimer = 0;
       this.eliteTimer = 0;
       this.event180Done = false;
+      this.nextPressureEventAt = 480;
       this.nextBossAt = 300;
+      this.regularBossCount = 0;
       this.nextRaidWave = 35;
       this.raidBossActive = false;
+      this.raidBossTransition = false;
       this.raidBossCount = 0;
+      this.raidBossName = '';
       this.raidShotPhase = 0;
+      this.raidIntroSeq = 0;
+      this.raidPhaseSeq = 0;
+      this.lastNetRaidIntroSeq = 0;
+      this.lastNetRaidPhaseSeq = 0;
       this.magnetUntil = 0;
       this.playerInvulnUntil = 0;
       this.shieldCharges = 0;
+      this.juiceComboUntil = 0;
+      this.juiceComboHits = 0;
+      this.reviveProgress = 0;
+      this.reviveNeedMs = 4800;
+      this.deathCount = 0;
       this.skillLevels = {};
       this.skillTimers = {
         magicMissile: 0,
@@ -567,14 +668,14 @@
         g.fillStyle(0xf1e4d2,1); g.fillTriangle(12,24,16,18,18,25); g.fillTriangle(19,25,22,18,25,24);
         g.fillStyle(0x7c2345,1); g.fillRect(15,25,7,5); g.fillStyle(0xb4d8d2,1); g.fillRect(22,27,3,6);
       });
-      create('enemyBullet', 10, 10, g => {
-        g.fillStyle(0xd84a62,1); g.fillCircle(5,5,4); g.fillStyle(0xffd06f,1); g.fillCircle(5,5,2);
+      create('enemyBullet', 12, 12, g => {
+        g.fillStyle(0x1a0c12,1); g.fillCircle(6,6,5); g.fillStyle(0xf0445e,1); g.fillCircle(6,6,4); g.fillStyle(0xfff2cf,1); g.fillCircle(6,6,2);
       });
-      create('bossBullet', 14, 14, g => {
-        g.fillStyle(0x8c4ad5,1); g.fillCircle(7,7,6); g.fillStyle(0xf4d4ff,1); g.fillCircle(7,7,3);
+      create('bossBullet', 16, 16, g => {
+        g.fillStyle(0x160d22,1); g.fillCircle(8,8,7); g.fillStyle(0xb13fe5,1); g.fillCircle(8,8,5); g.fillStyle(0xffffff,1); g.fillCircle(8,8,2);
       });
-      create('raidBullet', 16, 16, g => {
-        g.fillStyle(0xff5a4f,1); g.fillCircle(8,8,7); g.fillStyle(0xffe06d,1); g.fillCircle(8,8,4); g.fillStyle(0xffffff,1); g.fillCircle(8,8,2);
+      create('raidBullet', 18, 18, g => {
+        g.fillStyle(0x21090a,1); g.fillCircle(9,9,8); g.fillStyle(0xff3d33,1); g.fillCircle(9,9,6); g.fillStyle(0xffdf51,1); g.fillCircle(9,9,4); g.fillStyle(0xffffff,1); g.fillCircle(9,9,2);
       });
       create('shockwave', 56, 56, g => {
         g.lineStyle(5,0xffefb2,0.95); g.strokeCircle(28,28,22); g.lineStyle(2,0x87e7ff,0.9); g.strokeCircle(28,28,27);
@@ -709,15 +810,16 @@
     }
 
     makePlayerBuild(id, characterKey, sprite, shadow) {
+      const start=characterStartStats(characterKey);
       return {
         id, characterKey, charData:CHARACTERS[characterKey]||CHARACTERS.jjigae, sprite, shadow,
-        attackPower:20, moveSpeed:190, maxHp:100, hp:100,
+        attackPower:start.attackPower, moveSpeed:start.moveSpeed, maxHp:start.maxHp, hp:start.hp,
         levelUpgradeCounts:{damage:0,speed:0,health:0,xpGain:0,attackSpeed:0}, xpGainMult:1, basicCooldown:1500,
-        extraBasicShots:0,basicPierce:0,basicExplosion:0,basicRicochet:0,basicSizeMult:1,shockwaveLevel:0,shockwaveTimer:0,
+        extraBasicShots:0,basicPierce:0,basicExplosion:0,basicRicochet:0,basicSizeMult:1,basicDamageMult:start.basicDamageMult,basicProjectileScale:start.basicProjectileScale,shockwaveLevel:0,shockwaveTimer:0,
         majorLevels:{},majorTimers:{poopOrbit:0,discThrow:0,barkRoar:0,yellowGas:0,yawnWave:0,territoryMark:0,squeakyToy:0},
         poopOrbiters:[],gasClouds:[],territoryZones:[],discDirectionIndex:0,facingAngle:0,gemMagnetRange:135,playerDamageMult:1,
-        augments:[],basicTimer:350,playerInvulnUntil:0,shieldCharges:0,skillLevels:{},
-        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,down:false
+        augments:[],characterAugmentLevels:{},basicTimer:350,playerInvulnUntil:0,shieldCharges:0,skillLevels:{},juiceComboUntil:0,juiceComboHits:0,
+        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,down:false,reviveProgress:0,reviveNeedMs:4800,deathCount:0,reviveUi:null
       };
     }
     setupCoopBuilds() {
@@ -731,12 +833,26 @@
     loadBuild(build){if(!build)return;this.currentBuildId=build.id;this.characterKey=build.characterKey;this.charData=build.charData||CHARACTERS[build.characterKey];this.player=build.sprite;this.shadow=build.shadow;BUILD_KEYS.forEach(k=>this[k]=build[k]);this.playerDown=!!build.down;}
     withBuild(buildOrId,fn){if(!this.coopMode||!this.builds)return fn();const target=typeof buildOrId==='string'?this.builds.get(buildOrId):buildOrId;if(!target)return fn();const prev=this.builds.get(this.currentBuildId);if(prev)this.saveBuild(prev);this.loadBuild(target);let r;try{r=fn();}finally{this.saveBuild(target);if(prev&&prev!==target)this.loadBuild(prev);}return r;}
     getBuild(id){return this.builds?.get(id)||null;} getLocalBuild(){return this.getBuild(this.localId);} getRemoteBuild(){return this.remotePlayerInfo?this.getBuild(this.remotePlayerInfo.id):null;}
-    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges}:null;}
+    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,extraBasicShots:b.extraBasicShots||0,basicDamageMult:b.basicDamageMult||1,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,characterAugmentLevels:b.characterAugmentLevels,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges,reviveProgress:b.reviveProgress||0,reviveNeedMs:b.reviveNeedMs||4800,deathCount:b.deathCount||0,invulnLeft:Math.max(0,(b.playerInvulnUntil||0)-this.runTimeMs)}:null;}
 
+    milestoneChoicesForBuild(build){
+      const picks=shuffle(MILESTONE_AUGMENTS).slice(0,3).map(x=>({...x,exclusive:false}));
+      const exclusive=characterAugmentFor(build?.characterKey||this.characterKey);
+      if(exclusive && this.level>=5 && Math.random()<0.35){
+        const current=build?.characterAugmentLevels?.[exclusive.id]||0;
+        picks.push({...exclusive,desc:characterAugmentDescription(exclusive.id,current+1),exclusive:true,level:current});
+      }
+      return picks;
+    }
     choiceOptions(kind, playerId){
       const b=this.getBuild(playerId);
-      let list=kind==='base'?LEVEL_UPGRADES:kind==='minor'?MILESTONE_AUGMENTS:kind==='major'?MAJOR_AUGMENTS:SKILLS;
-      return shuffle(list).slice(0,3).map(x=>({id:x.id,icon:x.icon,title:x.title,desc:x.desc,level:kind==='major'?(b?.majorLevels?.[x.id]||0):kind==='chest'?(b?.skillLevels?.[x.id]||0):null}));
+      if(kind==='minor')return this.milestoneChoicesForBuild(b).map(x=>({id:x.id,icon:x.icon,title:x.title,desc:x.desc,level:x.exclusive?(x.level||0):null,exclusive:!!x.exclusive}));
+      const list=kind==='base'?LEVEL_UPGRADES:kind==='major'?MAJOR_AUGMENTS:SKILLS;
+      return shuffle(list).slice(0,3).map(x=>{
+        const current=kind==='major'?(b?.majorLevels?.[x.id]||0):kind==='chest'?(b?.skillLevels?.[x.id]||0):null;
+        const desc=kind==='chest'?treasureSkillDescription(x.id,(current||0)+1):x.desc;
+        return {id:x.id,icon:x.icon,title:x.title,desc,level:current};
+      });
     }
     showCoopWait(title='상대 플레이어 선택 대기 중',text='둘 다 선택하면 게임이 다시 시작돼.'){const w=document.querySelector('#coop-wait-screen'),t=document.querySelector('#coop-wait-title'),d=document.querySelector('#coop-wait-text');if(t)t.textContent=title;if(d)d.textContent=text;w?.classList.add('show');}
     hideCoopWait(){document.querySelector('#coop-wait-screen')?.classList.remove('show');}
@@ -751,10 +867,10 @@
     showLocalCoopChoice(kind,options){
       const screen=document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen'),root=document.querySelector(kind==='chest'?'#chest-choices':'#levelup-choices');if(!screen||!root)return;this.hideCoopWait();
       if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=kind==='base'?'LEVEL UP!':kind==='minor'?(this.level===1?'START AUGMENT!':`LEVEL ${this.level} AUGMENT!`):`LEVEL ${this.level} MAJOR AUGMENT!`;if(tt)tt.textContent=kind==='base'?`Lv.${this.level} 내 강화 하나를 선택해`:kind==='minor'?(this.level===1?'시작 특별 증강 하나를 선택해':'내 특별 증강 하나를 선택해'):'내 10레벨 전투 증강 하나를 선택해';}
-      root.innerHTML='';options.forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>this.handleCoopChoicePick(this.localId,o.id,kind);root.appendChild(b);});screen.classList.add('show');
+      root.innerHTML='';options.forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'')+(o.exclusive?' exclusive-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">${o.exclusive?'전용 · ':''}현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>this.handleCoopChoicePick(this.localId,o.id,kind);root.appendChild(b);});screen.classList.add('show');
     }
     showGuestChoicePrompt(payload){
-      if(this.networkRole!=='guest')return;this.isChoiceOpen=true;const kind=payload.kind||'base',screen=document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen'),root=document.querySelector(kind==='chest'?'#chest-choices':'#levelup-choices');this.hideCoopWait();if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=payload.eyebrow||'LEVEL UP!';if(tt)tt.textContent=payload.title||'내 강화 하나를 선택해';}if(!screen||!root)return;root.innerHTML='';(payload.options||[]).forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>{socket?.emit('coopChoicePick',{choiceId:o.id,kind});screen.classList.remove('show');this.showCoopWait('상대 플레이어 선택 대기 중','내 선택 완료. 상대가 고르면 게임이 계속돼.');};root.appendChild(b);});screen.classList.add('show');
+      if(this.networkRole!=='guest')return;this.isChoiceOpen=true;const kind=payload.kind||'base',screen=document.querySelector(kind==='chest'?'#chest-screen':'#levelup-screen'),root=document.querySelector(kind==='chest'?'#chest-choices':'#levelup-choices');this.hideCoopWait();if(kind!=='chest'){const e=document.querySelector('#levelup-eyebrow'),tt=document.querySelector('#levelup-title');if(e)e.textContent=payload.eyebrow||'LEVEL UP!';if(tt)tt.textContent=payload.title||'내 강화 하나를 선택해';}if(!screen||!root)return;root.innerHTML='';(payload.options||[]).forEach(o=>{const b=document.createElement('button');b.className='choice-card'+(kind==='major'?' major-choice':'')+(o.exclusive?' exclusive-choice':'');const lv=Number.isFinite(o.level)?`<span class="level">${o.exclusive?'전용 · ':''}현재 Lv.${o.level} → Lv.${o.level+1}</span>`:'';b.innerHTML=`<span class="icon">${o.icon}</span><b>${o.title}</b><p>${o.desc}</p>${lv}`;b.onclick=()=>{socket?.emit('coopChoicePick',{choiceId:o.id,kind});screen.classList.remove('show');this.showCoopWait('상대 플레이어 선택 대기 중','내 선택 완료. 상대가 고르면 게임이 계속돼.');};root.appendChild(b);});screen.classList.add('show');
     }
     closeGuestChoiceUi(){this.isChoiceOpen=false;document.querySelector('#levelup-screen')?.classList.remove('show');document.querySelector('#chest-screen')?.classList.remove('show');this.hideCoopWait();}
     handleCoopChoicePick(playerId,choiceId,kind){
@@ -773,6 +889,7 @@
 
       const sec = this.runTimeMs / 1000;
       summary.textContent = `${this.charData.name} · ${this.charData.weapon}
+고유 특성: ${this.charData.passive?.name||'-'} · ${this.charData.passive?.desc||''}
 생존 ${formatTime(sec)} · WAVE ${this.getWave()} · Lv.${this.level} · 처치 ${this.kills}`;
 
       const atkSpeedPct = Math.max(0, (1500 / this.basicCooldown - 1) * 100);
@@ -782,7 +899,7 @@
         ['공격력', this.attackPower.toFixed(1)],
         ['이동속도', this.moveSpeed.toFixed(1)],
         ['공격속도', `${shotsPerSec.toFixed(2)}/초`],
-        ['공속 보너스', `+${atkSpeedPct.toFixed(1)}%`],
+        ['기본 투사체', `${1 + (this.extraBasicShots || 0)}발`],
         ['HP', `${Math.ceil(this.hp)} / ${Math.ceil(this.maxHp)}`],
         ['경험치 획득', `+${((this.xpGainMult - 1) * 100).toFixed(0)}%`],
         ['보석 흡입범위', `${Math.round(this.gemMagnetRange)}px`],
@@ -796,9 +913,11 @@
       }).join('');
 
       const items = [];
+      items.push({title:this.charData.passive?.name||'고유 특성',detail:this.charData.passive?.desc||''});
       if (this.augments?.length) {
         this.augments.forEach(name => items.push({ title:name, detail:'특별 증강' }));
       }
+      CHARACTER_AUGMENTS.filter(a=>a.character===this.characterKey).forEach(a=>{const lv=this.characterAugmentLevels?.[a.id]||0;if(lv>0)items.push({title:`${a.title} Lv.${lv}`,detail:'캐릭터 전용 특별 증강'});});
       MAJOR_AUGMENTS.forEach(a => {
         const lv = this.majorLevels?.[a.id] || 0;
         if (lv > 0) items.push({ title:`${a.title} Lv.${lv}`, detail:'10레벨 전투 증강' });
@@ -856,10 +975,16 @@
         right: Phaser.Input.Keyboard.KeyCodes.D,
         esc: Phaser.Input.Keyboard.KeyCodes.ESC
       });
-      this.input.keyboard.on('keydown-ESC', () => {
+      this._escHandler = () => {
         if (this.isGameOver || this.isChoiceOpen) return;
         if (this.manualPause) this.closeManualPause();
         else this.openManualPause();
+      };
+      this.input.keyboard.on('keydown-ESC', this._escHandler);
+      this.events.once('shutdown', () => {
+        if (this._escHandler) this.input?.keyboard?.off('keydown-ESC', this._escHandler);
+        if (this.builds) [...this.builds.values()].forEach(b => this.clearReviveUi?.(b));
+        if (activeScene === this) activeScene = null;
       });
       const resumeBtn = document.querySelector('#pause-resume-btn');
       const lobbyBtn = document.querySelector('#pause-lobby-btn');
@@ -911,20 +1036,26 @@
     }
 
     getScaling() {
-      const steps = Math.floor(this.runTimeMs / 30000);
-      return {
-        steps,
-        hp: Math.pow(1.15, steps),
-        speed: Math.pow(1.05, steps)
-      };
+      const minutes = Math.max(0, this.runTimeMs / 60000);
+      // 초반 0~3분의 체감은 기존과 비슷하게 유지하고, 후반 HP/속도는 컨트롤 가능한 선에서 완만하게 제한한다.
+      const hp = Math.min(12, 1 + minutes * 0.298 + minutes * minutes * 0.0246);
+      const speed = Math.min(1.42, 1 + minutes * 0.028);
+      // 0~3분은 기존 접촉 피해를 그대로 두고, 그 이후에만 완만하게 오른다.
+      const damage = Math.min(1.40, 1 + Math.max(0, minutes - 3) * 0.025);
+      return { minutes, hp, speed, damage, tier:Math.floor(minutes / 5) };
     }
 
-    getBossEscalation() {
-      const bossCount = Math.floor(this.runTimeMs / 300000);
+    getBossEscalation(index = Math.max(1, this.regularBossCount || 1)) {
+      const bossIndex=Math.max(1,index),k=bossIndex-1;
       return {
-        bossCount,
-        hp: Math.pow(1.10, bossCount),
-        damage: Math.pow(1.05, bossCount)
+        bossIndex,
+        hp:1 + k * 0.48,
+        damage:1 + k * 0.08,
+        speed:1 + Math.min(0.18,k * 0.035),
+        shotInterval:Math.max(0.68,1 - k * 0.075),
+        shotSpeed:1 + Math.min(0.25,k * 0.045),
+        fanBonus:Math.min(4,k),
+        ringBonus:Math.min(6,k * 2)
       };
     }
 
@@ -970,12 +1101,11 @@
 
     spawnEnemy(type, x, y, opts = {}) {
       const scaling = this.getScaling();
-      const bossScaling = this.getBossEscalation();
       const isElite = !!opts.elite;
       const isBoss = type === 'boss';
       const isRaid = type === 'raidBoss';
       let texture = 'enemy_boss', baseHp = 300, baseSpeed = 50, damage = 20, xp = 0, spriteScale = 1;
-      let role = 'normal';
+      let role = 'normal', mutationKey = null, bossStats = null;
 
       if (isRaid) {
         const raidTextures = ['enemy_raid_grape', 'enemy_raid_choco', 'enemy_raid_onion'];
@@ -987,19 +1117,20 @@
         spriteScale = 3.05;
         role = 'raidBoss';
       } else if (isBoss) {
+        bossStats=this.getBossEscalation(opts.bossIndex || this.regularBossCount || 1);
         texture = 'enemy_boss';
-        baseHp = 520;
-        baseSpeed = 54;
-        damage = 22;
+        baseHp = 520 * bossStats.hp;
+        baseSpeed = 54 * bossStats.speed;
+        damage = 22 * bossStats.damage;
         xp = 0;
         spriteScale = 2.65;
         role = 'boss';
       } else {
         const data = FOOD_ENEMIES[type] || FOOD_ENEMIES.grape;
         texture = data.texture;
-        baseHp = data.hp * bossScaling.hp;
+        baseHp = data.hp;
         baseSpeed = data.speed;
-        damage = data.damage * bossScaling.damage;
+        damage = data.damage * scaling.damage;
         xp = data.xp;
         if (isElite) {
           baseHp *= 4.2;
@@ -1008,14 +1139,30 @@
           xp = Math.max(4, xp * 4);
           spriteScale = 1.65;
           role = 'elite';
+          const minutes=scaling.minutes;
+          const mutationChance=minutes<5?0:minutes<10?0.45:minutes<15?0.72:1;
+          if(!opts.noMutation && Math.random()<mutationChance){
+            mutationKey=opts.mutation || Phaser.Utils.Array.GetRandom(Object.keys(ELITE_MUTATIONS));
+            const mut=ELITE_MUTATIONS[mutationKey];
+            if(mut){baseHp*=mut.hpMult;baseSpeed*=mut.speedMult;damage*=mut.damageMult;}
+          }
         }
       }
 
-      if(this.coopMode){if(role==='boss'){baseHp*=3.0;damage*=1.32;spriteScale*=1.10;}if(role==='raidBoss'){baseHp*=4.2;damage*=1.45;spriteScale*=1.12;}}
+      if(this.coopMode){
+        if(role==='boss'){baseHp*=3.0;damage*=1.32;spriteScale*=1.10;}
+        if(role==='raidBoss'){baseHp*=3.5;damage*=1.38;spriteScale*=1.10;}
+      }
       const e = this.enemies.create(x, y, texture);
       e.setScale(spriteScale).setDepth(8);
       e.enemyType = type;
       e.enemyRole = role;
+      e.eliteMutation = mutationKey;
+      e.bossIndex = bossStats?.bossIndex || 0;
+      e.bossShotIntervalMult = bossStats?.shotInterval || 1;
+      e.bossShotSpeedMult = bossStats?.shotSpeed || 1;
+      e.bossFanCount = role==='boss' ? (this.coopMode ? 9 + (bossStats?.fanBonus||0) : 3 + (bossStats?.fanBonus||0)) : 0;
+      e.bossRingCount = role==='boss' ? (this.coopMode ? 12 + (bossStats?.ringBonus||0) : (e.bossIndex>=3 ? 4 + Math.min(6,(e.bossIndex-2)*2) : 0)) : 0;
       const usesTimeScaling = role === 'normal' || role === 'elite';
       e.maxHp = baseHp * (usesTimeScaling ? scaling.hp : 1);
       e.hp = e.maxHp;
@@ -1027,10 +1174,13 @@
       e.nextTouchAt = 0;
       e.hitFlashUntil = 0;
       e.baseDisplayScale = spriteScale;
-      e.nextShotAt = this.runTimeMs + Phaser.Math.Between(role === 'elite' ? 1300 : 900, role === 'elite' ? 2500 : 1700);
+      const mutationShotMult=mutationKey?(ELITE_MUTATIONS[mutationKey]?.shotMult||1):1;
+      e.eliteShotMult=mutationShotMult;
+      e.nextShotAt = this.runTimeMs + Phaser.Math.Between(role === 'elite' ? 1300 : 900, role === 'elite' ? 2500 : 1700) * mutationShotMult;
       e.shotPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
       e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3000, 5200);
       e.rushUntil = 0;
+      e.raidPhase2 = false;
       e.setData('dead', false);
 
       if (role === 'raidBoss') e.body.setCircle(25, 11, 11);
@@ -1041,24 +1191,38 @@
       if (role === 'elite') {
         e.eliteFace = this.add.image(x, y, 'eliteFace').setDepth(9).setScale(spriteScale * 0.9);
         e.setTint(0xc8a5a5);
+        if(mutationKey){
+          const mut=ELITE_MUTATIONS[mutationKey];
+          e.eliteMutationText=this.add.text(x,y-24,`${mut.icon}${mut.name}`,{fontFamily:'monospace',fontSize:'10px',fontStyle:'bold',color:`#${mut.color.toString(16).padStart(6,'0')}`,stroke:'#18131b',strokeThickness:3}).setOrigin(0.5).setDepth(17);
+        }
       }
       if (role === 'boss') e.setTint(0xe6b26f);
       if (role === 'raidBoss') {
+        e.raidName=this.raidBossName || TRUE_BOSS_NAMES[Math.max(0,this.raidBossCount-1)%TRUE_BOSS_NAMES.length];
         e.setTint(0xffffff);
         this.tweens.add({ targets: e, scaleX: spriteScale * 1.05, scaleY: spriteScale * 1.05, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
+      if(opts.offspring){
+        e.isOffspring=true;e.maxHp*=0.42;e.hp=e.maxHp;e.speed*=1.12;e.contactDamage*=0.72;e.xpValue=0;e.setScale(spriteScale*0.72);e.baseDisplayScale=spriteScale*0.72;
       }
       return e;
     }
 
-    applyBossEscalationToLiveEnemies() {
-      this.enemies.getChildren().forEach(e => {
-        if (!e.active || e.getData('dead')) return;
-        if (e.enemyRole === 'normal' || e.enemyRole === 'elite') {
-          e.maxHp *= 1.10;
-          e.hp *= 1.10;
-          e.contactDamage *= 1.05;
-        }
-      });
+    destroyEnemyDecorations(e) {
+      if(!e)return;
+      if(e.eliteFace?.active)e.eliteFace.destroy();
+      if(e.eliteMutationText?.active)e.eliteMutationText.destroy();
+      if(e.netMutationMarker?.active)e.netMutationMarker.destroy();
+    }
+
+    spawnSplitterChildren(enemy) {
+      if(!enemy || enemy.eliteMutation!=='splitter')return;
+      const childType=FOOD_ENEMIES[enemy.enemyType]?enemy.enemyType:this.pickFoodEnemy('all');
+      for(let i=0;i<3;i++){
+        const a=(Math.PI*2*i)/3+Phaser.Math.FloatBetween(-0.25,0.25);
+        const child=this.spawnEnemy(childType,enemy.x+Math.cos(a)*24,enemy.y+Math.sin(a)*24,{offspring:true,noMutation:true});
+        if(child)child.setTint(0xeab2d7);
+      }
     }
 
     spawnRingEvent() {
@@ -1074,44 +1238,71 @@
       this.cameras.main.shake(450, 0.004);
     }
 
+    spawnPressureEvent() {
+      if(this.raidBossActive)return;
+      const minutes=this.runTimeMs/60000;
+      const count=Math.min(44,24+Math.floor(minutes/5)*4);
+      const eliteCount=Math.min(4,1+Math.floor(minutes/7));
+      this.spawnOutsideView('all',count);
+      this.spawnOutsideView('elite',eliteCount);
+      this.showBanner('위험식품 폭주!',`혼합 습격 ${count}마리 · 변이 정예 ${eliteCount}마리`);
+      this.cameras.main.shake(320,0.003);
+    }
+
     spawnBoss() {
       if (this.raidBossActive) return;
-      this.applyBossEscalationToLiveEnemies();
+      this.regularBossCount += 1;
       const view = this.cameras.main.worldView;
       const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const r = Math.max(view.width, view.height) * 0.72;
       const x = Phaser.Math.Clamp(this.player.x + Math.cos(a) * r, 80, this.worldSize - 80);
       const y = Phaser.Math.Clamp(this.player.y + Math.sin(a) * r, 80, this.worldSize - 80);
-      this.spawnEnemy('boss', x, y);
-      this.showBanner('BOSS 출현!', '정예보다 훨씬 큰 거대 초콜릿');
+      const boss=this.spawnEnemy('boss', x, y,{bossIndex:this.regularBossCount});
+      this.showBanner(`BOSS ${this.regularBossCount} 출현!`, `거대 초콜릿 · HP ${Math.ceil(boss?.maxHp||0)}`);
       this.cameras.main.flash(250, 80, 20, 90);
     }
 
-    spawnElite(count = 1) {
+    spawnElite(count = 1, announce = true) {
       if (this.raidBossActive) return;
       this.spawnOutsideView('elite', count);
-      this.showBanner('정예 위험식품!', '커지고 흉측해진 정예가 투사체를 발사한다');
+      if(announce)this.showBanner('정예 위험식품!', '후반에는 정예마다 한 가지 변이가 붙을 수 있다');
     }
 
     clearBattlefieldForRaid() {
       [...this.enemies.getChildren()].forEach(e => {
-        if (e.eliteFace?.active) e.eliteFace.destroy();
+        this.destroyEnemyDecorations(e);
         if (e.active) e.destroy();
       });
       this.enemyProjectiles.clear(true, true);
     }
 
-    spawnRaidBoss() {
+    startRaidBossEncounter() {
+      if(this.raidBossActive||this.raidBossTransition)return;
       this.raidBossActive = true;
+      this.raidBossTransition = true;
       this.clearBattlefieldForRaid();
       this.raidBossCount += 1;
+      this.raidBossName=TRUE_BOSS_NAMES[(this.raidBossCount-1)%TRUE_BOSS_NAMES.length];
+      this.raidIntroSeq += 1;
+      this.showBanner('⚠ TRUE BOSS 경고 ⚠', `${this.raidBossName} 출현 감지`);
+      this.cameras.main.flash(420,255,80,55);
+      playEnemyShotSfx(true);
+      this.time.delayedCall(1250,()=>{
+        if(this.isGameOver||!this.raidBossActive)return;
+        this.spawnRaidBossNow();
+      });
+    }
+
+    spawnRaidBossNow() {
       const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const r = Math.max(this.cameras.main.width, this.cameras.main.height) * 0.55;
       const x = Phaser.Math.Clamp(this.player.x + Math.cos(a) * r, 140, this.worldSize - 140);
       const y = Phaser.Math.Clamp(this.player.y + Math.sin(a) * r, 140, this.worldSize - 140);
       const boss = this.spawnEnemy('raidBoss', x, y);
       boss.raidIndex = this.raidBossCount - 1;
-      this.showBanner(`WAVE ${this.getWave()} TRUE BOSS`, '잡몹 소멸 · 탄막 보스전 시작!');
+      boss.raidName=this.raidBossName;
+      this.raidBossTransition=false;
+      this.showBanner(this.raidBossName, `WAVE ${this.getWave()} · 탄막전 시작!`);
       this.cameras.main.flash(500, 255, 60, 35);
       this.cameras.main.shake(650, 0.012);
       playEnemyShotSfx(true);
@@ -1119,10 +1310,11 @@
 
     updateWaveSpawns(delta) {
       const sec = this.runTimeMs / 1000;
+      const minutes=sec/60;
       const wave = this.getWave();
 
       if (!this.raidBossActive && wave >= this.nextRaidWave) {
-        this.spawnRaidBoss();
+        this.startRaidBossEncounter();
         this.nextRaidWave += 35;
       }
       if (this.raidBossActive) return;
@@ -1131,34 +1323,51 @@
       let normalInterval = 2000, normalCount = 3;
       let fastEnabled = false, fastInterval = 5000, fastCount = 2;
       if (phase === 2) { normalInterval = 1000; normalCount = 3; fastEnabled = true; }
-      if (phase === 3) { normalInterval = 800; normalCount = 4; fastEnabled = true; fastInterval = 4000; fastCount = 3; }
+      if (phase === 3) {
+        fastEnabled=true;
+        if(minutes<5){normalInterval=800;normalCount=4;fastInterval=4000;fastCount=3;}
+        else if(minutes<10){normalInterval=760;normalCount=4;fastInterval=3800;fastCount=3;}
+        else if(minutes<15){normalInterval=700;normalCount=5;fastInterval=3400;fastCount=3;}
+        else if(minutes<20){normalInterval=620;normalCount=5;fastInterval=3000;fastCount=4;}
+        else {const extra=Math.floor((minutes-20)/5);normalInterval=Math.max(480,560-extra*25);normalCount=6;fastInterval=Math.max(2200,2700-extra*100);fastCount=4;}
+      }
 
+      let activeNonBoss=this.enemies.getChildren().filter(e=>e.active&&!e.getData('dead')&&e.enemyRole!=='boss'&&e.enemyRole!=='raidBoss').length;
+      const activeCap=this.coopMode?180:155;
       this.zombieTimer += delta;
       while (this.zombieTimer >= normalInterval) {
         this.zombieTimer -= normalInterval;
-        this.spawnOutsideView('normal', normalCount);
+        if(activeNonBoss < activeCap){this.spawnOutsideView('normal', normalCount);activeNonBoss+=normalCount;}
       }
 
       if (fastEnabled) {
         this.batTimer += delta;
         while (this.batTimer >= fastInterval) {
           this.batTimer -= fastInterval;
-          this.spawnOutsideView('fast', fastCount);
+          if(activeNonBoss < activeCap){this.spawnOutsideView('fast', fastCount);activeNonBoss+=fastCount;}
         }
       } else this.batTimer = 0;
 
       if (sec >= 45) {
         this.eliteTimer += delta;
-        const eliteInterval = Math.max(9000, 22000 - wave * 180);
+        let eliteInterval=18000,eliteCount=1;
+        if(minutes>=5){eliteInterval=12500;eliteCount=2;}
+        if(minutes>=10){eliteInterval=9500;eliteCount=2;}
+        if(minutes>=15){eliteInterval=7600;eliteCount=3;}
+        if(minutes>=20){eliteInterval=6500;eliteCount=4;}
         if (this.eliteTimer >= eliteInterval) {
           this.eliteTimer = 0;
-          this.spawnElite(Math.min(3, 1 + Math.floor(wave / 20)));
+          this.spawnElite(eliteCount,minutes<6);
         }
       }
 
       if (sec >= 180 && !this.event180Done) {
         this.event180Done = true;
         this.spawnRingEvent();
+      }
+      while(sec>=this.nextPressureEventAt){
+        this.spawnPressureEvent();
+        this.nextPressureEventAt+=300;
       }
       while (sec >= this.nextBossAt) {
         this.spawnBoss();
@@ -1186,6 +1395,11 @@
         const damageMult = i === 0 ? 1 : 0.65;
         this.spawnBasicProjectile(baseAngle + spread, damageMult);
       }
+      const sheddingLv=this.characterAugmentLevels?.sheddingSeason||0;
+      if(this.characterKey==='gucci'&&sheddingLv>0){
+        const chance=Math.min(0.35,0.15+(sheddingLv-1)*0.05);
+        if(Math.random()<chance)this.spawnBasicProjectile(baseAngle+Phaser.Math.FloatBetween(-0.09,0.09),0.60);
+      }
       playShotSfx(this.charData.projectile);
       this.player.setFlipX(target.x < this.player.x);
     }
@@ -1197,15 +1411,16 @@
       p.setDepth(12);
       p.ownerId = this.currentBuildId || this.localId || 'solo';
       p.kind = 'basic';
-      p.damage = this.attackPower * (1 + (this.basicSizeMult - 1) * 0.52) * damageMult;
+      p.damage = this.attackPower * (1 + (this.basicSizeMult - 1) * 0.52) * (this.basicDamageMult || 1) * damageMult;
       p.hitSet = new Set();
-      p.pierceLeft = this.basicPierce || 0;
+      const pressureLv=this.characterAugmentLevels?.highPressurePee||0;
+      p.pierceLeft = (this.basicPierce || 0) + (kind==='pee'?pressureLv:0);
       p.ricochetLeft = this.basicRicochet || 0;
-      p.spawnAt = this.runTimeMs; p.lifeMs = kind === 'pee' ? 1100 : 1600;
-      const speed = kind === 'pee' ? 440 : 310;
+      p.spawnAt = this.runTimeMs; p.lifeMs = kind === 'pee' ? 1100 + pressureLv*120 : 1600;
+      const speed = kind === 'pee' ? 440 + pressureLv*38 : 310;
       p.setRotation(angle);
       this.physics.velocityFromRotation(angle, speed, p.body.velocity);
-      const sizeMult = this.basicSizeMult || 1;
+      const sizeMult = (this.basicSizeMult || 1) * (this.basicProjectileScale || 1);
       if (kind === 'bark') p.setScale(1.15 * sizeMult);
       else p.setScale(sizeMult);
       if (kind === 'pee') p.body.setSize(25 * sizeMult, 4 * sizeMult);
@@ -1255,13 +1470,33 @@
       }
 
       if (projectile.kind === 'basic') {
-        if (this.skillLevels.shrinkRay && enemy.enemyRole !== 'raidBoss') {
-          const nextScale = Math.max(enemy.baseDisplayScale * 0.62, enemy.scaleX * 0.9);
+        const shrinkLv=this.skillLevels.shrinkRay||0;
+        if (shrinkLv && enemy.enemyRole !== 'raidBoss') {
+          const st=treasureSkillStats('shrinkRay',shrinkLv);
+          const nextScale = Math.max(enemy.baseDisplayScale * st.minScale, enemy.scaleX * st.stepScale);
           enemy.setScale(nextScale);
-          enemy.contactDamageMult = 0.85;
-          enemy.shrinkUntil = this.runTimeMs + 3000;
+          enemy.contactDamageMult = st.contactDamageMult;
+          enemy.shrinkUntil = this.runTimeMs + st.duration;
         }
-        if (this.skillLevels.juiceBox) this.heal(this.maxHp * 0.05);
+        const juiceLv=this.skillLevels.juiceBox||0;
+        if (juiceLv) {
+          const st=treasureSkillStats('juiceBox',juiceLv);
+          if(this.runTimeMs>(this.juiceComboUntil||0))this.juiceComboHits=0;
+          const repeat=(this.juiceComboHits||0)>0;
+          this.heal(this.maxHp * st.healPct * (repeat?st.repeatFactor:1));
+          this.juiceComboHits=(this.juiceComboHits||0)+1;
+          this.juiceComboUntil=this.runTimeMs+st.comboWindow;
+        }
+        const vocalLv=this.characterAugmentLevels?.vocalBurst||0;
+        if(this.characterKey==='jjigae'&&vocalLv>0){
+          const chance=Math.min(0.35,0.15+(vocalLv-1)*0.05);
+          if(Math.random()<chance)this.explodeAt(enemy.x,enemy.y,projectile.damage*(0.34+vocalLv*0.04),52+vocalLv*5,enemy);
+        }
+        const stickyLv=this.characterAugmentLevels?.stickySnot||0;
+        if(this.characterKey==='mandu'&&stickyLv>0){
+          enemy.slowUntil=Math.max(enemy.slowUntil||0,this.runTimeMs+1200+stickyLv*180);
+          enemy.slowMult=Math.min(enemy.slowMult||1,Math.max(0.68,0.86-stickyLv*0.04));
+        }
         if (this.basicExplosion > 0) this.explodeAt(enemy.x, enemy.y, this.attackPower * (0.55 + this.basicExplosion * 0.10), 78 + this.basicExplosion * 8, enemy);
 
         if (projectile.pierceLeft > 0) {
@@ -1301,7 +1536,18 @@
         this.lastHitSfxAt = this.runTimeMs;
         playHitSfx(enemy.enemyRole === 'boss' || enemy.enemyRole === 'raidBoss');
       }
+      if(enemy.enemyRole==='raidBoss' && enemy.hp>0 && !enemy.raidPhase2 && enemy.hp<=enemy.maxHp*0.5)this.activateRaidPhase2(enemy);
       if (enemy.hp <= 0) this.killEnemy(enemy, source);
+    }
+
+    activateRaidPhase2(enemy){
+      if(!enemy?.active||enemy.raidPhase2)return;
+      enemy.raidPhase2=true;
+      this.raidPhaseSeq+=1;
+      this.showBanner(`${enemy.raidName||this.raidBossName} 2 PHASE`,'패턴이 변한다!');
+      this.cameras.main.flash(300,255,120,70);
+      this.cameras.main.shake(260,0.007);
+      playEnemyShotSfx(true);
     }
 
     killEnemy(enemy) {
@@ -1309,10 +1555,12 @@
       enemy.setData('dead', true);
       const x = enemy.x, y = enemy.y, role = enemy.enemyRole || 'normal';
       this.kills += 1;
-      if (enemy.eliteFace?.active) enemy.eliteFace.destroy();
+      if(role==='elite'&&enemy.eliteMutation==='splitter')this.spawnSplitterChildren(enemy);
+      this.destroyEnemyDecorations(enemy);
       this.cameras.main.shake(role === 'raidBoss' ? 520 : role === 'boss' ? 280 : role === 'elite' ? 120 : 55, role === 'raidBoss' ? 0.015 : role === 'boss' ? 0.007 : role === 'elite' ? 0.003 : 0.0015);
       if (role === 'raidBoss') {
         this.raidBossActive = false;
+        this.raidBossTransition = false;
         this.dropMagnet(x - 34, y);
         this.dropChest(x + 34, y);
         this.dropChest(x, y + 34);
@@ -1322,7 +1570,7 @@
         if (Math.random() < 0.5) this.dropMagnet(x, y);
         else this.dropChest(x, y);
       } else {
-        this.dropGem(x, y, enemy.xpValue || 1);
+        if ((enemy.xpValue ?? 1) > 0) this.dropGem(x, y, enemy.xpValue ?? 1);
         if (role === 'elite' && Math.random() < 0.18) this.dropChest(x + 14, y);
       }
       enemy.destroy();
@@ -1431,11 +1679,14 @@
       document.querySelector('#levelup-eyebrow').textContent = this.level === 1 ? 'START AUGMENT!' : `LEVEL ${this.level} AUGMENT!`;
       document.querySelector('#levelup-title').textContent = this.level === 1 ? '시작 특별 증강 하나를 선택해' : '특별 증강 하나를 선택해';
       root.innerHTML = '';
-      const picks=shuffle(MILESTONE_AUGMENTS).slice(0,3);
+      const tempBuild={characterKey:this.characterKey,characterAugmentLevels:this.characterAugmentLevels||{}};
+      const picks=this.level===1?shuffle(MILESTONE_AUGMENTS).slice(0,3):this.milestoneChoicesForBuild(tempBuild);
       picks.forEach(a => {
         const b = document.createElement('button');
-        b.className = 'choice-card';
-        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">${this.level === 1 ? '시작 특별 증강' : '특별 증강'}</span>`;
+        b.className = 'choice-card'+(a.exclusive?' exclusive-choice':'');
+        const exclusiveLevel=a.exclusive?(this.characterAugmentLevels?.[a.id]||0):null;
+        const badge=a.exclusive?`전용 증강 · Lv.${exclusiveLevel} → Lv.${exclusiveLevel+1}`:(this.level === 1 ? '시작 특별 증강' : '특별 증강');
+        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">${badge}</span>`;
         b.onclick = () => {
           this.applyMilestoneAugment(a.id);
           screen.classList.remove('show');
@@ -1488,7 +1739,9 @@
     }
 
     applyMilestoneAugment(id) {
-      const data = MILESTONE_AUGMENTS.find(a => a.id === id);
+      const globalData = MILESTONE_AUGMENTS.find(a => a.id === id);
+      const exclusiveData = CHARACTER_AUGMENTS.find(a => a.id === id && a.character === this.characterKey);
+      const data = globalData || exclusiveData;
       if (id === 'goodDeal') this.extraBasicShots += 1;
       if (id === 'hunterInstinct') {
         this.basicCooldown = Math.max(520, this.basicCooldown * 0.86);
@@ -1504,8 +1757,13 @@
         this.moveSpeed *= 1.12;
         this.basicCooldown = Math.max(520, this.basicCooldown * 0.94);
       }
-      if (data) this.augments.push(data.title);
-      this.showBanner(data?.title || '증강 획득!', `Lv.${this.level} 특별 증강`);
+      if (exclusiveData) {
+        this.characterAugmentLevels[id] = (this.characterAugmentLevels[id] || 0) + 1;
+      } else if (data) {
+        this.augments.push(data.title);
+      }
+      const lv=exclusiveData?` Lv.${this.characterAugmentLevels[id]}`:'';
+      this.showBanner(`${data?.title || '증강 획득!'}${lv}`, exclusiveData?'캐릭터 전용 특별 증강':`Lv.${this.level} 특별 증강`);
       this.updateHud();
     }
 
@@ -1564,7 +1822,7 @@
 
     spawnGasCloud(level) {
       const radius = 44 + Math.min(30, level * 5);
-      const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.16).setStrokeStyle(2, 0xbda934, 0.25).setDepth(3);
+      const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.10).setStrokeStyle(2, 0xbda934, 0.22).setDepth(3);
       this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 4500 + level * 300, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: 0.04, scale: 1.18, duration: 3200 + level * 220 });
     }
@@ -1574,7 +1832,7 @@
       const halfAngle = 0.57 + Math.min(0.26, (level - 1) * 0.040);
       const damage = this.attackPower * (0.50 + level * 0.055);
       const spread = Math.tan(halfAngle) * range;
-      const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.16).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
+      const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.12).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
       this.tweens.add({ targets: tri, alpha: 0, scaleX: 1.08, duration: 420, onComplete: () => tri.destroy() });
       this.enemies.getChildren().forEach(e => {
         if (!e.active || e.getData('dead')) return;
@@ -1591,7 +1849,7 @@
 
     spawnTerritoryZone(level) {
       const radius = 80 + Math.min(36, level * 6);
-      const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.20).setStrokeStyle(3, 0xd4aa38, 0.52).setDepth(2);
+      const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.13).setStrokeStyle(3, 0xd4aa38, 0.42).setDepth(2);
       this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 2700 + level * 320, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: { from:0.18, to:0.08 }, duration:700, yoyo:true, repeat:-1 });
     }
@@ -1715,7 +1973,7 @@
         const level = this.skillLevels[s.id] || 0;
         const b = document.createElement('button');
         b.className = 'choice-card';
-        b.innerHTML = `<span class="icon">${s.icon}</span><b>${s.title}</b><p>${s.desc}</p><span class="level">현재 Lv.${level} → Lv.${level + 1}</span>`;
+        b.innerHTML = `<span class="icon">${s.icon}</span><b>${s.title}</b><p>${treasureSkillDescription(s.id,level+1)}</p><span class="level">현재 Lv.${level} → Lv.${level + 1}</span>`;
         b.onclick = () => {
           this.acquireSkill(s.id);
           screen.classList.remove('show');
@@ -1735,6 +1993,7 @@
     }
 
     heal(amount) {
+      if (this.playerDown || !Number.isFinite(amount) || amount <= 0) return;
       this.hp = Math.min(this.maxHp, this.hp + amount);
       this.updateHud();
     }
@@ -1755,7 +2014,71 @@
       this.updateHud(); return true;
     }
     downCurrentPlayer(){
-      if(!this.coopMode||!this.player)return;this.playerDown=true;this.player.setAlpha(0.38);if(this.player.body){this.player.body.setVelocity(0,0);this.player.body.enable=false;}const b=this.getBuild(this.currentBuildId);if(b){b.down=true;b.hp=0;}this.showBanner(`${this.charData.name} 쓰러짐!`,'파트너가 버텨야 해!');if(![...this.builds.values()].some(x=>!x.down&&x.hp>0))this.gameOver();
+      if(!this.coopMode||!this.player)return;
+      this.playerDown=true;
+      this.deathCount=(this.deathCount||0)+1;
+      this.reviveProgress=0;
+      this.reviveNeedMs=Math.min(6750,4800+Math.max(0,this.deathCount-1)*650);
+      this.player.setAlpha(0.38);
+      if(this.player.body){this.player.body.setVelocity(0,0);this.player.body.enable=false;}
+      (this.poopOrbiters||[]).forEach(o=>{if(o?.active)o.destroy();});
+      this.poopOrbiters=[];
+      if(this.shieldVisual?.active)this.shieldVisual.setVisible(false);
+      const b=this.getBuild(this.currentBuildId);
+      if(b){b.down=true;b.hp=0;b.deathCount=this.deathCount;b.reviveProgress=0;b.reviveNeedMs=this.reviveNeedMs;}
+      this.showBanner(`${this.charData.name} 쓰러짐!`,'파트너가 가까이 버티면 부활시킬 수 있어!');
+      if(![...this.builds.values()].some(x=>!x.down&&x.hp>0))this.gameOver();
+    }
+
+    ensureReviveUi(build){
+      if(!build?.sprite)return null;
+      if(!build.reviveUi){
+        const ring=this.add.circle(build.sprite.x,build.sprite.y,84,0x75e4ae,0.035).setStrokeStyle(2,0x75e4ae,0.28).setDepth(5);
+        const bg=this.add.rectangle(build.sprite.x,build.sprite.y-34,68,8,0x1a131b,0.92).setDepth(45).setStrokeStyle(1,0xffffff,0.35);
+        const bar=this.add.rectangle(build.sprite.x-33,build.sprite.y-34,0,6,0x75e4ae,1).setOrigin(0,0.5).setDepth(46);
+        const text=this.add.text(build.sprite.x,build.sprite.y-48,'DOWN',{fontFamily:'monospace',fontSize:'10px',fontStyle:'bold',color:'#fff0d1',stroke:'#24151c',strokeThickness:3}).setOrigin(0.5).setDepth(47);
+        build.reviveUi={ring,bg,bar,text};
+      }
+      return build.reviveUi;
+    }
+    clearReviveUi(build){
+      if(!build?.reviveUi)return;
+      Object.values(build.reviveUi).forEach(o=>o?.destroy?.());build.reviveUi=null;
+    }
+    updateReviveUi(build){
+      if(!build?.down){this.clearReviveUi(build);return;}
+      const ui=this.ensureReviveUi(build);if(!ui)return;
+      const pct=Phaser.Math.Clamp((build.reviveProgress||0)/(build.reviveNeedMs||4800),0,1);
+      ui.ring?.setPosition(build.sprite.x,build.sprite.y).setAlpha(pct>0?0.10:0.045);
+      ui.bg.setPosition(build.sprite.x,build.sprite.y-34);
+      ui.bar.setPosition(build.sprite.x-33,build.sprite.y-34).setSize(66*pct,6);
+      ui.text.setPosition(build.sprite.x,build.sprite.y-48).setText(pct>0?`구조 ${Math.round(pct*100)}%`:'DOWN · 초록 범위 안에서 구조');
+    }
+    reviveBuild(build){
+      if(!build?.down||!build.sprite?.active)return;
+      build.down=false;build.hp=Math.max(1,build.maxHp*0.50);build.reviveProgress=0;build.playerInvulnUntil=this.runTimeMs+2000;
+      build.sprite.setAlpha(1);if(build.sprite.body){build.sprite.body.enable=true;build.sprite.body.setVelocity(0,0);}
+      build.shadow?.setAlpha(0.22);this.clearReviveUi(build);
+      if((build.majorLevels?.poopOrbit||0)>0)this.withBuild(build,()=>this.rebuildPoopOrbiters());
+      this.tweens.add({targets:build.sprite,alpha:{from:0.45,to:1},duration:170,yoyo:true,repeat:5,onComplete:()=>{if(build.sprite?.active)build.sprite.setAlpha(1);}});
+      this.showBanner(`${build.charData?.name||'동료'} 부활!`,build.deathCount>1?`HP 50% · 2초 무적 · 다음 구조 ${Math.round((build.reviveNeedMs||4800)/100)/10}초`:'HP 50% · 2초 무적');
+    }
+    updateRevives(delta){
+      if(!this.coopMode||this.networkRole!=='host'||!this.builds||this.isGameOver)return;
+      const builds=[...this.builds.values()];
+      for(const down of builds.filter(b=>b.down)){
+        const rescuers=builds.filter(b=>!b.down&&b.hp>0&&b.sprite?.active);
+        let inRange=false;
+        for(const rescuer of rescuers){
+          if(Phaser.Math.Distance.Between(rescuer.sprite.x,rescuer.sprite.y,down.sprite.x,down.sprite.y)<=84){inRange=true;break;}
+        }
+        if(inRange)down.reviveProgress=Math.min(down.reviveNeedMs||4800,(down.reviveProgress||0)+delta);
+        else down.reviveProgress=Math.max(0,(down.reviveProgress||0)-delta*0.45);
+        this.updateReviveUi(down);
+        if((down.reviveProgress||0)>=(down.reviveNeedMs||4800))this.reviveBuild(down);
+      }
+      builds.filter(b=>!b.down).forEach(b=>this.clearReviveUi(b));
+      const local=this.getLocalBuild();if(local)this.loadBuild(local);
     }
     onPlayerEnemyContact(targetPlayer, enemy) {
       if (!enemy.active || enemy.getData('dead') || this.isGameOver) return;
@@ -1770,7 +2093,7 @@
 
     spawnEnemyBullet(x, y, angle, speed, damage, kind = 'enemy', lifeMs = 4200) {
       const texture = kind === 'raid' ? 'raidBullet' : kind === 'boss' ? 'bossBullet' : 'enemyBullet';
-      const b = this.enemyProjectiles.create(x, y, texture).setDepth(12);
+      const b = this.enemyProjectiles.create(x, y, texture).setDepth(kind === 'raid' ? 29 : kind === 'boss' ? 28 : 27);
       b.damage = damage;
       b.kind = kind;
       b.strong = kind === 'boss' || kind === 'raid';
@@ -1778,8 +2101,9 @@
       b.lifeMs = lifeMs;
       b.setRotation(angle);
       this.physics.velocityFromRotation(angle, speed, b.body.velocity);
-      if (kind === 'raid') b.body.setCircle(6, 2, 2);
-      else b.body.setCircle(4, 1, 1);
+      if (kind === 'raid') b.body.setCircle(6, 3, 3);
+      else if(kind === 'boss') b.body.setCircle(5, 3, 3);
+      else b.body.setCircle(4, 2, 2);
       return b;
     }
 
@@ -1787,59 +2111,94 @@
     fireEliteShot(enemy,targetPlayer=null) {
       const target=targetPlayer||this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
       const a = Phaser.Math.Angle.Between(enemy.x, enemy.y, target.x, target.y);
-      const count = enemy.enemyRole === 'elite' ? 1 : (this.coopMode ? 9 : 3);
-      for (let i = 0; i < count; i++) {
-        const spread = count === 1 ? 0 : (i - (count - 1) / 2) * (this.coopMode ? 0.105 : 0.16);
-        this.spawnEnemyBullet(enemy.x, enemy.y, a + spread, enemy.enemyRole === 'boss' ? 225 : 185, enemy.contactDamage * 0.72, enemy.enemyRole === 'boss' ? 'boss' : 'enemy');
+      if(enemy.enemyRole==='elite'){
+        const minutes=this.runTimeMs/60000,mut=enemy.eliteMutation;
+        let count=minutes>=15?2:1,spreadStep=0.11,speed=185,damageMult=0.72;
+        if(mut==='swift'){count=2;spreadStep=0.085;speed=220;damageMult=0.62;}
+        if(mut==='armored'){count=1;speed=160;damageMult=0.82;}
+        if(mut==='support'){count=3;spreadStep=0.18;speed=170;damageMult=0.56;}
+        for(let i=0;i<count;i++){
+          const spread=count===1?0:(i-(count-1)/2)*spreadStep;
+          this.spawnEnemyBullet(enemy.x,enemy.y,a+spread,speed,enemy.contactDamage*damageMult,'enemy');
+        }
+        playEnemyShotSfx(false);return;
       }
-      if(this.coopMode && enemy.enemyRole==='boss'){
-        enemy.shotPhase=(enemy.shotPhase||0)+0.24;
-        for(let i=0;i<12;i++){
-          const ra=enemy.shotPhase+(Math.PI*2*i)/12;
-          this.spawnEnemyBullet(enemy.x,enemy.y,ra,155,enemy.contactDamage*0.52,'boss',5200);
+      const count=enemy.bossFanCount || (this.coopMode?9:3);
+      const speed=225*(enemy.bossShotSpeedMult||1);
+      for (let i = 0; i < count; i++) {
+        const spread = count === 1 ? 0 : (i - (count - 1) / 2) * (this.coopMode ? 0.105 : 0.145);
+        this.spawnEnemyBullet(enemy.x, enemy.y, a + spread, speed, enemy.contactDamage * 0.72, 'boss');
+      }
+      const ringCount=enemy.bossRingCount||0;
+      if(ringCount>0){
+        enemy.shotPhase=(enemy.shotPhase||0)+0.22;
+        for(let i=0;i<ringCount;i++){
+          const ra=enemy.shotPhase+(Math.PI*2*i)/ringCount;
+          this.spawnEnemyBullet(enemy.x,enemy.y,ra,150*(enemy.bossShotSpeedMult||1),enemy.contactDamage*0.50,'boss',5200);
         }
       }
-      playEnemyShotSfx(enemy.enemyRole === 'boss');
+      playEnemyShotSfx(true);
     }
 
     fireRaidPattern(enemy) {
       if (!enemy.active || enemy.getData('dead')) return;
       const pattern = (enemy.raidIndex || 0) % 3;
+      const phase2=!!enemy.raidPhase2;
       const targetPlayer=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
       const base = Phaser.Math.Angle.Between(enemy.x, enemy.y, targetPlayer.x, targetPlayer.y);
-      this.raidShotPhase += 0.31;
+      this.raidShotPhase += phase2?0.43:0.31;
 
       if (pattern === 0) {
-        const count = this.coopMode ? 36 : 18;
+        const count = this.coopMode ? (phase2?32:28) : 18;
         for (let i = 0; i < count; i++) {
           const a = this.raidShotPhase + (Math.PI * 2 * i) / count;
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, 185, 12 + this.raidBossCount * 1.5, 'raid', 5200);
+          const speed=phase2?(i%2?155:225):185;
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, speed, 12 + this.raidBossCount * 1.5, 'raid', 5200);
         }
       } else if (pattern === 1) {
-        const count = this.coopMode ? 19 : 9;
+        const count = this.coopMode ? (phase2?17:15) : 9;
         for (let i = 0; i < count; i++) {
-          const a = base + (i - (count - 1) / 2) * 0.13;
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, 245, 13 + this.raidBossCount * 1.5, 'raid', 4400);
+          const a = base + (i - (count - 1) / 2) * (phase2?0.105:0.13);
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, phase2?255:245, 13 + this.raidBossCount * 1.5, 'raid', 4400);
         }
-        for (let i = 0; i < (this.coopMode ? 10 : 4); i++) {
-          const a = base + Math.PI / 2 + i * Math.PI / 2 + this.raidShotPhase;
+        const sideCount=this.coopMode?(phase2?10:8):(phase2?6:4);
+        for (let i = 0; i < sideCount; i++) {
+          const a = base + Math.PI / 2 + (Math.PI*2*i)/sideCount + this.raidShotPhase;
           this.spawnEnemyBullet(enemy.x, enemy.y, a, 160, 10 + this.raidBossCount, 'raid', 5200);
         }
+        if(phase2){
+          this.time.delayedCall(280,()=>{
+            if(!enemy.active||enemy.getData('dead'))return;
+            const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+            const aim=Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y);
+            const burst=this.coopMode?7:5;
+            for(let i=0;i<burst;i++)this.spawnEnemyBullet(enemy.x,enemy.y,aim+(i-(burst-1)/2)*0.075,285,11+this.raidBossCount*1.3,'raid',4000);
+          });
+        }
       } else {
-        const count = this.coopMode ? 28 : 12;
+        const count = this.coopMode ? (phase2?24:20) : (phase2?14:12);
         for (let i = 0; i < count; i++) {
-          const a = base + (Math.PI * 2 * i) / count + this.raidShotPhase;
-          this.spawnEnemyBullet(enemy.x, enemy.y, a, i % 2 ? 155 : 225, 11 + this.raidBossCount * 1.4, 'raid', 5400);
+          const phaseOffset=phase2?-this.raidShotPhase*0.65:this.raidShotPhase;
+          const a = base + (Math.PI * 2 * i) / count + phaseOffset;
+          const speeds=phase2?[135,205,255]:[155,225];
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, speeds[i%speeds.length], 11 + this.raidBossCount * 1.4, 'raid', 5400);
         }
       }
-      if(this.coopMode){[...this.builds.values()].filter(b=>!b.down&&b.sprite?.active).forEach(b=>{const aim=Phaser.Math.Angle.Between(enemy.x,enemy.y,b.sprite.x,b.sprite.y);for(let i=-3;i<=3;i++)this.spawnEnemyBullet(enemy.x,enemy.y,aim+i*0.075,285,14+this.raidBossCount*1.7,'raid',4600);});}
+      if(this.coopMode){
+        [...this.builds.values()].filter(b=>!b.down&&b.sprite?.active).forEach(b=>{
+          const aim=Phaser.Math.Angle.Between(enemy.x,enemy.y,b.sprite.x,b.sprite.y),half=2;
+          for(let i=-half;i<=half;i++)this.spawnEnemyBullet(enemy.x,enemy.y,aim+i*0.085,280,13+this.raidBossCount*1.6,'raid',4500);
+        });
+      }
       playEnemyShotSfx(true);
       this.cameras.main.shake(55, 0.002);
     }
 
     updateEnemyAI() {
-      this.enemies.getChildren().forEach(e => {
-        if (!e.active || e.getData('dead')) return;
+      const activeEnemies=this.enemies.getChildren().filter(e=>e.active&&!e.getData('dead'));
+      const supportElites=activeEnemies.filter(e=>e.enemyRole==='elite'&&e.eliteMutation==='support');
+      const minutes=this.runTimeMs/60000;
+      activeEnemies.forEach(e => {
         if (e.shrinkUntil && this.runTimeMs >= e.shrinkUntil) {
           e.contactDamageMult = 1;
           e.shrinkUntil = 0;
@@ -1850,19 +2209,23 @@
           e.eliteFace.setPosition(e.x, e.y);
           e.eliteFace.setFlipX(e.flipX);
         }
+        if(e.eliteMutationText?.active)e.eliteMutationText.setPosition(e.x,e.y-24);
 
         const targetPlayer=this.nearestActivePlayerTo(e.x,e.y)||this.player;
         const a = Phaser.Math.Angle.Between(e.x, e.y, targetPlayer.x, targetPlayer.y);
         let speed = e.speed;
+        if(e.enemyRole==='normal'&&supportElites.some(s=>Phaser.Math.Distance.Squared(e.x,e.y,s.x,s.y)<=180*180))speed*=1.12;
         if (this.runTimeMs < (e.stunUntil || 0)) speed = 0;
         else if (this.runTimeMs < (e.slowUntil || 0)) speed *= (e.slowMult || 0.65);
         if (e.enemyRole === 'raidBoss') {
           if (this.runTimeMs >= e.nextRushAt) {
-            e.rushUntil = this.runTimeMs + 850;
-            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(this.coopMode?2000:3200,this.coopMode?3300:5000);
+            e.rushUntil = this.runTimeMs + (e.raidPhase2?920:850);
+            const minRush=this.coopMode?2600:3200,maxRush=this.coopMode?4000:5000;
+            const phaseCut=e.raidPhase2?650:0;
+            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(Math.max(1900,minRush-phaseCut),Math.max(2800,maxRush-phaseCut));
             this.showBanner('보스 돌진!', '피해!');
           }
-          if (this.runTimeMs < e.rushUntil) speed *= 2.9;
+          if (this.runTimeMs < e.rushUntil) speed *= e.raidPhase2?3.05:2.9;
           else {
             const d = Phaser.Math.Distance.Between(e.x, e.y, targetPlayer.x, targetPlayer.y);
             if (d > 360) speed *= 1.55;
@@ -1875,10 +2238,18 @@
         if ((e.enemyRole === 'elite' || e.enemyRole === 'boss' || e.enemyRole === 'raidBoss') && this.runTimeMs >= e.nextShotAt) {
           if (e.enemyRole === 'raidBoss') {
             this.fireRaidPattern(e);
-            e.nextShotAt = this.runTimeMs + Math.max(this.coopMode?360:650,(this.coopMode?850:1450)-this.raidBossCount*65);
+            const baseInterval=Math.max(this.coopMode?650:760,(this.coopMode?1050:1450)-this.raidBossCount*(this.coopMode?45:55));
+            e.nextShotAt = this.runTimeMs + baseInterval*(e.raidPhase2?0.78:1);
+          } else if(e.enemyRole==='boss') {
+            this.fireEliteShot(e,targetPlayer);
+            const mult=e.bossShotIntervalMult||1;
+            const min=(this.coopMode?950:1500)*mult,max=(this.coopMode?1450:2300)*mult;
+            e.nextShotAt=this.runTimeMs+Phaser.Math.Between(Math.round(min),Math.round(max));
           } else {
             this.fireEliteShot(e,targetPlayer);
-            e.nextShotAt = this.runTimeMs + (e.enemyRole === 'boss' ? Phaser.Math.Between(this.coopMode?950:1500, this.coopMode?1450:2300) : Phaser.Math.Between(2200, 3400));
+            const pressure=Math.max(0.66,1-minutes*0.018);
+            const mult=(e.eliteShotMult||1)*pressure;
+            e.nextShotAt=this.runTimeMs+Phaser.Math.Between(Math.round(2200*mult),Math.round(3400*mult));
           }
         }
       });
@@ -1928,41 +2299,41 @@
       const lv = this.skillLevels;
       if (lv.magicMissile) {
         this.skillTimers.magicMissile += delta;
-        const interval = Math.max(2500, 5000 - (lv.magicMissile - 1) * 350);
-        if (this.skillTimers.magicMissile >= interval) {
+        const st=treasureSkillStats('magicMissile',lv.magicMissile);
+        if (this.skillTimers.magicMissile >= st.interval) {
           this.skillTimers.magicMissile = 0;
           this.castMagicMissiles(lv.magicMissile);
         }
       }
       if (lv.veil) {
         this.skillTimers.veil += delta;
-        const interval = Math.max(18000, 30000 - (lv.veil - 1) * 1800);
-        if (this.skillTimers.veil >= interval) {
+        const st=treasureSkillStats('veil',lv.veil);
+        if (this.skillTimers.veil >= st.interval) {
           this.skillTimers.veil = 0;
-          this.shieldCharges = Math.min(1 + Math.floor((lv.veil - 1) / 3), this.shieldCharges + 1);
+          this.shieldCharges = Math.min(st.maxCharges, this.shieldCharges + 1);
           this.updateHud();
         }
       }
       if (lv.sword) {
         this.skillTimers.sword += delta;
-        const interval = Math.max(1700, 3000 - (lv.sword - 1) * 180);
-        if (this.skillTimers.sword >= interval) {
+        const st=treasureSkillStats('sword',lv.sword);
+        if (this.skillTimers.sword >= st.interval) {
           this.skillTimers.sword = 0;
           this.castSword(lv.sword);
         }
       }
       if (lv.hellConductor) {
         this.skillTimers.hellConductor += delta;
-        const interval = Math.max(2600, 4500 - (lv.hellConductor - 1) * 250);
-        if (this.skillTimers.hellConductor >= interval) {
+        const st=treasureSkillStats('hellConductor',lv.hellConductor);
+        if (this.skillTimers.hellConductor >= st.interval) {
           this.skillTimers.hellConductor = 0;
           this.castFireRing(lv.hellConductor);
         }
       }
       if (lv.bulletBarrage) {
         this.skillTimers.bulletBarrage += delta;
-        const interval = Math.max(2400, 4000 - (lv.bulletBarrage - 1) * 220);
-        if (this.skillTimers.bulletBarrage >= interval) {
+        const st=treasureSkillStats('bulletBarrage',lv.bulletBarrage);
+        if (this.skillTimers.bulletBarrage >= st.interval) {
           this.skillTimers.bulletBarrage = 0;
           this.castBulletBarrage(lv.bulletBarrage);
         }
@@ -1991,19 +2362,19 @@
     }
 
     castMagicMissiles(level) {
-      const count = 3 + Math.floor((level - 1) / 2);
+      const st=treasureSkillStats('magicMissile',level),count=st.count;
       for (let i = 0; i < count; i++) {
         const a = (Math.PI * 2 * i) / count;
         const p = this.projectiles.create(this.player.x + Math.cos(a) * 24, this.player.y + Math.sin(a) * 24, 'magicMissile');
         p.ownerId = this.currentBuildId || this.localId || 'solo'; p.skillLevel = level;
-        p.kind = 'magicMissile'; p.damage = this.attackPower * (0.8 + level * 0.12); p.hitSet = new Set();
+        p.kind = 'magicMissile'; p.damage = this.attackPower * st.damageMult; p.hitSet = new Set();
         p.spawnAt = this.runTimeMs; p.lifeMs = 3500; p.setDepth(13);
         p.body.setVelocity(Math.cos(a) * 160, Math.sin(a) * 160);
       }
     }
 
     castSword(level) {
-      const damage = this.attackPower * (1.7 + level * 0.18);
+      const damage = this.attackPower * treasureSkillStats('sword',level).damageMult;
       [-48, 48].forEach(offset => {
         const s = this.skillHitboxes.create(this.player.x, this.player.y + offset, 'slash').setDepth(15);
         s.ownerId = this.currentBuildId || this.localId || 'solo';
@@ -2014,9 +2385,8 @@
     }
 
     castFireRing(level) {
-      const count = 8 + Math.min(4, level - 1);
-      const radius = 105 + level * 4;
-      const damage = this.attackPower * (1.25 + level * 0.16);
+      const st=treasureSkillStats('hellConductor',level),count=st.count,radius=st.radius;
+      const damage = this.attackPower * st.damageMult;
       for (let i = 0; i < count; i++) {
         const a = (Math.PI * 2 * i) / count;
         const f = this.skillHitboxes.create(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius, 'firePillar').setDepth(14);
@@ -2031,8 +2401,9 @@
     castBulletBarrage(level) {
       const target = this.nearestEnemy();
       if (!target) return;
-      const ownerId=this.currentBuildId||this.localId||'solo'; const ownerSprite=this.player; const damage=this.attackPower*(0.45+level*0.05);
-      for (let i = 0; i < 5; i++) {
+      const st=treasureSkillStats('bulletBarrage',level);
+      const ownerId=this.currentBuildId||this.localId||'solo'; const ownerSprite=this.player; const damage=this.attackPower*st.damageMult;
+      for (let i = 0; i < st.count; i++) {
         this.time.delayedCall(i * 90, () => {
           if (!target.active || target.getData('dead') || !ownerSprite?.active) return;
           const p = this.projectiles.create(ownerSprite.x, ownerSprite.y, 'bullet').setDepth(13);
@@ -2048,7 +2419,7 @@
           this.shieldVisual = this.add.circle(this.player.x, this.player.y, 28, 0x83d7f0, 0.12).setStrokeStyle(2, 0xa9efff, 0.8).setDepth(11);
           this.tweens.add({ targets: this.shieldVisual, alpha: { from: 0.35, to: 0.12 }, duration: 650, yoyo: true, repeat: -1 });
         }
-        this.shieldVisual.setPosition(this.player.x, this.player.y);
+        this.shieldVisual.setVisible(true).setPosition(this.player.x, this.player.y);
       } else if (this.shieldVisual) {
         this.shieldVisual.destroy(); this.shieldVisual = null;
       }
@@ -2057,7 +2428,11 @@
     readLocalMoveInput(){return{left:!!(this.cursors?.left?.isDown||this.keys?.left?.isDown),right:!!(this.cursors?.right?.isDown||this.keys?.right?.isDown),up:!!(this.cursors?.up?.isDown||this.keys?.up?.isDown),down:!!(this.cursors?.down?.isDown||this.keys?.down?.isDown)};}
     setRemoteInput(playerId,input){if(this.networkRole!=='host'||!this.getBuild(playerId))return;this.remoteInput={left:!!input.left,right:!!input.right,up:!!input.up,down:!!input.down};}
     runPlayerBuildTick(build,input,delta){
-      if(!build||build.down||!build.sprite?.active)return;
+      if(!build||!build.sprite?.active)return;
+      if(build.down){
+        this.withBuild(build,()=>{this.updatePersistentMajorZones();if(this.shieldVisual?.active)this.shieldVisual.setVisible(false);});
+        return;
+      }
       this.withBuild(build,()=>{let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed,dy*this.moveSpeed);if(dx!==0)this.player.setFlipX(dx<0);this.shadow?.setPosition(this.player.x,this.player.y+15);this.updateSkills(delta);this.updateMajorAugments(delta,moving);this.updateShieldVisual();this.basicTimer+=delta;if(this.basicTimer>=this.basicCooldown){this.basicTimer=0;this.fireBasicProjectile();}});
     }
     entityNetId(o,prefix='e'){if(!o.netId)o.netId=`${prefix}${this.netIdCounter++}`;return o.netId;}
@@ -2083,7 +2458,10 @@
         if(o.flipX)d.f=1;
         if(kind==='enemy'){
           if(o.enemyRole)d.ro=o.enemyRole;
+          if(o.eliteMutation)d.mu=o.eliteMutation;
           if(o.enemyRole==='boss'||o.enemyRole==='raidBoss'){d.h=Math.round(o.hp||0);d.m=Math.round(o.maxHp||0);}
+          if(o.enemyRole==='boss'&&o.bossIndex)d.bi=o.bossIndex;
+          if(o.enemyRole==='raidBoss'){if(o.raidName)d.rn=o.raidName;if(o.raidPhase2)d.p2=1;}
         }
         if(kind==='item'&&o.itemType)d.it=o.itemType;
         return out.push(d);
@@ -2109,7 +2487,8 @@
         enemyBullets:this.serializeGroup(this.enemyProjectiles,'b','bullet',1050),
         gems:this.serializeGroup(this.gems,'g','gem',900),
         items:this.serializeGroup(this.items,'i','item',900),extras,
-        boss:boss?{role:boss.enemyRole,hp:Math.round(boss.hp),maxHp:Math.round(boss.maxHp)}:null
+        raidIntroSeq:this.raidIntroSeq||0,raidIntroActive:!!this.raidBossTransition,raidBossName:this.raidBossName||'',raidPhaseSeq:this.raidPhaseSeq||0,
+        boss:boss?{role:boss.enemyRole,hp:Math.round(boss.hp),maxHp:Math.round(boss.maxHp),name:boss.raidName||'',phase2:!!boss.raidPhase2,bossIndex:boss.bossIndex||0}:null
       };
       this._netInterestPoints=null;
       return snapshot;
@@ -2127,18 +2506,23 @@
         o.setRotation(d.r??d.rotation??0);
         const sx=d.sx??d.scaleX??1,sy=d.sy??d.scaleY??sx;o.setScale(sx,sy);
         o.setFlipX(!!(d.f??d.flipX));o.setAlpha(d.a??d.alpha??1);o.setDepth(depth);
-        o.enemyRole=d.ro??d.role??null;
+        o.enemyRole=d.ro??d.role??null;o.eliteMutation=d.mu??null;o.raidName=d.rn??'';o.raidPhase2=!!d.p2;o.bossIndex=d.bi??0;
         if(Number.isFinite(d.h??d.hp))o.hp=d.h??d.hp;if(Number.isFinite(d.m??d.maxHp))o.maxHp=d.m??d.maxHp;
         o.itemType=d.it??d.itemType??null;
-        if(o.enemyRole==='elite')o.setTint(0xc8a5a5);else if(o.enemyRole==='boss')o.setTint(0xe6b26f);else o.clearTint?.();
+        if(o.enemyRole==='elite'){
+          o.setTint(0xc8a5a5);
+          if(o.eliteMutation){const mut=ELITE_MUTATIONS[o.eliteMutation];if(mut&&!o.netMutationMarker?.active)o.netMutationMarker=this.add.text(o.x,o.y-24,`${mut.icon}${mut.name}`,{fontFamily:'monospace',fontSize:'10px',fontStyle:'bold',color:`#${mut.color.toString(16).padStart(6,'0')}`,stroke:'#18131b',strokeThickness:3}).setOrigin(0.5).setDepth(17);}
+          else if(o.netMutationMarker?.active){o.netMutationMarker.destroy();o.netMutationMarker=null;}
+        }else{if(o.netMutationMarker?.active){o.netMutationMarker.destroy();o.netMutationMarker=null;}if(o.enemyRole==='boss')o.setTint(0xe6b26f);else o.clearTint?.();}
       });
-      for(const[id,o]of map){if(!keep.has(id)){if(o?.active)o.destroy();map.delete(id);}}
+      for(const[id,o]of map){if(!keep.has(id)){if(o?.netMutationMarker?.active)o.netMutationMarker.destroy();if(o?.active)o.destroy();map.delete(id);}}
     }
     interpolateNetworkMap(map,delta,tau=70){
       const f=1-Math.exp(-Math.max(1,delta)/tau);
       for(const o of map.values()){
         if(!o?.active||!Number.isFinite(o.netTargetX)||!Number.isFinite(o.netTargetY))continue;
         o.x=Phaser.Math.Linear(o.x,o.netTargetX,f);o.y=Phaser.Math.Linear(o.y,o.netTargetY,f);
+        if(o.netMutationMarker?.active)o.netMutationMarker.setPosition(o.x,o.y-24);
       }
     }
     syncNetworkExtras(extras){
@@ -2149,18 +2533,21 @@
       this.runTimeMs=s.t||0;this.level=s.level||1;this.xp=s.xp||0;this.xpNeed=s.xpNeed||2;this.kills=s.kills||0;
       (s.players||[]).forEach(ps=>{
         const b=this.getBuild(ps.id);if(!b)return;
-        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;
+        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;b.playerInvulnUntil=this.runTimeMs+(ps.invulnLeft||0);
         if(b.sprite){
           const first=!b.netReady;b.netReady=true;
           if(first||Phaser.Math.Distance.Between(b.sprite.x,b.sprite.y,ps.x,ps.y)>260)b.sprite.setPosition(ps.x,ps.y);
           b.sprite.setFlipX(!!ps.flipX).setAlpha(ps.down?0.38:(ps.alpha??1));if(b.sprite.body)b.sprite.body.enable=false;
         }
         b.shadow?.setAlpha(ps.down?0.08:0.22);
+        this.updateReviveUi(b);
       });
       const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
+      if((s.raidIntroSeq||0)>this.lastNetRaidIntroSeq){this.lastNetRaidIntroSeq=s.raidIntroSeq||0;this.showBanner('⚠ TRUE BOSS 경고 ⚠',`${s.raidBossName||'위험 개체'} 출현 감지`);}
+      if((s.raidPhaseSeq||0)>this.lastNetRaidPhaseSeq){this.lastNetRaidPhaseSeq=s.raidPhaseSeq||0;this.showBanner(`${s.raidBossName||'TRUE BOSS'} 2 PHASE`,'패턴이 변한다!');}
       this.syncNetworkGroup(this.netEnemyMap,s.enemies,this.enemies,8);
       this.syncNetworkGroup(this.netProjectileMap,s.projectiles,this.projectiles,12);
-      this.syncNetworkGroup(this.netEnemyBulletMap,s.enemyBullets,this.enemyProjectiles,12);
+      this.syncNetworkGroup(this.netEnemyBulletMap,s.enemyBullets,this.enemyProjectiles,27);
       this.syncNetworkGroup(this.netGemMap,s.gems,this.gems,6);
       this.syncNetworkGroup(this.netItemMap,s.items,this.items,7);
       this.syncNetworkExtras(s.extras);
@@ -2192,6 +2579,7 @@
     updateCoopHost(delta){
       if(this.isGameOver||this.manualPause||this.isChoiceOpen)return;
       this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);
+      this.updateRevives(delta);
       this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();
       this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP`);this.updateHud();}
       this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=110){this.snapshotTimer=0;(socket?.volatile||socket)?.emit?.('coopSnapshot',this.buildNetworkSnapshot());}
@@ -2206,7 +2594,9 @@
       if(this.coopMode&&this.builds){const partner=[...this.builds.values()].find(b=>b.id!==this.currentBuildId);const ph=partner?(partner.down?'DOWN':`${Math.ceil(partner.hp)}/${Math.ceil(partner.maxHp)}`):'-';this.hudInfo.setText(`내 HP ${Math.ceil(this.hp)}/${Math.ceil(this.maxHp)} · 파트너 ${ph}\nTEAM KILL ${this.kills}`);}else this.hudInfo.setText(`HP ${Math.ceil(this.hp)}/${this.maxHp}\nKILL ${this.kills}`);
       const names = SKILLS.filter(s => this.skillLevels[s.id]).map(s => `${s.title} Lv.${this.skillLevels[s.id]}`);
       const majors = MAJOR_AUGMENTS.filter(a => this.majorLevels?.[a.id]).map(a => `${a.title} Lv.${this.majorLevels[a.id]}`);
+      const exclusive=CHARACTER_AUGMENTS.filter(a=>a.character===this.characterKey&&(this.characterAugmentLevels?.[a.id]||0)>0).map(a=>`${a.title} Lv.${this.characterAugmentLevels[a.id]}`);
       if (majors.length) names.unshift(`10Lv: ${majors.join(', ')}`);
+      if(exclusive.length)names.unshift(`전용: ${exclusive.join(', ')}`);
       if (this.augments?.length) names.unshift(`증강: ${this.augments.join(', ')}`);
       if (this.shieldCharges > 0) names.unshift(`장막 ${'◆'.repeat(this.shieldCharges)}`);
       const boss = this.enemies?.getChildren().find(e => e.active && !e.getData('dead') && (e.enemyRole === 'raidBoss' || e.enemyRole === 'boss'));
@@ -2214,7 +2604,8 @@
         const pct = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
         this.bossHpBg.setVisible(true);
         this.bossHpBar.setVisible(true).setSize(370 * pct, 14);
-        this.bossHpText.setVisible(true).setText(`${boss.enemyRole === 'raidBoss' ? 'TRUE BOSS' : 'BOSS'}  ${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`);
+        const bossLabel=boss.enemyRole==='raidBoss'?`${boss.raidName||this.raidBossName||'TRUE BOSS'}${boss.raidPhase2?' · 2 PHASE':''}`:`BOSS ${boss.bossIndex||this.regularBossCount||1}`;
+        this.bossHpText.setVisible(true).setText(`${bossLabel}  ${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`);
       } else {
         this.bossHpBg.setVisible(false); this.bossHpBar.setVisible(false); this.bossHpText.setVisible(false);
       }
@@ -2264,7 +2655,8 @@
       }
 
       this.timerText.setText(formatTime(sec));
-      this.waveText.setText(`WAVE ${this.getWave()}  ·  적 강화 ${this.getScaling().steps}`);
+      const threat=this.getScaling();
+      this.waveText.setText(`WAVE ${this.getWave()} · 위협 HP×${threat.hp.toFixed(1)} / SPD×${threat.speed.toFixed(2)}`);
       this.updateHud();
     }
   }

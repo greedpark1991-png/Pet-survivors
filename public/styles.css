@@ -31,6 +31,7 @@ h2{font-size:28px;margin:4px 0 18px}
 .char-card canvas{display:block;width:112px;height:88px;image-rendering:pixelated;margin:0 auto 5px;background:#15131a;border:2px solid #0e0d11}
 .char-card b{display:block;font-size:18px}
 .char-card small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.char-passive{display:block;margin:7px auto 0;padding:5px 6px;min-height:34px;border:1px solid #4f675c;background:#18211e;color:#bff0d8;font-size:10px;line-height:1.35}
 .controls-box{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;color:#c6bdc8;background:#1b1920;border:2px solid #3c3743;padding:10px;margin:14px 0 18px;font-size:12px}
 .controls-box b{color:var(--accent2)}
 .primary{border:0;background:var(--accent);color:#1b1720;font-weight:900;padding:13px 30px;font-size:18px;box-shadow:0 5px 0 #977d2e}
@@ -58,6 +59,7 @@ h2{font-size:28px;margin:4px 0 18px}
 .audio-controls input[type=range]{width:90px;accent-color:#f1cf63}
 .choice-card.major-choice{border-color:#8c6236;background:#211a17}
 .choice-card.major-choice:hover{border-color:#ffcc69;background:#30241b}
+.choice-card.exclusive-choice{border-color:#5d8a73;background:#17221d}.choice-card.exclusive-choice:hover{border-color:#8ee1bd;background:#20342a}
 @media(max-width:760px){.audio-controls{right:8px;bottom:8px;flex-direction:column;gap:4px}.audio-controls input[type=range]{width:74px}}
 .pause-panel{width:min(940px,95vw);max-height:88vh;display:grid;grid-template-columns:280px 1fr;gap:22px;text-align:left;overflow:auto}
 .pause-left{border-right:2px solid #47404f;padding-right:20px;display:flex;flex-direction:column;justify-content:flex-start}
