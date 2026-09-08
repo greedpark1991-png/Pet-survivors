@@ -21,10 +21,10 @@
   };
 
   const PLAYER_SPRITES = {
-    gamja: { src: '/assets/players/gamja.png', previewSize: 56, worldScale: 1.4 },
-    gucci: { src: '/assets/players/gucci.png', previewSize: 62, worldScale: 1.4 },
-    mandu: { src: '/assets/players/mandu.png', previewSize: 62, worldScale: 1.4 },
-    jjigae: { src: '/assets/players/jjigae.png', previewSize: 62, worldScale: 1.4 }
+    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
+    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
+    mandu: { src: '/assets/players/mandu.png', previewSize: 46, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
+    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } }
   };
 
   const LEVEL_UPGRADES = [
@@ -266,6 +266,7 @@
       this.attackPower = 20;
       this.moveSpeed = 190;
       this.maxHp = 100;
+      this.levelUpgradeCounts = { damage:0, speed:0, health:0, xpGain:0, attackSpeed:0 };
       this.hp = 100;
       this.xpGainMult = 1;
       this.basicCooldown = 1500;
@@ -583,13 +584,92 @@
 
     createPlayer() {
       const center = this.worldSize / 2;
-      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1.4 };
+      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1.05, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } };
       this.player = this.physics.add.sprite(center, center, `player_${this.characterKey}`);
-      this.player.setScale(spriteCfg.worldScale || 1.4).setDepth(10).setCollideWorldBounds(true);
-      this.player.body.setSize(18, 18).setOffset(7, 10);
+      this.player.setScale(spriteCfg.worldScale || 1.05).setDepth(10).setCollideWorldBounds(true);
+      const hb = spriteCfg.hitbox || { w: 14, h: 14, ox: 10, oy: 12 };
+      this.player.body.setSize(hb.w, hb.h).setOffset(hb.ox, hb.oy);
       this.player.setDrag(900, 900);
       this.player.setMaxVelocity(420, 420);
       this.shadow = this.add.ellipse(center, center + 15, 34, 12, 0x111016, 0.22).setDepth(4);
+    }
+
+    renderPauseMenu() {
+      const summary = document.querySelector('#pause-run-summary');
+      const statGrid = document.querySelector('#pause-stat-grid');
+      const basicRoot = document.querySelector('#pause-basic-upgrades');
+      const augmentRoot = document.querySelector('#pause-augment-list');
+      if (!summary || !statGrid || !basicRoot || !augmentRoot) return;
+
+      const sec = this.runTimeMs / 1000;
+      summary.textContent = `${this.charData.name} · ${this.charData.weapon}
+생존 ${formatTime(sec)} · WAVE ${this.getWave()} · Lv.${this.level} · 처치 ${this.kills}`;
+
+      const atkSpeedPct = Math.max(0, (1500 / this.basicCooldown - 1) * 100);
+      const shotsPerSec = 1000 / this.basicCooldown;
+      const damageReduction = Math.max(0, (1 - this.playerDamageMult) * 100);
+      const stats = [
+        ['공격력', this.attackPower.toFixed(1)],
+        ['이동속도', this.moveSpeed.toFixed(1)],
+        ['공격속도', `${shotsPerSec.toFixed(2)}/초`],
+        ['공속 보너스', `+${atkSpeedPct.toFixed(1)}%`],
+        ['HP', `${Math.ceil(this.hp)} / ${Math.ceil(this.maxHp)}`],
+        ['경험치 획득', `+${((this.xpGainMult - 1) * 100).toFixed(0)}%`],
+        ['보석 흡입범위', `${Math.round(this.gemMagnetRange)}px`],
+        ['피해 감소', `${damageReduction.toFixed(0)}%`]
+      ];
+      statGrid.innerHTML = stats.map(([k,v]) => `<div class="pause-stat"><small>${k}</small><b>${v}</b></div>`).join('');
+
+      basicRoot.innerHTML = LEVEL_UPGRADES.map(u => {
+        const count = this.levelUpgradeCounts?.[u.id] || 0;
+        return `<span class="pause-chip">${u.title} ×${count}</span>`;
+      }).join('');
+
+      const items = [];
+      if (this.augments?.length) {
+        this.augments.forEach(name => items.push({ title:name, detail:'5레벨 특별 증강' }));
+      }
+      MAJOR_AUGMENTS.forEach(a => {
+        const lv = this.majorLevels?.[a.id] || 0;
+        if (lv > 0) items.push({ title:`${a.title} Lv.${lv}`, detail:'10레벨 전투 증강' });
+      });
+      SKILLS.forEach(s => {
+        const lv = this.skillLevels?.[s.id] || 0;
+        if (lv > 0) items.push({ title:`${s.title} Lv.${lv}`, detail:'보물상자 스킬' });
+      });
+      augmentRoot.innerHTML = items.length
+        ? items.map(x => `<div class="pause-augment-item"><b>${x.title}</b><small>${x.detail}</small></div>`).join('')
+        : '<div class="pause-empty">아직 획득한 증강이나 보물상자 스킬이 없어.</div>';
+    }
+
+    openManualPause() {
+      if (this.isGameOver || this.isChoiceOpen || this.manualPause) return;
+      this.manualPause = true;
+      this.renderPauseMenu();
+      document.querySelector('#pause-screen').classList.add('show');
+      this.physics.world.pause();
+      this.time.paused = true;
+    }
+
+    closeManualPause() {
+      if (!this.manualPause) return;
+      this.manualPause = false;
+      document.querySelector('#pause-screen').classList.remove('show');
+      this.time.paused = false;
+      this.physics.world.resume();
+    }
+
+    returnToLobby() {
+      this.manualPause = false;
+      document.querySelector('#pause-screen').classList.remove('show');
+      document.querySelector('#levelup-screen').classList.remove('show');
+      document.querySelector('#chest-screen').classList.remove('show');
+      this.time.paused = false;
+      this.physics.world.resume();
+      stopBgm();
+      this.scene.stop();
+      activeScene = null;
+      document.querySelector('#start-screen').classList.add('show');
     }
 
     createInput() {
@@ -603,14 +683,13 @@
       });
       this.input.keyboard.on('keydown-ESC', () => {
         if (this.isGameOver || this.isChoiceOpen) return;
-        this.manualPause = !this.manualPause;
-        document.querySelector('#pause-screen').classList.toggle('show', this.manualPause);
-        if (this.manualPause) {
-          this.physics.world.pause(); this.time.paused = true;
-        } else {
-          this.physics.world.resume(); this.time.paused = false;
-        }
+        if (this.manualPause) this.closeManualPause();
+        else this.openManualPause();
       });
+      const resumeBtn = document.querySelector('#pause-resume-btn');
+      const lobbyBtn = document.querySelector('#pause-lobby-btn');
+      if (resumeBtn) resumeBtn.onclick = () => this.closeManualPause();
+      if (lobbyBtn) lobbyBtn.onclick = () => this.returnToLobby();
     }
 
     createHud() {
@@ -720,11 +799,11 @@
       if (isRaid) {
         const raidTextures = ['enemy_raid_grape', 'enemy_raid_choco', 'enemy_raid_onion'];
         texture = raidTextures[Math.max(0, this.raidBossCount - 1) % raidTextures.length];
-        baseHp = 3200 + this.raidBossCount * 900;
+        baseHp = 6500 + this.raidBossCount * 1800;
         baseSpeed = 60 + Math.min(24, this.raidBossCount * 3);
         damage = 34 + this.raidBossCount * 4;
         xp = 0;
-        spriteScale = 2.9;
+        spriteScale = 3.05;
         role = 'raidBoss';
       } else if (isBoss) {
         texture = 'enemy_boss';
@@ -1207,6 +1286,7 @@
     }
 
     applyLevelUpgrade(id) {
+      if (this.levelUpgradeCounts && Object.prototype.hasOwnProperty.call(this.levelUpgradeCounts, id)) this.levelUpgradeCounts[id] += 1;
       if (id === 'damage') this.attackPower *= 1.05;
       if (id === 'speed') this.moveSpeed *= 1.02;
       if (id === 'health') {
@@ -1252,7 +1332,7 @@
       this.poopOrbiters = [];
       const count = this.majorLevels.poopOrbit || 0;
       for (let i = 0; i < count; i++) {
-        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.05);
+        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.28);
         this.poopOrbiters.push(o);
       }
     }
@@ -1263,18 +1343,18 @@
       this.discDirectionIndex += 1;
       const p = this.projectiles.create(this.player.x, this.player.y, 'disc').setDepth(14);
       p.kind = 'disc';
-      p.damage = this.attackPower * (1.45 + Math.min(2, level - 1) * 0.45);
+      p.damage = this.attackPower * (1.72 + Math.min(2, level - 1) * 0.52);
       p.pierceLeft = Math.max(0, level - 3);
       p.hitSet = new Set();
       p.spawnAt = this.runTimeMs; p.lifeMs = 2600;
       p.setRotation(angle);
-      this.physics.velocityFromRotation(angle, 360 + Math.min(80, level * 10), p.body.velocity);
+      this.physics.velocityFromRotation(angle, 390 + Math.min(100, level * 12), p.body.velocity);
       noise(0.045, 0.025, 900); tone(260, 0.05, 'triangle', 0.018, 180);
     }
 
     castBarkRoar(level) {
-      const radius = 120 + (level - 1) * 30;
-      const damage = this.attackPower * (0.58 + level * 0.08);
+      const radius = 150 + (level - 1) * 36;
+      const damage = this.attackPower * (0.78 + level * 0.10);
       const ring = this.add.image(this.player.x, this.player.y, 'shockwave').setDepth(16).setScale(0.35).setAlpha(0.9);
       this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 420, onComplete: () => ring.destroy() });
       this.enemies.getChildren().forEach(e => {
@@ -1292,16 +1372,16 @@
     }
 
     spawnGasCloud(level) {
-      const radius = 28 + Math.min(18, level * 3);
+      const radius = 36 + Math.min(24, level * 4);
       const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.16).setStrokeStyle(2, 0xbda934, 0.25).setDepth(3);
-      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 3200 + level * 220, nextTick:this.runTimeMs });
+      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 3800 + level * 260, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: 0.04, scale: 1.18, duration: 3200 + level * 220 });
     }
 
     castYawnWave(level) {
-      const range = 175 + (level - 1) * 18;
-      const halfAngle = 0.48 + Math.min(0.22, (level - 1) * 0.035);
-      const damage = this.attackPower * (0.28 + level * 0.035);
+      const range = 205 + (level - 1) * 22;
+      const halfAngle = 0.54 + Math.min(0.24, (level - 1) * 0.038);
+      const damage = this.attackPower * (0.40 + level * 0.045);
       const spread = Math.tan(halfAngle) * range;
       const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.16).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
       this.tweens.add({ targets: tri, alpha: 0, scaleX: 1.08, duration: 420, onComplete: () => tri.destroy() });
@@ -1312,16 +1392,16 @@
         const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
         if (Math.abs(Phaser.Math.Angle.Wrap(a - (this.facingAngle || 0))) > halfAngle) return;
         this.damageEnemy(e, damage, 'yawnWave');
-        e.slowUntil = this.runTimeMs + 2400 + level * 120;
-        e.slowMult = Math.max(0.48, 0.68 - level * 0.025);
+        e.slowUntil = this.runTimeMs + 2800 + level * 140;
+        e.slowMult = Math.max(0.42, 0.63 - level * 0.028);
       });
       noise(0.10, 0.025, 350); tone(165, 0.18, 'sine', 0.025, 95);
     }
 
     spawnTerritoryZone(level) {
-      const radius = 52 + Math.min(24, level * 4);
-      const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.13).setStrokeStyle(3, 0xd4aa38, 0.38).setDepth(2);
-      this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 6500 + level * 250, nextTick:this.runTimeMs });
+      const radius = 68 + Math.min(30, level * 5);
+      const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.20).setStrokeStyle(3, 0xd4aa38, 0.52).setDepth(2);
+      this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 2400 + level * 300, nextTick:this.runTimeMs });
       this.tweens.add({ targets: obj, alpha: { from:0.18, to:0.08 }, duration:700, yoyo:true, repeat:-1 });
     }
 
@@ -1334,9 +1414,9 @@
       const tx = target.x, ty = target.y;
       this.tweens.add({ targets: toy, y:ty, angle:Phaser.Math.Between(-35,35), duration:430, ease:'Quad.easeIn', onComplete:() => {
         if (target.active && !target.getData('dead')) {
-          this.damageEnemy(target, this.attackPower * (1.45 + level * 0.22), 'squeakyToy');
+          this.damageEnemy(target, this.attackPower * (1.85 + level * 0.28), 'squeakyToy');
           target.stunUntil = this.runTimeMs + 320 + level * 35;
-          this.explodeAt(tx, ty, this.attackPower * (0.18 + level * 0.03), 34 + level * 2, target);
+          this.explodeAt(tx, ty, this.attackPower * (0.28 + level * 0.04), 34 + level * 2, target);
         }
         noise(0.07,0.04,650); tone(420,0.06,'square',0.025,250);
         toy.destroy();
@@ -1351,7 +1431,7 @@
           z.nextTick = now + 500;
           this.enemies.getChildren().forEach(e => {
             if (!e.active || e.getData('dead')) return;
-            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.075 + z.level * 0.022), 'yellowGas');
+            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.105 + z.level * 0.030), 'yellowGas');
           });
         }
         return true;
@@ -1364,8 +1444,8 @@
             if (!e.active || e.getData('dead')) return;
             if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) {
               e.vulnerableUntil = now + 750;
-              e.vulnerableMult = 1.10 + z.level * 0.025;
-              this.damageEnemy(e, this.attackPower * (0.07 + z.level * 0.02), 'territoryMark');
+              e.vulnerableMult = 1.14 + z.level * 0.030;
+              this.damageEnemy(e, this.attackPower * (0.10 + z.level * 0.028), 'territoryMark');
             }
           });
         }
@@ -1378,18 +1458,18 @@
       if (lv.poopOrbit) {
         if (this.poopOrbiters.length !== lv.poopOrbit) this.rebuildPoopOrbiters();
         const count = this.poopOrbiters.length;
-        const radius = 48 + Math.min(20, lv.poopOrbit * 3);
+        const radius = 72 + Math.min(28, lv.poopOrbit * 4);
         this.poopOrbiters.forEach((o,i) => {
           const a = this.runTimeMs * 0.0032 + (Math.PI * 2 * i) / count;
           o.setPosition(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius);
           this.enemies.getChildren().forEach(e => {
             if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReady || 0)) return;
-            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 22) {
+            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 27) {
               e.poopHitReady = this.runTimeMs + 380;
-              this.damageEnemy(e, this.attackPower * (0.22 + lv.poopOrbit * 0.035), 'poopOrbit');
+              this.damageEnemy(e, this.attackPower * (0.32 + lv.poopOrbit * 0.050), 'poopOrbit');
               if (e.enemyRole !== 'raidBoss') {
                 const pa = Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
-                e.x += Math.cos(pa) * 7; e.y += Math.sin(pa) * 7;
+                e.x += Math.cos(pa) * 11; e.y += Math.sin(pa) * 11;
               }
             }
           });
@@ -1397,12 +1477,12 @@
       }
       if (lv.discThrow) {
         this.majorTimers.discThrow += delta;
-        const interval = Math.max(1900, 3400 - (lv.discThrow - 1) * 180);
+        const interval = Math.max(1700, 3050 - (lv.discThrow - 1) * 190);
         if (this.majorTimers.discThrow >= interval) { this.majorTimers.discThrow = 0; this.castDisc(lv.discThrow); }
       }
       if (lv.barkRoar) {
         this.majorTimers.barkRoar += delta;
-        if (this.majorTimers.barkRoar >= 6000) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
+        if (this.majorTimers.barkRoar >= 5400) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
       }
       if (lv.yellowGas && moving) {
         this.majorTimers.yellowGas += delta;
@@ -1411,15 +1491,15 @@
       }
       if (lv.yawnWave) {
         this.majorTimers.yawnWave += delta;
-        if (this.majorTimers.yawnWave >= 5400) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
+        if (this.majorTimers.yawnWave >= 5000) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
       }
       if (lv.territoryMark) {
         this.majorTimers.territoryMark += delta;
-        if (this.majorTimers.territoryMark >= 7200) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
+        if (this.majorTimers.territoryMark >= 5900) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
       }
       if (lv.squeakyToy) {
         this.majorTimers.squeakyToy += delta;
-        const interval = Math.max(2800, 5000 - (lv.squeakyToy - 1) * 180);
+        const interval = Math.max(2400, 4500 - (lv.squeakyToy - 1) * 190);
         if (this.majorTimers.squeakyToy >= interval) { this.majorTimers.squeakyToy = 0; this.dropSqueakyToy(lv.squeakyToy); }
       }
       this.updatePersistentMajorZones();

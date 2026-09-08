@@ -68,9 +68,25 @@
     </section>
 
     <section id="pause-screen" class="overlay choice-overlay">
-      <div class="panel small-panel">
-        <h2>일시정지</h2>
-        <p>ESC를 다시 누르면 계속 진행돼.</p>
+      <div class="panel pause-panel">
+        <div class="pause-left">
+          <div class="eyebrow">PAUSED</div>
+          <h2>일시정지</h2>
+          <p id="pause-run-summary" class="pause-summary">현재 진행 상황</p>
+          <div class="pause-buttons">
+            <button id="pause-resume-btn" class="primary">돌아가기</button>
+            <button id="pause-lobby-btn" class="secondary">로비로 가기</button>
+          </div>
+          <p class="pause-hint">ESC를 다시 눌러도 게임으로 돌아갈 수 있어.</p>
+        </div>
+        <div class="pause-details">
+          <h3>능력치</h3>
+          <div id="pause-stat-grid" class="pause-stat-grid"></div>
+          <h3>기본 강화 누적</h3>
+          <div id="pause-basic-upgrades" class="pause-chip-list"></div>
+          <h3>먹은 증강 / 스킬</h3>
+          <div id="pause-augment-list" class="pause-augment-list"></div>
+        </div>
       </div>
     </section>
 
