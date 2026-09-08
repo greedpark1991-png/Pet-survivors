@@ -1,6 +1,6 @@
 {
   "name": "pet-survivors-phaser",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Pixel pet survivor roguelite made with Phaser 3",
   "main": "server.js",

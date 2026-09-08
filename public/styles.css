@@ -53,3 +53,9 @@ h2{font-size:28px;margin:4px 0 18px}
   .choice-panel{max-height:90vh;overflow:auto}
   h1{font-size:32px}
 }
+.audio-controls{position:absolute;right:14px;bottom:14px;z-index:60;display:flex;gap:10px;background:rgba(20,18,25,.88);border:2px solid #4a4352;padding:7px 9px;font-size:11px;color:#ddd3df;box-shadow:0 5px 16px rgba(0,0,0,.28)}
+.audio-controls label{display:flex;align-items:center;gap:6px;font-weight:800}
+.audio-controls input[type=range]{width:90px;accent-color:#f1cf63}
+.choice-card.major-choice{border-color:#8c6236;background:#211a17}
+.choice-card.major-choice:hover{border-color:#ffcc69;background:#30241b}
+@media(max-width:760px){.audio-controls{right:8px;bottom:8px;flex-direction:column;gap:4px}.audio-controls input[type=range]{width:74px}}

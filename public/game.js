@@ -45,6 +45,15 @@
     { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 18% 증가하고 기본 공격 속도가 8% 빨라진다.' }
   ];
 
+
+  const MAJOR_AUGMENTS = [
+    { id: 'piercingRounds', icon: '➤➤', title: '관통탄', desc: '기본 투사체가 적을 2마리 더 관통한다. 다시 획득하면 관통 횟수가 더 늘어난다.' },
+    { id: 'blastRounds', icon: '✹', title: '광역 폭발탄', desc: '기본 투사체 적중 시 주변 78px에 공격력의 65%만큼 폭발 피해를 준다.' },
+    { id: 'bigShot', icon: '●', title: '거대 탄환', desc: '기본 투사체 크기 35%, 피해량 18% 증가. 피격 판정도 함께 커진다.' },
+    { id: 'ricochet', icon: '↝', title: '튕기는 탄환', desc: '기본 투사체가 적중 후 가까운 다른 적에게 1회 자동으로 튕겨 추가 피해를 준다.' },
+    { id: 'shockwave', icon: '◎', title: '본능의 충격파', desc: '8초마다 플레이어 주변을 크게 휩쓰는 충격파가 발생한다.' }
+  ];
+
   const FOOD_ENEMIES = {
     grape:       { name:'포도',       texture:'enemy_grape',       hp:16, speed:60,  damage:9,  xp:1 },
     greenGrape:  { name:'청포도',     texture:'enemy_greenGrape',  hp:18, speed:62,  damage:9,  xp:1 },
@@ -70,6 +79,110 @@
   let selectedCharacter = 'jjigae';
   let game = null;
   let activeScene = null;
+
+  let audioCtx = null;
+  let bgmIndex = 0;
+  let bgmVolume = Number(localStorage.getItem('petSurvivorsBgm') || 0.22);
+  let sfxVolume = Number(localStorage.getItem('petSurvivorsSfx') || 0.72);
+  const bgmTracks = [
+    new Audio('/audio/01_Paws_Against_The_Horde.mp3'),
+    new Audio('/audio/02_Victory_Pose.mp3'),
+    new Audio('/audio/03_Thousand_Blade_Ascent.mp3')
+  ];
+  bgmTracks.forEach((track, i) => {
+    track.preload = 'auto';
+    track.loop = false;
+    track.volume = bgmVolume;
+    track.addEventListener('ended', () => {
+      if (bgmTracks[bgmIndex] !== track) return;
+      bgmIndex = (i + 1) % bgmTracks.length;
+      playCurrentBgm();
+    });
+  });
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) audioCtx = new Ctx();
+    }
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+  }
+
+  function playCurrentBgm(reset = false) {
+    if (!bgmTracks.length) return;
+    bgmTracks.forEach((t, i) => { if (i !== bgmIndex) t.pause(); });
+    const t = bgmTracks[bgmIndex];
+    t.volume = bgmVolume;
+    if (reset) t.currentTime = 0;
+    t.play().catch(() => {});
+  }
+
+  function startBgmPlaylist() {
+    ensureAudio();
+    bgmTracks.forEach(t => { t.pause(); t.currentTime = 0; });
+    bgmIndex = 0;
+    playCurrentBgm(true);
+  }
+
+  function stopBgm() {
+    bgmTracks.forEach(t => { t.pause(); t.currentTime = 0; });
+    bgmIndex = 0;
+  }
+
+  function tone(freq, dur = 0.06, type = 'square', vol = 0.08, endFreq = null) {
+    if (!audioCtx || sfxVolume <= 0) return;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol * sfxVolume), t + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + dur + 0.02);
+  }
+
+  function noise(dur = 0.07, vol = 0.08, cutoff = 700) {
+    if (!audioCtx || sfxVolume <= 0) return;
+    const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = audioCtx.createBufferSource(); src.buffer = buf;
+    const filter = audioCtx.createBiquadFilter(); filter.type = 'highpass'; filter.frequency.value = cutoff;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * sfxVolume, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    src.connect(filter).connect(gain).connect(audioCtx.destination);
+    src.start();
+  }
+
+  function playShotSfx(kind) {
+    ensureAudio();
+    if (kind === 'bark') { tone(240, 0.07, 'square', 0.07, 170); tone(360, 0.045, 'triangle', 0.035, 260); }
+    else if (kind === 'snot') { tone(120, 0.09, 'sine', 0.07, 82); noise(0.04, 0.035, 350); }
+    else if (kind === 'pee') { noise(0.08, 0.04, 1200); tone(720, 0.05, 'triangle', 0.025, 520); }
+    else { noise(0.06, 0.045, 700); tone(170, 0.06, 'triangle', 0.04, 115); }
+  }
+
+  function playHitSfx(strong = false) {
+    ensureAudio();
+    noise(strong ? 0.11 : 0.07, strong ? 0.09 : 0.055, strong ? 320 : 520);
+    tone(strong ? 92 : 135, strong ? 0.12 : 0.075, 'square', strong ? 0.07 : 0.045, strong ? 50 : 82);
+  }
+
+  function playEnemyShotSfx(strong = false) {
+    ensureAudio();
+    tone(strong ? 105 : 170, strong ? 0.12 : 0.07, 'sawtooth', strong ? 0.055 : 0.025, strong ? 62 : 115);
+  }
+
+  function playPlayerHurtSfx() {
+    ensureAudio();
+    tone(330, 0.07, 'square', 0.075, 155);
+    tone(175, 0.12, 'triangle', 0.06, 90);
+  }
 
   function shuffle(arr) {
     const a = [...arr];
@@ -163,15 +276,26 @@
       this.hp = 100;
       this.basicCooldown = 1500;
       this.extraBasicShots = 0;
+      this.basicPierce = 0;
+      this.basicExplosion = 0;
+      this.basicRicochet = 0;
+      this.basicSizeMult = 1;
+      this.shockwaveLevel = 0;
+      this.shockwaveTimer = 0;
       this.gemMagnetRange = 135;
       this.playerDamageMult = 1;
       this.augments = [];
-      this.pendingMilestone = false;
+      this.pendingAugmentType = null;
       this.basicTimer = 350;
       this.zombieTimer = 0;
       this.batTimer = 0;
+      this.eliteTimer = 0;
       this.event180Done = false;
       this.nextBossAt = 300;
+      this.nextRaidWave = 35;
+      this.raidBossActive = false;
+      this.raidBossCount = 0;
+      this.raidShotPhase = 0;
       this.magnetUntil = 0;
       this.playerInvulnUntil = 0;
       this.shieldCharges = 0;
@@ -305,6 +429,44 @@
         g.fillStyle(0x17141a,1); g.fillRect(13,18,5,6); g.fillRect(30,18,5,6); g.fillRect(17,31,15,4);
       });
 
+      create('enemy_raid_grape', 72, 72, g => {
+        g.fillStyle(0x3a1f45,1); [[18,15],[31,12],[45,16],[24,28],[38,27],[51,31],[18,42],[32,44],[46,46],[31,57]].forEach(([x,y])=>g.fillCircle(x,y,11));
+        g.fillStyle(0x8751a8,1); [[17,14],[31,11],[45,15],[24,27],[38,26],[51,30],[18,41],[32,43],[46,45],[31,56]].forEach(([x,y])=>g.fillCircle(x,y,7));
+        g.fillStyle(0x5ba34b,1); g.fillRect(31,1,7,13); g.fillRect(38,4,15,6);
+        g.fillStyle(0xff5d5d,1); g.fillRect(20,30,6,5); g.fillRect(45,31,6,5); g.fillStyle(0x17141a,1); g.fillRect(22,31,2,3); g.fillRect(47,32,2,3);
+        g.fillStyle(0xd8b4e8,1); g.fillRect(27,47,18,5); g.fillStyle(0x17141a,1); g.fillRect(30,49,3,4); g.fillRect(39,49,3,4);
+      });
+      create('enemy_raid_choco', 72, 72, g => {
+        g.fillStyle(0x3d211d,1); g.fillRect(10,8,52,56); g.fillStyle(0x7b4430,1);
+        for(let yy=14;yy<58;yy+=14) for(let xx=16;xx<56;xx+=14) g.fillRect(xx,yy,10,10);
+        g.fillStyle(0xd0473d,1); g.fillRect(15,23,10,7); g.fillRect(47,23,10,7); g.fillStyle(0x17141a,1); g.fillRect(18,25,4,3); g.fillRect(50,25,4,3);
+        g.fillStyle(0xffbf58,1); g.fillRect(7,5,58,5); g.fillRect(7,61,58,5); g.fillStyle(0x17141a,1); g.fillRect(24,45,24,5); g.fillRect(28,50,4,7); g.fillRect(40,50,4,7);
+      });
+      create('enemy_raid_onion', 72, 72, g => {
+        g.fillStyle(0xe6d6c7,1); g.fillEllipse(36,40,50,48); g.fillStyle(0xb889a5,1); g.lineStyle(5,0xa66c92,1); g.strokeEllipse(36,40,39,37); g.strokeEllipse(36,40,24,24);
+        g.fillStyle(0x6fae63,1); g.fillTriangle(27,18,34,2,38,20); g.fillTriangle(35,18,45,1,43,21);
+        g.fillStyle(0xff5f61,1); g.fillRect(20,34,8,6); g.fillRect(44,34,8,6); g.fillStyle(0x17141a,1); g.fillRect(23,36,3,3); g.fillRect(47,36,3,3);
+        g.fillStyle(0x6c334f,1); g.fillRect(27,49,18,6); g.fillStyle(0xffffff,1); g.fillRect(30,49,3,4); g.fillRect(39,49,3,4);
+      });
+      create('eliteFace', 36, 36, g => {
+        g.fillStyle(0xff4545,1); g.fillRect(8,12,5,4); g.fillRect(23,12,5,4);
+        g.fillStyle(0x17141a,1); g.fillRect(10,13,2,2); g.fillRect(24,13,2,2);
+        g.fillStyle(0xf1e4d2,1); g.fillTriangle(12,24,16,18,18,25); g.fillTriangle(19,25,22,18,25,24);
+        g.fillStyle(0x7c2345,1); g.fillRect(15,25,7,5); g.fillStyle(0xb4d8d2,1); g.fillRect(22,27,3,6);
+      });
+      create('enemyBullet', 10, 10, g => {
+        g.fillStyle(0xd84a62,1); g.fillCircle(5,5,4); g.fillStyle(0xffd06f,1); g.fillCircle(5,5,2);
+      });
+      create('bossBullet', 14, 14, g => {
+        g.fillStyle(0x8c4ad5,1); g.fillCircle(7,7,6); g.fillStyle(0xf4d4ff,1); g.fillCircle(7,7,3);
+      });
+      create('raidBullet', 16, 16, g => {
+        g.fillStyle(0xff5a4f,1); g.fillCircle(8,8,7); g.fillStyle(0xffe06d,1); g.fillCircle(8,8,4); g.fillStyle(0xffffff,1); g.fillCircle(8,8,2);
+      });
+      create('shockwave', 56, 56, g => {
+        g.lineStyle(5,0xffefb2,0.95); g.strokeCircle(28,28,22); g.lineStyle(2,0x87e7ff,0.9); g.strokeCircle(28,28,27);
+      });
+
       create('xpGem', 12, 14, g => {
         g.fillStyle(0x1c6d60, 1); g.fillRect(4, 1, 4, 2);
         g.fillStyle(0x43d5b4, 1); g.fillRect(2, 3, 8, 7);
@@ -395,6 +557,7 @@
     createGroups() {
       this.enemies = this.physics.add.group({ allowGravity: false });
       this.projectiles = this.physics.add.group({ allowGravity: false });
+      this.enemyProjectiles = this.physics.add.group({ allowGravity: false });
       this.gems = this.physics.add.group({ allowGravity: false });
       this.items = this.physics.add.group({ allowGravity: false });
       this.skillHitboxes = this.physics.add.group({ allowGravity: false });
@@ -444,6 +607,9 @@
       this.hudInfo = fixed(this.add.text(250, 42, '', { fontFamily: 'monospace', fontSize: '12px', color: '#d0c7d1' }));
       this.timerText = fixed(this.add.text(cam.width - 18, 16, '00:00', { fontFamily: 'monospace', fontSize: '25px', fontStyle: 'bold', color: '#fff4cb' }).setOrigin(1, 0));
       this.waveText = fixed(this.add.text(cam.width - 18, 47, 'WAVE 1', { fontFamily: 'monospace', fontSize: '13px', color: '#8ee1bd' }).setOrigin(1, 0));
+      this.bossHpBg = fixed(this.add.rectangle(cam.width / 2, 84, 370, 14, 0x2b1720, 0.92).setOrigin(0.5)).setVisible(false);
+      this.bossHpBar = fixed(this.add.rectangle(cam.width / 2 - 185, 84, 370, 14, 0xd45455, 1).setOrigin(0, 0.5)).setVisible(false);
+      this.bossHpText = fixed(this.add.text(cam.width / 2, 66, '', { fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#ffe3c4', stroke: '#21151b', strokeThickness: 3 }).setOrigin(0.5)).setVisible(false);
       this.skillText = fixed(this.add.text(18, cam.height - 18, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ded4df', backgroundColor: '#18151ecc', padding: { x: 8, y: 6 } }).setOrigin(0, 1));
       this.banner = fixed(this.add.text(cam.width / 2, 105, '', { fontFamily: 'monospace', fontSize: '25px', fontStyle: 'bold', align: 'center', color: '#fff2b6', stroke: '#201922', strokeThickness: 5 }).setOrigin(0.5));
       this.banner.setAlpha(0);
@@ -454,6 +620,7 @@
       this.physics.add.overlap(this.projectiles, this.enemies, this.onProjectileHit, null, this);
       this.physics.add.overlap(this.skillHitboxes, this.enemies, this.onSkillHit, null, this);
       this.physics.add.overlap(this.player, this.enemies, this.onPlayerEnemyContact, null, this);
+      this.physics.add.overlap(this.player, this.enemyProjectiles, this.onEnemyProjectileHit, null, this);
       this.physics.add.overlap(this.player, this.gems, this.collectGem, null, this);
       this.physics.add.overlap(this.player, this.items, this.collectItem, null, this);
     }
@@ -474,6 +641,10 @@
     }
 
     getWave() {
+      return Math.floor(this.runTimeMs / 10000) + 1;
+    }
+
+    getSpawnPhase() {
       const sec = this.runTimeMs / 1000;
       if (sec < 60) return 1;
       if (sec < 180) return 2;
@@ -492,38 +663,72 @@
     spawnOutsideView(type = 'normal', count = 1) {
       const view = this.cameras.main.worldView;
       for (let i = 0; i < count; i++) {
-        const margin = Phaser.Math.Between(80, 170);
+        const margin = Phaser.Math.Between(90, 190);
         const edge = Phaser.Math.Between(0, 3);
         let x, y;
         if (edge === 0) { x = Phaser.Math.Between(view.left - margin, view.right + margin); y = view.top - margin; }
         else if (edge === 1) { x = view.right + margin; y = Phaser.Math.Between(view.top - margin, view.bottom + margin); }
         else if (edge === 2) { x = Phaser.Math.Between(view.left - margin, view.right + margin); y = view.bottom + margin; }
         else { x = view.left - margin; y = Phaser.Math.Between(view.top - margin, view.bottom + margin); }
-        x = Phaser.Math.Clamp(x, 25, this.worldSize - 25);
-        y = Phaser.Math.Clamp(y, 25, this.worldSize - 25);
-        const actualType = (type === 'normal' || type === 'fast' || type === 'all') ? this.pickFoodEnemy(type) : type;
-        this.spawnEnemy(actualType, x, y);
+        x = Phaser.Math.Clamp(x, 40, this.worldSize - 40);
+        y = Phaser.Math.Clamp(y, 40, this.worldSize - 40);
+        if (type === 'elite') this.spawnEnemy(this.pickFoodEnemy('all'), x, y, { elite: true });
+        else {
+          const actualType = (type === 'normal' || type === 'fast' || type === 'all') ? this.pickFoodEnemy(type) : type;
+          this.spawnEnemy(actualType, x, y);
+        }
       }
     }
 
-    spawnEnemy(type, x, y) {
-      const scale = this.getScaling();
-      let texture = 'enemy_boss', baseHp = 300, baseSpeed = 50, damage = 20, xp = 0, spriteScale = 2;
-      if (type !== 'boss') {
+    spawnEnemy(type, x, y, opts = {}) {
+      const scaling = this.getScaling();
+      const isElite = !!opts.elite;
+      const isBoss = type === 'boss';
+      const isRaid = type === 'raidBoss';
+      let texture = 'enemy_boss', baseHp = 300, baseSpeed = 50, damage = 20, xp = 0, spriteScale = 1;
+      let role = 'normal';
+
+      if (isRaid) {
+        const raidTextures = ['enemy_raid_grape', 'enemy_raid_choco', 'enemy_raid_onion'];
+        texture = raidTextures[Math.max(0, this.raidBossCount - 1) % raidTextures.length];
+        baseHp = 1700 + this.raidBossCount * 550;
+        baseSpeed = 56 + Math.min(20, this.raidBossCount * 3);
+        damage = 28 + this.raidBossCount * 3;
+        xp = 0;
+        spriteScale = 2.7;
+        role = 'raidBoss';
+      } else if (isBoss) {
+        texture = 'enemy_boss';
+        baseHp = 520;
+        baseSpeed = 54;
+        damage = 22;
+        xp = 0;
+        spriteScale = 2.65;
+        role = 'boss';
+      } else {
         const data = FOOD_ENEMIES[type] || FOOD_ENEMIES.grape;
         texture = data.texture;
         baseHp = data.hp;
         baseSpeed = data.speed;
         damage = data.damage;
         xp = data.xp;
-        spriteScale = 1;
+        if (isElite) {
+          baseHp *= 4.2;
+          baseSpeed *= 0.92;
+          damage *= 1.45;
+          xp = Math.max(4, xp * 4);
+          spriteScale = 1.65;
+          role = 'elite';
+        }
       }
+
       const e = this.enemies.create(x, y, texture);
       e.setScale(spriteScale).setDepth(8);
       e.enemyType = type;
-      e.maxHp = baseHp * scale.hp;
+      e.enemyRole = role;
+      e.maxHp = baseHp * scaling.hp;
       e.hp = e.maxHp;
-      e.speed = baseSpeed * scale.speed;
+      e.speed = baseSpeed * scaling.speed;
       e.contactDamage = damage;
       e.contactDamageMult = 1;
       e.shrinkUntil = 0;
@@ -531,12 +736,31 @@
       e.nextTouchAt = 0;
       e.hitFlashUntil = 0;
       e.baseDisplayScale = spriteScale;
+      e.nextShotAt = this.runTimeMs + Phaser.Math.Between(role === 'elite' ? 1300 : 900, role === 'elite' ? 2500 : 1700);
+      e.shotPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3500, 6500);
+      e.rushUntil = 0;
       e.setData('dead', false);
-      e.body.setCircle(type === 'boss' ? 16 : 10, type === 'boss' ? 8 : 5, type === 'boss' ? 8 : 5);
+
+      if (role === 'raidBoss') e.body.setCircle(25, 11, 11);
+      else if (role === 'boss') e.body.setCircle(18, 6, 6);
+      else if (role === 'elite') e.body.setCircle(13, 3, 3);
+      else e.body.setCircle(10, 5, 5);
+
+      if (role === 'elite') {
+        e.eliteFace = this.add.image(x, y, 'eliteFace').setDepth(9).setScale(spriteScale * 0.9);
+        e.setTint(0xc8a5a5);
+      }
+      if (role === 'boss') e.setTint(0xe6b26f);
+      if (role === 'raidBoss') {
+        e.setTint(0xffffff);
+        this.tweens.add({ targets: e, scaleX: spriteScale * 1.05, scaleY: spriteScale * 1.05, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
       return e;
     }
 
     spawnRingEvent() {
+      if (this.raidBossActive) return;
       const cx = this.player.x, cy = this.player.y;
       const radius = Math.max(this.cameras.main.width, this.cameras.main.height) * 0.72;
       for (let i = 0; i < 50; i++) {
@@ -544,42 +768,89 @@
         const r = radius + Phaser.Math.Between(-35, 35);
         this.spawnEnemy(this.pickFoodEnemy('all'), cx + Math.cos(a) * r, cy + Math.sin(a) * r);
       }
-      this.showBanner('포위 이벤트!', '50마리 전방위 습격');
+      this.showBanner('포위 이벤트!', '위험 음식 50마리 전방위 습격');
       this.cameras.main.shake(450, 0.004);
     }
 
     spawnBoss() {
+      if (this.raidBossActive) return;
       const view = this.cameras.main.worldView;
       const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const r = Math.max(view.width, view.height) * 0.65;
-      const x = Phaser.Math.Clamp(this.player.x + Math.cos(a) * r, 40, this.worldSize - 40);
-      const y = Phaser.Math.Clamp(this.player.y + Math.sin(a) * r, 40, this.worldSize - 40);
+      const r = Math.max(view.width, view.height) * 0.72;
+      const x = Phaser.Math.Clamp(this.player.x + Math.cos(a) * r, 80, this.worldSize - 80);
+      const y = Phaser.Math.Clamp(this.player.y + Math.sin(a) * r, 80, this.worldSize - 80);
       this.spawnEnemy('boss', x, y);
-      this.showBanner('ELITE BOSS!', '크기 2배 · HP 10배');
+      this.showBanner('BOSS 출현!', '정예보다 훨씬 큰 거대 초콜릿');
       this.cameras.main.flash(250, 80, 20, 90);
+    }
+
+    spawnElite(count = 1) {
+      if (this.raidBossActive) return;
+      this.spawnOutsideView('elite', count);
+      this.showBanner('정예 위험식품!', '커지고 흉측해진 정예가 투사체를 발사한다');
+    }
+
+    clearBattlefieldForRaid() {
+      [...this.enemies.getChildren()].forEach(e => {
+        if (e.eliteFace?.active) e.eliteFace.destroy();
+        if (e.active) e.destroy();
+      });
+      this.enemyProjectiles.clear(true, true);
+    }
+
+    spawnRaidBoss() {
+      this.raidBossActive = true;
+      this.clearBattlefieldForRaid();
+      this.raidBossCount += 1;
+      const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const r = Math.max(this.cameras.main.width, this.cameras.main.height) * 0.55;
+      const x = Phaser.Math.Clamp(this.player.x + Math.cos(a) * r, 140, this.worldSize - 140);
+      const y = Phaser.Math.Clamp(this.player.y + Math.sin(a) * r, 140, this.worldSize - 140);
+      const boss = this.spawnEnemy('raidBoss', x, y);
+      boss.raidIndex = this.raidBossCount - 1;
+      this.showBanner(`WAVE ${this.getWave()} TRUE BOSS`, '잡몹 소멸 · 탄막 보스전 시작!');
+      this.cameras.main.flash(500, 255, 60, 35);
+      this.cameras.main.shake(650, 0.012);
+      playEnemyShotSfx(true);
     }
 
     updateWaveSpawns(delta) {
       const sec = this.runTimeMs / 1000;
       const wave = this.getWave();
-      let zombieInterval = 2000, zombieCount = 3;
-      let batEnabled = false, batInterval = 5000, batCount = 2;
-      if (wave === 2) { zombieInterval = 1000; zombieCount = 3; batEnabled = true; }
-      if (wave === 3) { zombieInterval = 800; zombieCount = 4; batEnabled = true; batInterval = 4000; batCount = 3; }
+
+      if (!this.raidBossActive && wave >= this.nextRaidWave) {
+        this.spawnRaidBoss();
+        this.nextRaidWave += 35;
+      }
+      if (this.raidBossActive) return;
+
+      const phase = this.getSpawnPhase();
+      let normalInterval = 2000, normalCount = 3;
+      let fastEnabled = false, fastInterval = 5000, fastCount = 2;
+      if (phase === 2) { normalInterval = 1000; normalCount = 3; fastEnabled = true; }
+      if (phase === 3) { normalInterval = 800; normalCount = 4; fastEnabled = true; fastInterval = 4000; fastCount = 3; }
 
       this.zombieTimer += delta;
-      while (this.zombieTimer >= zombieInterval) {
-        this.zombieTimer -= zombieInterval;
-        this.spawnOutsideView('normal', zombieCount);
+      while (this.zombieTimer >= normalInterval) {
+        this.zombieTimer -= normalInterval;
+        this.spawnOutsideView('normal', normalCount);
       }
-      if (batEnabled) {
+
+      if (fastEnabled) {
         this.batTimer += delta;
-        while (this.batTimer >= batInterval) {
-          this.batTimer -= batInterval;
-          this.spawnOutsideView('fast', batCount);
+        while (this.batTimer >= fastInterval) {
+          this.batTimer -= fastInterval;
+          this.spawnOutsideView('fast', fastCount);
         }
-      } else {
-        this.batTimer = 0;
+      } else this.batTimer = 0;
+
+      if (sec >= 45) {
+        this.eliteTimer += delta;
+        const eliteInterval = Math.max(9000, 22000 - wave * 180);
+        if (this.eliteTimer >= eliteInterval) {
+          this.eliteTimer = 0;
+          this.spawnElite(Math.min(3, 1 + Math.floor(wave / 20)));
+        }
       }
 
       if (sec >= 180 && !this.event180Done) {
@@ -611,6 +882,7 @@
         const spread = shotCount === 1 ? 0 : (i - (shotCount - 1) / 2) * 0.13;
         this.spawnBasicProjectile(baseAngle + spread);
       }
+      playShotSfx(this.charData.projectile);
       this.player.setFlipX(target.x < this.player.x);
     }
 
@@ -619,14 +891,46 @@
       const texture = `proj_${kind}`;
       const p = this.projectiles.create(this.player.x, this.player.y, texture);
       p.setDepth(12);
-      p.kind = 'basic'; p.damage = this.attackPower; p.hitSet = new Set();
-      p.spawnAt = this.runTimeMs; p.lifeMs = kind === 'pee' ? 950 : 1400;
+      p.kind = 'basic';
+      p.damage = this.attackPower * (1 + (this.basicSizeMult - 1) * 0.52);
+      p.hitSet = new Set();
+      p.pierceLeft = this.basicPierce || 0;
+      p.ricochetLeft = this.basicRicochet || 0;
+      p.spawnAt = this.runTimeMs; p.lifeMs = kind === 'pee' ? 1100 : 1600;
       const speed = kind === 'pee' ? 440 : 310;
       p.setRotation(angle);
       this.physics.velocityFromRotation(angle, speed, p.body.velocity);
-      if (kind === 'bark') p.setScale(1.15);
-      if (kind === 'pee') p.body.setSize(25, 4);
-      else p.body.setCircle(6, 1, 1);
+      const sizeMult = this.basicSizeMult || 1;
+      if (kind === 'bark') p.setScale(1.15 * sizeMult);
+      else p.setScale(sizeMult);
+      if (kind === 'pee') p.body.setSize(25 * sizeMult, 4 * sizeMult);
+      else p.body.setCircle(6 * sizeMult, 1, 1);
+    }
+
+    explodeAt(x, y, damage, radius = 78, exclude = null) {
+      const ring = this.add.image(x, y, 'shockwave').setDepth(18).setScale(0.35).setAlpha(0.9);
+      this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 240, onComplete: () => ring.destroy() });
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.getData('dead') || e === exclude) return;
+        if (Phaser.Math.Distance.Between(x, y, e.x, e.y) <= radius) this.damageEnemy(e, damage, 'explosion');
+      });
+    }
+
+    ricochetProjectile(projectile, fromEnemy) {
+      if (!projectile.ricochetLeft || projectile.ricochetLeft <= 0) return false;
+      let best = null, bestD = 260 * 260;
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.getData('dead') || e === fromEnemy || projectile.hitSet?.has(e)) return;
+        const d = Phaser.Math.Distance.Squared(fromEnemy.x, fromEnemy.y, e.x, e.y);
+        if (d < bestD) { bestD = d; best = e; }
+      });
+      if (!best) return false;
+      projectile.ricochetLeft -= 1;
+      const a = Phaser.Math.Angle.Between(projectile.x, projectile.y, best.x, best.y);
+      const speed = Math.max(300, Math.hypot(projectile.body.velocity.x, projectile.body.velocity.y));
+      projectile.setRotation(a);
+      this.physics.velocityFromRotation(a, speed, projectile.body.velocity);
+      return true;
     }
 
     onProjectileHit(projectile, enemy) {
@@ -636,13 +940,20 @@
       this.damageEnemy(enemy, projectile.damage || this.attackPower, projectile.kind || 'basic');
 
       if (projectile.kind === 'basic') {
-        if (this.skillLevels.shrinkRay) {
-          const nextScale = Math.max(0.55, enemy.scaleX * 0.9);
+        if (this.skillLevels.shrinkRay && enemy.enemyRole !== 'raidBoss') {
+          const nextScale = Math.max(enemy.baseDisplayScale * 0.62, enemy.scaleX * 0.9);
           enemy.setScale(nextScale);
           enemy.contactDamageMult = 0.85;
           enemy.shrinkUntil = this.runTimeMs + 3000;
         }
         if (this.skillLevels.juiceBox) this.heal(this.maxHp * 0.05);
+        if (this.basicExplosion > 0) this.explodeAt(enemy.x, enemy.y, this.attackPower * (0.55 + this.basicExplosion * 0.10), 78 + this.basicExplosion * 8, enemy);
+
+        if (projectile.pierceLeft > 0) {
+          projectile.pierceLeft -= 1;
+          return;
+        }
+        if (this.ricochetProjectile(projectile, enemy)) return;
       }
 
       if (projectile.kind !== 'magicMissilePierce') projectile.destroy();
@@ -661,22 +972,40 @@
       enemy.hp -= amount;
       enemy.hitFlashUntil = this.runTimeMs + 90;
       enemy.setTint(0xffffff);
-      this.time.delayedCall(80, () => { if (enemy.active) enemy.clearTint(); });
+      this.time.delayedCall(80, () => {
+        if (!enemy.active) return;
+        enemy.clearTint();
+        if (enemy.enemyRole === 'elite') enemy.setTint(0xc8a5a5);
+        else if (enemy.enemyRole === 'boss') enemy.setTint(0xe6b26f);
+      });
       this.spawnDamageText(enemy.x, enemy.y - 18, Math.round(amount));
+      if (this.runTimeMs - (this.lastHitSfxAt || 0) > 45) {
+        this.lastHitSfxAt = this.runTimeMs;
+        playHitSfx(enemy.enemyRole === 'boss' || enemy.enemyRole === 'raidBoss');
+      }
       if (enemy.hp <= 0) this.killEnemy(enemy, source);
     }
 
     killEnemy(enemy) {
       if (!enemy.active || enemy.getData('dead')) return;
       enemy.setData('dead', true);
-      const x = enemy.x, y = enemy.y, type = enemy.enemyType;
+      const x = enemy.x, y = enemy.y, role = enemy.enemyRole || 'normal';
       this.kills += 1;
-      this.cameras.main.shake(type === 'boss' ? 280 : 55, type === 'boss' ? 0.007 : 0.0015);
-      if (type === 'boss') {
+      if (enemy.eliteFace?.active) enemy.eliteFace.destroy();
+      this.cameras.main.shake(role === 'raidBoss' ? 520 : role === 'boss' ? 280 : role === 'elite' ? 120 : 55, role === 'raidBoss' ? 0.015 : role === 'boss' ? 0.007 : role === 'elite' ? 0.003 : 0.0015);
+      if (role === 'raidBoss') {
+        this.raidBossActive = false;
+        this.dropMagnet(x - 34, y);
+        this.dropChest(x + 34, y);
+        this.dropChest(x, y + 34);
+        this.showBanner('TRUE BOSS 격파!', '잡몹 웨이브 재개 · 보상 대량 드롭');
+        this.cameras.main.flash(420, 255, 224, 100);
+      } else if (role === 'boss') {
         if (Math.random() < 0.5) this.dropMagnet(x, y);
         else this.dropChest(x, y);
       } else {
         this.dropGem(x, y, enemy.xpValue || 1);
+        if (role === 'elite' && Math.random() < 0.18) this.dropChest(x + 14, y);
       }
       enemy.destroy();
     }
@@ -725,7 +1054,7 @@
       this.xp -= this.xpNeed;
       this.level += 1;
       this.xpNeed = this.xpRequirement(this.level);
-      this.pendingMilestone = this.level % 5 === 0;
+      this.pendingAugmentType = this.level % 10 === 0 ? 'major' : (this.level % 5 === 0 ? 'minor' : null);
       this.updateHud();
       this.openLevelUp();
     }
@@ -760,10 +1089,11 @@
           this.applyLevelUpgrade(u.id);
           screen.classList.remove('show');
           this.isChoiceOpen = false;
-          if (this.pendingMilestone) {
-            this.pendingMilestone = false;
-            this.openMilestoneAugment();
-          } else {
+          const pending = this.pendingAugmentType;
+          this.pendingAugmentType = null;
+          if (pending === 'major') this.openMajorAugment();
+          else if (pending === 'minor') this.openMilestoneAugment();
+          else {
             this.scene.resume();
             this.checkLevelProgression();
           }
@@ -788,6 +1118,31 @@
         b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">5레벨 보너스 증강</span>`;
         b.onclick = () => {
           this.applyMilestoneAugment(a.id);
+          screen.classList.remove('show');
+          this.isChoiceOpen = false;
+          this.scene.resume();
+          this.checkLevelProgression();
+        };
+        root.appendChild(b);
+      });
+      screen.classList.add('show');
+    }
+
+    openMajorAugment() {
+      if (this.isChoiceOpen || this.isGameOver) return;
+      this.isChoiceOpen = true;
+      const screen = document.querySelector('#levelup-screen');
+      const root = document.querySelector('#levelup-choices');
+      document.querySelector('#levelup-eyebrow').textContent = `LEVEL ${this.level} MAJOR AUGMENT!`;
+      document.querySelector('#levelup-title').textContent = '10레벨 전투 증강 하나를 선택해';
+      root.innerHTML = '';
+      const picks = shuffle(MAJOR_AUGMENTS).slice(0, 3);
+      picks.forEach(a => {
+        const b = document.createElement('button');
+        b.className = 'choice-card major-choice';
+        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">10레벨 전투 증강</span>`;
+        b.onclick = () => {
+          this.applyMajorAugment(a.id);
           screen.classList.remove('show');
           this.isChoiceOpen = false;
           this.scene.resume();
@@ -830,6 +1185,21 @@
       this.updateHud();
     }
 
+    applyMajorAugment(id) {
+      const data = MAJOR_AUGMENTS.find(a => a.id === id);
+      if (id === 'piercingRounds') this.basicPierce += 2;
+      if (id === 'blastRounds') this.basicExplosion += 1;
+      if (id === 'bigShot') {
+        this.basicSizeMult *= 1.35;
+        this.attackPower *= 1.18;
+      }
+      if (id === 'ricochet') this.basicRicochet += 1;
+      if (id === 'shockwave') this.shockwaveLevel += 1;
+      if (data) this.augments.push(`10Lv:${data.title}`);
+      this.showBanner(data?.title || '전투 증강!', `Lv.${this.level} 10레벨 증강`);
+      this.updateHud();
+    }
+
     openChest() {
       if (this.isChoiceOpen || this.isGameOver) return;
       this.isChoiceOpen = true;
@@ -866,30 +1236,103 @@
       this.updateHud();
     }
 
-    onPlayerEnemyContact(_player, enemy) {
-      if (!enemy.active || enemy.getData('dead') || this.isGameOver) return;
-      if (this.runTimeMs < enemy.nextTouchAt || this.runTimeMs < this.playerInvulnUntil) return;
-      enemy.nextTouchAt = this.runTimeMs + 650;
-      this.playerInvulnUntil = this.runTimeMs + 380;
-
-      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
-      this.player.body.velocity.x += Math.cos(angle) * 150;
-      this.player.body.velocity.y += Math.sin(angle) * 150;
+    applyPlayerDamage(amount, sourceX, sourceY, invulnMs = 300) {
+      if (this.isGameOver || this.runTimeMs < this.playerInvulnUntil) return false;
+      this.playerInvulnUntil = this.runTimeMs + invulnMs;
 
       if (this.shieldCharges > 0) {
         this.shieldCharges -= 1;
         this.showBanner('장막 방어!', '공격 1회 무효');
         this.cameras.main.flash(90, 130, 210, 255);
         this.updateHud();
-        return;
+        return false;
       }
 
-      const dmg = enemy.contactDamage * (enemy.contactDamageMult || 1) * (this.playerDamageMult || 1);
+      const dmg = amount * (this.playerDamageMult || 1);
       this.hp -= dmg;
+      if (Number.isFinite(sourceX) && Number.isFinite(sourceY)) {
+        const angle = Phaser.Math.Angle.Between(sourceX, sourceY, this.player.x, this.player.y);
+        this.player.body.velocity.x += Math.cos(angle) * 130;
+        this.player.body.velocity.y += Math.sin(angle) * 130;
+      }
+      playPlayerHurtSfx();
       this.cameras.main.shake(110, 0.004);
       this.cameras.main.flash(80, 180, 35, 35);
       this.updateHud();
       if (this.hp <= 0) this.gameOver();
+      return true;
+    }
+
+    onPlayerEnemyContact(_player, enemy) {
+      if (!enemy.active || enemy.getData('dead') || this.isGameOver) return;
+      if (this.runTimeMs < enemy.nextTouchAt) return;
+      enemy.nextTouchAt = this.runTimeMs + 650;
+      const dmg = enemy.contactDamage * (enemy.contactDamageMult || 1);
+      this.applyPlayerDamage(dmg, enemy.x, enemy.y, 380);
+    }
+
+    onEnemyProjectileHit(_player, bullet) {
+      if (!bullet.active || this.isGameOver) return;
+      const hit = this.applyPlayerDamage(bullet.damage || 10, bullet.x, bullet.y, bullet.strong ? 250 : 180);
+      if (hit || this.shieldCharges >= 0) bullet.destroy();
+    }
+
+    spawnEnemyBullet(x, y, angle, speed, damage, kind = 'enemy', lifeMs = 4200) {
+      const texture = kind === 'raid' ? 'raidBullet' : kind === 'boss' ? 'bossBullet' : 'enemyBullet';
+      const b = this.enemyProjectiles.create(x, y, texture).setDepth(12);
+      b.damage = damage;
+      b.kind = kind;
+      b.strong = kind === 'boss' || kind === 'raid';
+      b.spawnAt = this.runTimeMs;
+      b.lifeMs = lifeMs;
+      b.setRotation(angle);
+      this.physics.velocityFromRotation(angle, speed, b.body.velocity);
+      if (kind === 'raid') b.body.setCircle(6, 2, 2);
+      else b.body.setCircle(4, 1, 1);
+      return b;
+    }
+
+    fireEliteShot(enemy) {
+      const a = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+      const count = enemy.enemyRole === 'elite' ? 1 : 3;
+      for (let i = 0; i < count; i++) {
+        const spread = count === 1 ? 0 : (i - 1) * 0.16;
+        this.spawnEnemyBullet(enemy.x, enemy.y, a + spread, enemy.enemyRole === 'boss' ? 215 : 185, enemy.contactDamage * 0.72, enemy.enemyRole === 'boss' ? 'boss' : 'enemy');
+      }
+      playEnemyShotSfx(enemy.enemyRole === 'boss');
+    }
+
+    fireRaidPattern(enemy) {
+      if (!enemy.active || enemy.getData('dead')) return;
+      const pattern = (enemy.raidIndex || 0) % 3;
+      const base = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+      this.raidShotPhase += 0.31;
+
+      if (pattern === 0) {
+        const count = 18;
+        for (let i = 0; i < count; i++) {
+          const a = this.raidShotPhase + (Math.PI * 2 * i) / count;
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, 185, 12 + this.raidBossCount * 1.5, 'raid', 5200);
+        }
+      } else if (pattern === 1) {
+        const count = 9;
+        for (let i = 0; i < count; i++) {
+          const a = base + (i - (count - 1) / 2) * 0.13;
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, 245, 13 + this.raidBossCount * 1.5, 'raid', 4400);
+        }
+        for (let i = 0; i < 4; i++) {
+          const a = base + Math.PI / 2 + i * Math.PI / 2 + this.raidShotPhase;
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, 160, 10 + this.raidBossCount, 'raid', 5200);
+        }
+      } else {
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+          const a = base + (Math.PI * 2 * i) / count + this.raidShotPhase;
+          this.spawnEnemyBullet(enemy.x, enemy.y, a, i % 2 ? 155 : 225, 11 + this.raidBossCount * 1.4, 'raid', 5400);
+        }
+      }
+      playEnemyShotSfx(true);
+      this.cameras.main.shake(55, 0.002);
     }
 
     updateEnemyAI() {
@@ -898,10 +1341,41 @@
         if (e.shrinkUntil && this.runTimeMs >= e.shrinkUntil) {
           e.contactDamageMult = 1;
           e.shrinkUntil = 0;
+          e.setScale(e.baseDisplayScale || 1);
         }
+
+        if (e.eliteFace?.active) {
+          e.eliteFace.setPosition(e.x, e.y);
+          e.eliteFace.setFlipX(e.flipX);
+        }
+
         const a = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
-        e.body.setVelocity(Math.cos(a) * e.speed, Math.sin(a) * e.speed);
+        let speed = e.speed;
+        if (e.enemyRole === 'raidBoss') {
+          if (this.runTimeMs >= e.nextRushAt) {
+            e.rushUntil = this.runTimeMs + 850;
+            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(4300, 6200);
+            this.showBanner('보스 돌진!', '피해!');
+          }
+          if (this.runTimeMs < e.rushUntil) speed *= 2.9;
+          else {
+            const d = Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
+            if (d > 360) speed *= 1.55;
+            if (d < 190) speed *= 0.55;
+          }
+        }
+        e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
         e.setFlipX(this.player.x < e.x);
+
+        if ((e.enemyRole === 'elite' || e.enemyRole === 'boss' || e.enemyRole === 'raidBoss') && this.runTimeMs >= e.nextShotAt) {
+          if (e.enemyRole === 'raidBoss') {
+            this.fireRaidPattern(e);
+            e.nextShotAt = this.runTimeMs + Math.max(900, 1850 - this.raidBossCount * 80);
+          } else {
+            this.fireEliteShot(e);
+            e.nextShotAt = this.runTimeMs + (e.enemyRole === 'boss' ? Phaser.Math.Between(1500, 2300) : Phaser.Math.Between(2200, 3400));
+          }
+        }
       });
     }
 
@@ -937,6 +1411,10 @@
           }
         }
         if (this.runTimeMs - (p.spawnAt || 0) > (p.lifeMs || 1800)) p.destroy();
+      });
+      this.enemyProjectiles.getChildren().forEach(p => {
+        if (!p.active) return;
+        if (this.runTimeMs - (p.spawnAt || 0) > (p.lifeMs || 4200)) p.destroy();
       });
     }
 
@@ -983,6 +1461,27 @@
           this.castBulletBarrage(lv.bulletBarrage);
         }
       }
+      if (this.shockwaveLevel > 0) {
+        this.shockwaveTimer += delta;
+        const interval = Math.max(4200, 8000 - (this.shockwaveLevel - 1) * 650);
+        if (this.shockwaveTimer >= interval) {
+          this.shockwaveTimer = 0;
+          this.castAugmentShockwave();
+        }
+      }
+    }
+
+    castAugmentShockwave() {
+      const level = Math.max(1, this.shockwaveLevel || 1);
+      const radius = 125 + level * 18;
+      const damage = this.attackPower * (1.0 + level * 0.18);
+      const ring = this.add.image(this.player.x, this.player.y, 'shockwave').setDepth(16).setScale(0.5).setAlpha(0.9);
+      this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 360, onComplete: () => ring.destroy() });
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.getData('dead')) return;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y) <= radius) this.damageEnemy(e, damage, 'augmentShockwave');
+      });
+      noise(0.10, 0.05, 480); tone(110, 0.11, 'triangle', 0.04, 65);
     }
 
     castMagicMissiles(level) {
@@ -1059,12 +1558,22 @@
       const names = SKILLS.filter(s => this.skillLevels[s.id]).map(s => `${s.title} Lv.${this.skillLevels[s.id]}`);
       if (this.augments?.length) names.unshift(`증강: ${this.augments.join(', ')}`);
       if (this.shieldCharges > 0) names.unshift(`장막 ${'◆'.repeat(this.shieldCharges)}`);
-      this.skillText.setText(names.length ? names.join('  ·  ') : 'Lv.5마다 특별 증강 · 보스 상자에서 스킬 획득');
+      const boss = this.enemies?.getChildren().find(e => e.active && !e.getData('dead') && (e.enemyRole === 'raidBoss' || e.enemyRole === 'boss'));
+      if (boss) {
+        const pct = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
+        this.bossHpBg.setVisible(true);
+        this.bossHpBar.setVisible(true).setSize(370 * pct, 14);
+        this.bossHpText.setVisible(true).setText(`${boss.enemyRole === 'raidBoss' ? 'TRUE BOSS' : 'BOSS'}  ${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`);
+      } else {
+        this.bossHpBg.setVisible(false); this.bossHpBar.setVisible(false); this.bossHpText.setVisible(false);
+      }
+      this.skillText.setText(names.length ? names.join('  ·  ') : 'Lv.5 특별 증강 · Lv.10 전투 증강 · 보스 상자 스킬');
     }
 
     gameOver() {
       if (this.isGameOver) return;
       this.isGameOver = true;
+      stopBgm();
       this.physics.world.pause();
       this.time.paused = true;
       const sec = this.runTimeMs / 1000;
@@ -1108,6 +1617,8 @@
   }
 
   function startGame() {
+    ensureAudio();
+    startBgmPlaylist();
     document.querySelector('#start-screen').classList.remove('show');
     document.querySelector('#gameover-screen').classList.remove('show');
     document.querySelector('#levelup-screen').classList.remove('show');
@@ -1139,6 +1650,24 @@
       game.scene.stop('SurvivorScene');
     }
     game.scene.start('SurvivorScene', { character: selectedCharacter });
+  }
+
+  const bgmSlider = document.querySelector('#bgm-volume');
+  const sfxSlider = document.querySelector('#sfx-volume');
+  if (bgmSlider) {
+    bgmSlider.value = Math.round(bgmVolume * 100);
+    bgmSlider.addEventListener('input', () => {
+      bgmVolume = Number(bgmSlider.value) / 100;
+      localStorage.setItem('petSurvivorsBgm', String(bgmVolume));
+      bgmTracks.forEach(t => t.volume = bgmVolume);
+    });
+  }
+  if (sfxSlider) {
+    sfxSlider.value = Math.round(sfxVolume * 100);
+    sfxSlider.addEventListener('input', () => {
+      sfxVolume = Number(sfxSlider.value) / 100;
+      localStorage.setItem('petSurvivorsSfx', String(sfxVolume));
+    });
   }
 
   document.querySelector('#start-btn').addEventListener('click', startGame);
