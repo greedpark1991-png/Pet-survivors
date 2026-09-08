@@ -36,6 +36,37 @@
     { id: 'bulletBarrage', icon: '•', title: '탄환 세례', desc: '4초마다 한 적에게 탄환 5발을 연속으로 퍼붓는다.' }
   ];
 
+
+  const MILESTONE_AUGMENTS = [
+    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 20% 빨라지고 공격력이 10% 증가한다.' },
+    { id: 'doubleShot', icon: 'Ⅱ', title: '쌍발 본능', desc: '기본 무기를 한 번 발사할 때 투사체가 1개 더 나간다.' },
+    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 크게 넓어진다.' },
+    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 40 증가하고 체력을 전부 회복하며 받는 피해가 10% 감소한다.' },
+    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 18% 증가하고 기본 공격 속도가 8% 빨라진다.' }
+  ];
+
+  const FOOD_ENEMIES = {
+    grape:       { name:'포도',       texture:'enemy_grape',       hp:16, speed:60,  damage:9,  xp:1 },
+    greenGrape:  { name:'청포도',     texture:'enemy_greenGrape',  hp:18, speed:62,  damage:9,  xp:1 },
+    raisin:      { name:'건포도',     texture:'enemy_raisin',      hp:12, speed:78,  damage:8,  xp:1 },
+    shineMuscat: { name:'샤인머스캣', texture:'enemy_shineMuscat', hp:30, speed:56,  damage:11, xp:2 },
+    chocolate:   { name:'초콜릿',     texture:'enemy_chocolate',   hp:28, speed:54,  damage:12, xp:2 },
+    coffee:      { name:'커피',       texture:'enemy_coffee',      hp:16, speed:108, damage:9,  xp:2 },
+    greenTea:    { name:'녹차',       texture:'enemy_greenTea',    hp:18, speed:98,  damage:9,  xp:2 },
+    onion:       { name:'양파',       texture:'enemy_onion',       hp:20, speed:58,  damage:11, xp:1 },
+    garlic:      { name:'마늘',       texture:'enemy_garlic',      hp:18, speed:64,  damage:10, xp:1 },
+    scallion:    { name:'파',         texture:'enemy_scallion',    hp:18, speed:82,  damage:9,  xp:1 },
+    chive:       { name:'부추',       texture:'enemy_chive',       hp:16, speed:88,  damage:9,  xp:1 },
+    gum:         { name:'껌',         texture:'enemy_gum',         hp:28, speed:50,  damage:10, xp:2 },
+    candy:       { name:'사탕',       texture:'enemy_candy',       hp:16, speed:92,  damage:9,  xp:2 },
+    alcohol:     { name:'술',         texture:'enemy_alcohol',     hp:34, speed:60,  damage:14, xp:2 },
+    nuts:        { name:'견과류',     texture:'enemy_nuts',        hp:36, speed:52,  damage:13, xp:2 }
+  };
+  const FOOD_NORMAL_EARLY = ['grape','greenGrape','raisin','onion','garlic','chocolate'];
+  const FOOD_NORMAL_MID   = ['grape','greenGrape','raisin','onion','garlic','chocolate','shineMuscat','scallion','chive','nuts'];
+  const FOOD_FAST         = ['coffee','greenTea','candy','gum'];
+  const FOOD_ALL          = Object.keys(FOOD_ENEMIES);
+
   let selectedCharacter = 'jjigae';
   let game = null;
   let activeScene = null;
@@ -125,12 +156,17 @@
       this.kills = 0;
       this.level = 1;
       this.xp = 0;
-      this.xpNeed = 12;
+      this.xpNeed = 2;
       this.attackPower = 20;
       this.moveSpeed = 190;
       this.maxHp = 100;
       this.hp = 100;
       this.basicCooldown = 1500;
+      this.extraBasicShots = 0;
+      this.gemMagnetRange = 135;
+      this.playerDamageMult = 1;
+      this.augments = [];
+      this.pendingMilestone = false;
       this.basicTimer = 350;
       this.zombieTimer = 0;
       this.batTimer = 0;
@@ -199,29 +235,74 @@
 
       Object.keys(CHARACTERS).forEach(key => create(`player_${key}`, 32, 32, g => this.drawPetTexture(g, key)));
 
-      create('enemy_zombie', 30, 30, g => {
-        g.fillStyle(0x2a242c, 1); g.fillRect(5, 8, 20, 18);
-        g.fillStyle(0x8ba37d, 1); g.fillRect(7, 5, 16, 15);
-        g.fillStyle(0x6d8565, 1); g.fillRect(4, 9, 5, 10); g.fillRect(21, 8, 5, 11);
-        g.fillStyle(0x1a161c, 1); g.fillRect(10, 10, 3, 4); g.fillRect(18, 10, 3, 4);
-        g.fillStyle(0xc95050, 1); g.fillRect(11, 18, 9, 3);
-        g.fillStyle(0x5b443a, 1); g.fillRect(8, 24, 5, 4); g.fillRect(18, 24, 5, 4);
+      create('enemy_grape', 30, 30, g => {
+        g.fillStyle(0x6f4aa0,1); [[8,7],[14,6],[11,12],[17,11],[8,16],[14,17],[18,16],[12,22]].forEach(([x,y])=>g.fillCircle(x,y,4));
+        g.fillStyle(0x4b8b47,1); g.fillRect(13,2,3,5); g.fillRect(16,2,5,3);
+        g.fillStyle(0x17141a,1); g.fillRect(9,13,2,3); g.fillRect(17,13,2,3);
       });
-      create('enemy_bat', 34, 24, g => {
-        g.fillStyle(0x2b2435, 1); g.fillRect(12, 7, 10, 12);
-        g.fillStyle(0x594866, 1);
-        g.fillRect(4, 5, 9, 5); g.fillRect(1, 2, 7, 5); g.fillRect(21, 5, 9, 5); g.fillRect(27, 2, 6, 5);
-        g.fillStyle(0xf0c565, 1); g.fillRect(14, 10, 2, 2); g.fillRect(19, 10, 2, 2);
-        g.fillStyle(0xb04d56, 1); g.fillRect(15, 15, 5, 2);
+      create('enemy_greenGrape', 30, 30, g => {
+        g.fillStyle(0x9bc85b,1); [[8,7],[14,6],[11,12],[17,11],[8,16],[14,17],[18,16],[12,22]].forEach(([x,y])=>g.fillCircle(x,y,4));
+        g.fillStyle(0x4b8b47,1); g.fillRect(13,2,3,5); g.fillRect(16,2,5,3);
+        g.fillStyle(0x17141a,1); g.fillRect(9,13,2,3); g.fillRect(17,13,2,3);
       });
-      create('enemy_boss', 42, 42, g => {
-        g.fillStyle(0x2d1e2c, 1); g.fillRect(5, 7, 32, 31);
-        g.fillStyle(0x7e5b8d, 1); g.fillRect(8, 4, 26, 25);
-        g.fillStyle(0xa274b0, 1); g.fillRect(4, 11, 7, 17); g.fillRect(31, 11, 7, 17);
-        g.fillStyle(0xf2d36a, 1); g.fillRect(13, 12, 5, 5); g.fillRect(24, 12, 5, 5);
-        g.fillStyle(0x24171f, 1); g.fillRect(14, 13, 3, 3); g.fillRect(25, 13, 3, 3);
-        g.fillStyle(0xdb5b59, 1); g.fillRect(14, 23, 14, 5);
-        g.fillStyle(0x4a304c, 1); g.fillRect(10, 34, 7, 5); g.fillRect(25, 34, 7, 5);
+      create('enemy_raisin', 24, 24, g => {
+        g.fillStyle(0x493248,1); g.fillRect(4,6,16,13); g.fillRect(6,3,11,18); g.fillStyle(0x6b4a68,1); g.fillRect(6,7,4,3); g.fillRect(13,13,4,3);
+        g.fillStyle(0x151318,1); g.fillRect(7,10,2,3); g.fillRect(14,10,2,3);
+      });
+      create('enemy_shineMuscat', 32, 32, g => {
+        g.fillStyle(0xb7df69,1); [[8,7],[15,6],[11,13],[18,12],[8,18],[15,19],[20,18],[13,25]].forEach(([x,y])=>g.fillCircle(x,y,5));
+        g.fillStyle(0x58a553,1); g.fillRect(14,1,3,6); g.fillRect(17,2,7,3); g.fillStyle(0x17141a,1); g.fillRect(10,14,2,3); g.fillRect(19,14,2,3);
+      });
+      create('enemy_chocolate', 30, 30, g => {
+        g.fillStyle(0x6a3d2d,1); g.fillRect(5,4,20,22); g.fillStyle(0x9b5d3d,1);
+        for(let yy=7;yy<23;yy+=7) for(let xx=8;xx<22;xx+=7) g.fillRect(xx,yy,5,5);
+        g.fillStyle(0x17141a,1); g.fillRect(9,11,2,3); g.fillRect(18,11,2,3); g.fillRect(12,18,6,2);
+      });
+      create('enemy_coffee', 30, 30, g => {
+        g.fillStyle(0xf1e1c9,1); g.fillRect(5,9,17,14); g.fillStyle(0x8a5138,1); g.fillRect(7,11,13,8); g.fillStyle(0xf1e1c9,1); g.fillRect(22,12,5,8); g.fillRect(24,14,3,4);
+        g.fillStyle(0x9b9b9b,1); g.fillRect(9,3,2,5); g.fillRect(15,2,2,6); g.fillStyle(0x17141a,1); g.fillRect(9,14,2,3); g.fillRect(16,14,2,3);
+      });
+      create('enemy_greenTea', 30, 30, g => {
+        g.fillStyle(0xe8e0c8,1); g.fillRect(5,9,17,14); g.fillStyle(0x6fa65f,1); g.fillRect(7,11,13,8); g.fillStyle(0xe8e0c8,1); g.fillRect(22,12,5,8); g.fillRect(24,14,3,4);
+        g.fillStyle(0x6b8f5b,1); g.fillRect(10,3,2,6); g.fillRect(16,3,2,6); g.fillStyle(0x17141a,1); g.fillRect(9,14,2,3); g.fillRect(16,14,2,3);
+      });
+      create('enemy_onion', 30, 30, g => {
+        g.fillStyle(0xe7d7c6,1); g.fillCircle(15,17,10); g.fillStyle(0xb58ca9,1); g.fillRect(8,14,14,3); g.fillRect(10,20,10,3); g.fillStyle(0x7d9950,1); g.fillRect(13,3,4,6); g.fillRect(10,5,3,4);
+        g.fillStyle(0x17141a,1); g.fillRect(10,15,2,3); g.fillRect(18,15,2,3);
+      });
+      create('enemy_garlic', 30, 30, g => {
+        g.fillStyle(0xf1ead9,1); g.fillCircle(15,17,10); g.fillCircle(9,18,6); g.fillCircle(21,18,6); g.fillStyle(0xcbbd9f,1); g.fillRect(13,3,4,7);
+        g.fillStyle(0x17141a,1); g.fillRect(10,15,2,3); g.fillRect(18,15,2,3);
+      });
+      create('enemy_scallion', 24, 34, g => {
+        g.fillStyle(0xf4f0d9,1); g.fillRect(8,19,8,12); g.fillStyle(0x58a84f,1); g.fillRect(7,5,4,17); g.fillRect(13,2,4,20); g.fillRect(10,8,4,14);
+        g.fillStyle(0x17141a,1); g.fillRect(9,22,2,3); g.fillRect(14,22,2,3);
+      });
+      create('enemy_chive', 24, 34, g => {
+        g.fillStyle(0x3d8e47,1); g.fillRect(5,6,3,24); g.fillRect(9,2,3,28); g.fillRect(13,5,3,25); g.fillRect(17,1,3,29); g.fillStyle(0x7ec568,1); g.fillRect(7,24,11,6);
+        g.fillStyle(0x17141a,1); g.fillRect(9,25,2,3); g.fillRect(15,25,2,3);
+      });
+      create('enemy_gum', 30, 24, g => {
+        g.fillStyle(0xf38bb2,1); g.fillRect(5,5,20,14); g.fillStyle(0xffc1d7,1); g.fillRect(8,7,14,10); g.fillStyle(0xd65f8d,1); g.fillRect(2,8,5,8); g.fillRect(23,8,5,8);
+        g.fillStyle(0x17141a,1); g.fillRect(10,10,2,3); g.fillRect(18,10,2,3);
+      });
+      create('enemy_candy', 30, 24, g => {
+        g.fillStyle(0xe95568,1); g.fillRect(8,5,14,14); g.fillStyle(0xffd35f,1); g.fillRect(11,7,8,10); g.fillStyle(0xf6a6b4,1); g.fillTriangle(1,12,8,6,8,18); g.fillTriangle(29,12,22,6,22,18);
+        g.fillStyle(0x17141a,1); g.fillRect(11,10,2,3); g.fillRect(17,10,2,3);
+      });
+      create('enemy_alcohol', 26, 34, g => {
+        g.fillStyle(0x8e6b3d,1); g.fillRect(8,8,10,23); g.fillRect(10,3,6,7); g.fillStyle(0xe6d3a2,1); g.fillRect(9,15,8,8); g.fillStyle(0x6d91bb,1); g.fillRect(10,17,6,4);
+        g.fillStyle(0x17141a,1); g.fillRect(10,12,2,3); g.fillRect(15,12,2,3);
+      });
+      create('enemy_nuts', 30, 30, g => {
+        g.fillStyle(0x9b6c42,1); g.fillEllipse(15,16,20,24); g.fillStyle(0xc28a56,1); g.fillRect(9,8,12,3); g.fillRect(8,15,14,3); g.fillRect(10,22,10,3);
+        g.fillStyle(0x17141a,1); g.fillRect(10,12,2,3); g.fillRect(18,12,2,3);
+      });
+      create('enemy_boss', 48, 48, g => {
+        g.fillStyle(0x4b2c24,1); g.fillRect(6,5,36,38); g.fillStyle(0x7c4934,1);
+        for(let yy=10;yy<36;yy+=10) for(let xx=11;xx<35;xx+=10) g.fillRect(xx,yy,8,8);
+        g.fillStyle(0xf0c85d,1); g.fillRect(4,3,40,5); g.fillRect(4,40,40,5);
+        g.fillStyle(0x17141a,1); g.fillRect(13,18,5,6); g.fillRect(30,18,5,6); g.fillRect(17,31,15,4);
       });
 
       create('xpGem', 12, 14, g => {
@@ -399,7 +480,16 @@
       return 3;
     }
 
-    spawnOutsideView(type = 'zombie', count = 1) {
+    pickFoodEnemy(poolKind = 'normal') {
+      const sec = this.runTimeMs / 1000;
+      let pool = FOOD_NORMAL_EARLY;
+      if (poolKind === 'fast') pool = FOOD_FAST;
+      else if (poolKind === 'all') pool = FOOD_ALL;
+      else if (sec >= 60) pool = FOOD_NORMAL_MID;
+      return Phaser.Utils.Array.GetRandom(pool);
+    }
+
+    spawnOutsideView(type = 'normal', count = 1) {
       const view = this.cameras.main.worldView;
       for (let i = 0; i < count; i++) {
         const margin = Phaser.Math.Between(80, 170);
@@ -411,16 +501,22 @@
         else { x = view.left - margin; y = Phaser.Math.Between(view.top - margin, view.bottom + margin); }
         x = Phaser.Math.Clamp(x, 25, this.worldSize - 25);
         y = Phaser.Math.Clamp(y, 25, this.worldSize - 25);
-        this.spawnEnemy(type, x, y);
+        const actualType = (type === 'normal' || type === 'fast' || type === 'all') ? this.pickFoodEnemy(type) : type;
+        this.spawnEnemy(actualType, x, y);
       }
     }
 
     spawnEnemy(type, x, y) {
       const scale = this.getScaling();
-      let texture = 'enemy_zombie', baseHp = 30, baseSpeed = 58, damage = 10, xp = 1, spriteScale = 1;
-      if (type === 'bat') { texture = 'enemy_bat'; baseHp = 18; baseSpeed = 108; damage = 8; xp = 2; }
-      if (type === 'boss') {
-        texture = 'enemy_boss'; baseHp = 30 * 10; baseSpeed = 50; damage = 20; xp = 0; spriteScale = 2;
+      let texture = 'enemy_boss', baseHp = 300, baseSpeed = 50, damage = 20, xp = 0, spriteScale = 2;
+      if (type !== 'boss') {
+        const data = FOOD_ENEMIES[type] || FOOD_ENEMIES.grape;
+        texture = data.texture;
+        baseHp = data.hp;
+        baseSpeed = data.speed;
+        damage = data.damage;
+        xp = data.xp;
+        spriteScale = 1;
       }
       const e = this.enemies.create(x, y, texture);
       e.setScale(spriteScale).setDepth(8);
@@ -436,7 +532,7 @@
       e.hitFlashUntil = 0;
       e.baseDisplayScale = spriteScale;
       e.setData('dead', false);
-      e.body.setCircle(type === 'boss' ? 15 : 10, type === 'boss' ? 6 : 5, type === 'boss' ? 6 : 5);
+      e.body.setCircle(type === 'boss' ? 16 : 10, type === 'boss' ? 8 : 5, type === 'boss' ? 8 : 5);
       return e;
     }
 
@@ -446,7 +542,7 @@
       for (let i = 0; i < 50; i++) {
         const a = (Math.PI * 2 * i) / 50;
         const r = radius + Phaser.Math.Between(-35, 35);
-        this.spawnEnemy('zombie', cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        this.spawnEnemy(this.pickFoodEnemy('all'), cx + Math.cos(a) * r, cy + Math.sin(a) * r);
       }
       this.showBanner('포위 이벤트!', '50마리 전방위 습격');
       this.cameras.main.shake(450, 0.004);
@@ -474,13 +570,13 @@
       this.zombieTimer += delta;
       while (this.zombieTimer >= zombieInterval) {
         this.zombieTimer -= zombieInterval;
-        this.spawnOutsideView('zombie', zombieCount);
+        this.spawnOutsideView('normal', zombieCount);
       }
       if (batEnabled) {
         this.batTimer += delta;
         while (this.batTimer >= batInterval) {
           this.batTimer -= batInterval;
-          this.spawnOutsideView('bat', batCount);
+          this.spawnOutsideView('fast', batCount);
         }
       } else {
         this.batTimer = 0;
@@ -509,20 +605,28 @@
     fireBasicProjectile() {
       const target = this.nearestEnemy();
       if (!target) return;
+      const shotCount = 1 + (this.extraBasicShots || 0);
+      const baseAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
+      for (let i = 0; i < shotCount; i++) {
+        const spread = shotCount === 1 ? 0 : (i - (shotCount - 1) / 2) * 0.13;
+        this.spawnBasicProjectile(baseAngle + spread);
+      }
+      this.player.setFlipX(target.x < this.player.x);
+    }
+
+    spawnBasicProjectile(angle) {
       const kind = this.charData.projectile;
       const texture = `proj_${kind}`;
       const p = this.projectiles.create(this.player.x, this.player.y, texture);
       p.setDepth(12);
       p.kind = 'basic'; p.damage = this.attackPower; p.hitSet = new Set();
       p.spawnAt = this.runTimeMs; p.lifeMs = kind === 'pee' ? 950 : 1400;
-      const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
       const speed = kind === 'pee' ? 440 : 310;
       p.setRotation(angle);
       this.physics.velocityFromRotation(angle, speed, p.body.velocity);
       if (kind === 'bark') p.setScale(1.15);
       if (kind === 'pee') p.body.setSize(25, 4);
       else p.body.setCircle(6, 1, 1);
-      this.player.setFlipX(target.x < this.player.x);
     }
 
     onProjectileHit(projectile, enemy) {
@@ -599,18 +703,31 @@
       this.tweens.add({ targets: item, y: y - 5, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
+    xpRequirement(level) {
+      const early = { 1:2, 2:3, 3:4, 4:6, 5:8, 6:11, 7:15, 8:20, 9:26, 10:33 };
+      if (early[level]) return early[level];
+      const late = Math.ceil(33 * Math.pow(1.16, level - 10) + (level - 10) * 3);
+      return Math.max(36, late);
+    }
+
     collectGem(_player, gem) {
       if (!gem.active) return;
       const val = gem.xpValue || 1;
       gem.destroy();
       this.xp += val;
-      if (this.xp >= this.xpNeed) {
-        this.xp -= this.xpNeed;
-        this.level += 1;
-        this.xpNeed = Math.ceil(this.xpNeed * 1.28 + 2);
-        this.openLevelUp();
-      }
+      this.checkLevelProgression();
       this.updateHud();
+    }
+
+    checkLevelProgression() {
+      if (this.isChoiceOpen || this.isGameOver) return;
+      if (this.xp < this.xpNeed) return;
+      this.xp -= this.xpNeed;
+      this.level += 1;
+      this.xpNeed = this.xpRequirement(this.level);
+      this.pendingMilestone = this.level % 5 === 0;
+      this.updateHud();
+      this.openLevelUp();
     }
 
     collectItem(_player, item) {
@@ -632,6 +749,8 @@
       this.scene.pause();
       const screen = document.querySelector('#levelup-screen');
       const root = document.querySelector('#levelup-choices');
+      document.querySelector('#levelup-eyebrow').textContent = 'LEVEL UP!';
+      document.querySelector('#levelup-title').textContent = `Lv.${this.level} 강화 하나를 선택해`;
       root.innerHTML = '';
       shuffle(LEVEL_UPGRADES).forEach(u => {
         const b = document.createElement('button');
@@ -641,7 +760,38 @@
           this.applyLevelUpgrade(u.id);
           screen.classList.remove('show');
           this.isChoiceOpen = false;
+          if (this.pendingMilestone) {
+            this.pendingMilestone = false;
+            this.openMilestoneAugment();
+          } else {
+            this.scene.resume();
+            this.checkLevelProgression();
+          }
+        };
+        root.appendChild(b);
+      });
+      screen.classList.add('show');
+    }
+
+    openMilestoneAugment() {
+      if (this.isChoiceOpen || this.isGameOver) return;
+      this.isChoiceOpen = true;
+      const screen = document.querySelector('#levelup-screen');
+      const root = document.querySelector('#levelup-choices');
+      document.querySelector('#levelup-eyebrow').textContent = `LEVEL ${this.level} AUGMENT!`;
+      document.querySelector('#levelup-title').textContent = '5레벨 증강 하나를 선택해';
+      root.innerHTML = '';
+      const picks = shuffle(MILESTONE_AUGMENTS).slice(0, 3);
+      picks.forEach(a => {
+        const b = document.createElement('button');
+        b.className = 'choice-card';
+        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">5레벨 보너스 증강</span>`;
+        b.onclick = () => {
+          this.applyMilestoneAugment(a.id);
+          screen.classList.remove('show');
+          this.isChoiceOpen = false;
           this.scene.resume();
+          this.checkLevelProgression();
         };
         root.appendChild(b);
       });
@@ -655,6 +805,28 @@
         this.maxHp += 20;
         this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.55);
       }
+      this.updateHud();
+    }
+
+    applyMilestoneAugment(id) {
+      const data = MILESTONE_AUGMENTS.find(a => a.id === id);
+      if (id === 'hunterInstinct') {
+        this.basicCooldown = Math.max(420, this.basicCooldown * 0.8);
+        this.attackPower *= 1.1;
+      }
+      if (id === 'doubleShot') this.extraBasicShots += 1;
+      if (id === 'sniffer') this.gemMagnetRange += 110;
+      if (id === 'ironStomach') {
+        this.maxHp += 40;
+        this.hp = this.maxHp;
+        this.playerDamageMult *= 0.9;
+      }
+      if (id === 'zoomies') {
+        this.moveSpeed *= 1.18;
+        this.basicCooldown = Math.max(420, this.basicCooldown * 0.92);
+      }
+      if (data) this.augments.push(data.title);
+      this.showBanner(data?.title || '증강 획득!', `Lv.${this.level} 특별 증강`);
       this.updateHud();
     }
 
@@ -712,7 +884,7 @@
         return;
       }
 
-      const dmg = enemy.contactDamage * (enemy.contactDamageMult || 1);
+      const dmg = enemy.contactDamage * (enemy.contactDamageMult || 1) * (this.playerDamageMult || 1);
       this.hp -= dmg;
       this.cameras.main.shake(110, 0.004);
       this.cameras.main.flash(80, 180, 35, 35);
@@ -739,10 +911,11 @@
         if (!g.active) return;
         const dist = Phaser.Math.Distance.Between(px, py, g.x, g.y);
         const globalMagnet = this.runTimeMs < this.magnetUntil;
-        if (globalMagnet || g.magnetized || dist < 135) {
+        const range = this.gemMagnetRange || 135;
+        if (globalMagnet || g.magnetized || dist < range) {
           g.magnetized = true;
           const a = Phaser.Math.Angle.Between(g.x, g.y, px, py);
-          const sp = globalMagnet ? 520 : Phaser.Math.Clamp(190 + (135 - Math.min(135, dist)) * 3, 190, 430);
+          const sp = globalMagnet ? 520 : Phaser.Math.Clamp(190 + (range - Math.min(range, dist)) * 2.2, 190, 460);
           g.body.setVelocity(Math.cos(a) * sp, Math.sin(a) * sp);
         } else {
           g.body.setVelocity(0, 0);
@@ -884,8 +1057,9 @@
       this.hudName.setText(`${this.charData.name}  Lv.${this.level}`);
       this.hudInfo.setText(`HP ${Math.ceil(this.hp)}/${this.maxHp}\nKILL ${this.kills}`);
       const names = SKILLS.filter(s => this.skillLevels[s.id]).map(s => `${s.title} Lv.${this.skillLevels[s.id]}`);
+      if (this.augments?.length) names.unshift(`증강: ${this.augments.join(', ')}`);
       if (this.shieldCharges > 0) names.unshift(`장막 ${'◆'.repeat(this.shieldCharges)}`);
-      this.skillText.setText(names.length ? names.join('  ·  ') : '보스의 보물상자에서 스킬 획득');
+      this.skillText.setText(names.length ? names.join('  ·  ') : 'Lv.5마다 특별 증강 · 보스 상자에서 스킬 획득');
     }
 
     gameOver() {
