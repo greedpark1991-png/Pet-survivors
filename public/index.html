@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>멍냥 서바이버즈</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <div id="game-container"></div>
+
+    <section id="start-screen" class="overlay show">
+      <div class="panel start-panel">
+        <div class="eyebrow">PIXEL PET SURVIVORS</div>
+        <h1>멍냥 서바이버즈</h1>
+        <p class="lead">몰려오는 적을 피하면서 자동 공격으로 버티고, 보석을 모아 강해져라.</p>
+
+        <div class="character-grid" id="character-grid">
+          <button class="char-card selected" data-char="jjigae">
+            <canvas width="112" height="88"></canvas>
+            <b>찌개</b><small>갈색 말티푸 · 앙앙 소리탄</small>
+          </button>
+          <button class="char-card" data-char="mandu">
+            <canvas width="112" height="88"></canvas>
+            <b>만두</b><small>하얀 말티푸 · 콧물탄</small>
+          </button>
+          <button class="char-card" data-char="gamja">
+            <canvas width="112" height="88"></canvas>
+            <b>감자</b><small>크림 토이푸들 · 오줌빔</small>
+          </button>
+          <button class="char-card" data-char="gucci">
+            <canvas width="112" height="88"></canvas>
+            <b>구찌</b><small>하양+주황 코숏 · 털뭉치</small>
+          </button>
+        </div>
+
+        <div class="controls-box">
+          <b>조작</b>
+          <span>WASD / 방향키 이동</span>
+          <span>공격은 자동</span>
+          <span>ESC 일시정지</span>
+        </div>
+
+        <button id="start-btn" class="primary">게임 시작</button>
+      </div>
+    </section>
+
+    <section id="levelup-screen" class="overlay choice-overlay">
+      <div class="panel choice-panel">
+        <div class="eyebrow">LEVEL UP!</div>
+        <h2>강화 하나를 선택해</h2>
+        <div id="levelup-choices" class="choice-grid"></div>
+      </div>
+    </section>
+
+    <section id="chest-screen" class="overlay choice-overlay">
+      <div class="panel choice-panel chest-panel">
+        <div class="eyebrow">TREASURE CHEST</div>
+        <h2>스킬 하나를 획득해</h2>
+        <div id="chest-choices" class="choice-grid skill-grid"></div>
+      </div>
+    </section>
+
+    <section id="pause-screen" class="overlay choice-overlay">
+      <div class="panel small-panel">
+        <h2>일시정지</h2>
+        <p>ESC를 다시 누르면 계속 진행돼.</p>
+      </div>
+    </section>
+
+    <section id="gameover-screen" class="overlay choice-overlay">
+      <div class="panel small-panel">
+        <div class="eyebrow">GAME OVER</div>
+        <h2>쓰러졌다!</h2>
+        <p id="gameover-stats"></p>
+        <button id="restart-btn" class="primary">다시 시작</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>
