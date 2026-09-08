@@ -20,10 +20,19 @@
     }
   };
 
+  const PLAYER_SPRITES = {
+    gamja: { src: '/assets/players/gamja.png', previewSize: 56, worldScale: 1.4 },
+    gucci: { src: '/assets/players/gucci.png', previewSize: 62, worldScale: 1.4 },
+    mandu: { src: '/assets/players/mandu.png', previewSize: 62, worldScale: 1.4 },
+    jjigae: { src: '/assets/players/jjigae.png', previewSize: 62, worldScale: 1.4 }
+  };
+
   const LEVEL_UPGRADES = [
-    { id: 'damage', icon: '⚔', title: '공격력 증가', desc: '모든 공격 피해량이 20% 증가한다.' },
-    { id: 'speed', icon: '➜', title: '이동속도 증가', desc: '이동 속도가 10% 증가한다.' },
-    { id: 'health', icon: '♥', title: '최대 체력 회복', desc: '최대 HP가 20 증가하고 체력을 크게 회복한다.' }
+    { id: 'damage', icon: '⚔', title: '공격력 증가', desc: '모든 공격 피해량이 5% 증가한다.' },
+    { id: 'speed', icon: '➜', title: '이동속도 증가', desc: '이동 속도가 2% 증가한다.' },
+    { id: 'health', icon: '♥', title: '최대 체력 회복', desc: '최대 HP가 10 증가하고 최대 HP의 35%를 회복한다.' },
+    { id: 'xpGain', icon: '✦', title: '경험치 증가', desc: '경험치 획득량이 8% 증가한다.' },
+    { id: 'attackSpeed', icon: '⚡', title: '공속 증가', desc: '기본 공격 속도가 2% 빨라진다.' }
   ];
 
   const SKILLS = [
@@ -38,20 +47,21 @@
 
 
   const MILESTONE_AUGMENTS = [
-    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 20% 빨라지고 공격력이 10% 증가한다.' },
-    { id: 'doubleShot', icon: 'Ⅱ', title: '쌍발 본능', desc: '기본 무기를 한 번 발사할 때 투사체가 1개 더 나간다.' },
-    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 크게 넓어진다.' },
-    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 40 증가하고 체력을 전부 회복하며 받는 피해가 10% 감소한다.' },
-    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 18% 증가하고 기본 공격 속도가 8% 빨라진다.' }
+    { id: 'hunterInstinct', icon: '⚡', title: '사냥 본능', desc: '기본 공격 속도가 10% 빨라지고 공격력이 5% 증가한다.' },
+    { id: 'sniffer', icon: '✧', title: '자석 코', desc: '경험치 보석을 끌어당기는 범위가 55px 넓어진다.' },
+    { id: 'ironStomach', icon: '♥', title: '튼튼한 배', desc: '최대 HP가 20 증가하고 체력을 절반 회복하며 받는 피해가 5% 감소한다.' },
+    { id: 'zoomies', icon: '➤', title: '우다다!', desc: '이동속도가 9% 증가하고 기본 공격 속도가 4% 빨라진다.' }
   ];
 
 
   const MAJOR_AUGMENTS = [
-    { id: 'piercingRounds', icon: '➤➤', title: '관통탄', desc: '기본 투사체가 적을 2마리 더 관통한다. 다시 획득하면 관통 횟수가 더 늘어난다.' },
-    { id: 'blastRounds', icon: '✹', title: '광역 폭발탄', desc: '기본 투사체 적중 시 주변 78px에 공격력의 65%만큼 폭발 피해를 준다.' },
-    { id: 'bigShot', icon: '●', title: '거대 탄환', desc: '기본 투사체 크기 35%, 피해량 18% 증가. 피격 판정도 함께 커진다.' },
-    { id: 'ricochet', icon: '↝', title: '튕기는 탄환', desc: '기본 투사체가 적중 후 가까운 다른 적에게 1회 자동으로 튕겨 추가 피해를 준다.' },
-    { id: 'shockwave', icon: '◎', title: '본능의 충격파', desc: '8초마다 플레이어 주변을 크게 휩쓰는 충격파가 발생한다.' }
+    { id: 'poopOrbit', icon: '●', title: '똥강아지', desc: '캐릭터 주변을 똥이 회전하며 닿는 적을 갉아먹고 밀어낸다. 레벨마다 똥 +1.' },
+    { id: 'discThrow', icon: '◉', title: '원반 던지기', desc: '바라보는 방향·위·아래로 강한 원반을 주기적으로 던진다. 초반엔 피해가 오르고 Lv.4부터 관통한다.' },
+    { id: 'barkRoar', icon: ')))', title: '댕자후', desc: '일정 주기마다 주변에 소음 폭격을 퍼붓는다. 레벨이 오를수록 폭격 범위가 넓어진다.' },
+    { id: 'yellowGas', icon: '☁', title: '멍가스', desc: '이동한 자리에 노란 가스 구름을 남긴다. 구름에 닿은 적은 지속 피해를 입는다.' },
+    { id: 'yawnWave', icon: '≋', title: '음파 하품', desc: '전방 부채꼴에 낮은 피해의 하품 파동을 쏘고 맞은 적을 느려지게 한다.' },
+    { id: 'territoryMark', icon: '◎', title: '영역표시', desc: '주기적으로 고유 장판을 생성한다. 장판의 적은 지속 피해를 받고 받는 피해가 증가한다.' },
+    { id: 'squeakyToy', icon: '★', title: '마성의 뾱뾱이 인형', desc: '주기적으로 화면 내 무작위 적의 머리 위에 뾱뾱이 인형을 떨어뜨려 큰 피해를 준다.' }
   ];
 
   const FOOD_ENEMIES = {
@@ -204,40 +214,23 @@
   }
 
   function drawPreview(canvas, key) {
-    const p = CHARACTERS[key];
     const c = canvas.getContext('2d');
     c.imageSmoothingEnabled = false;
     c.clearRect(0, 0, canvas.width, canvas.height);
     c.fillStyle = '#15131a';
     c.fillRect(0, 0, canvas.width, canvas.height);
-    const S = 4;
-    const ox = 28, oy = 17;
-    const rect = (x, y, w, h, col) => {
-      c.fillStyle = col;
-      c.fillRect(ox + x * S, oy + y * S, w * S, h * S);
+    const cfg = PLAYER_SPRITES[key];
+    const img = new Image();
+    img.onload = () => {
+      c.clearRect(0, 0, canvas.width, canvas.height);
+      c.fillStyle = '#15131a';
+      c.fillRect(0, 0, canvas.width, canvas.height);
+      const size = cfg?.previewSize || 62;
+      const x = Math.floor((canvas.width - size) / 2);
+      const y = Math.floor(canvas.height - size - 6);
+      c.drawImage(img, x, y, size, size);
     };
-    const main = colorHex(p.main), dark = colorHex(p.dark), light = colorHex(p.light);
-
-    if (key === 'gucci') {
-      rect(5, 5, 13, 11, light); rect(3, 14, 16, 9, light);
-      rect(5, 2, 4, 4, dark); rect(14, 2, 4, 4, dark);
-      rect(9, 5, 5, 4, dark); rect(14, 14, 5, 4, dark); rect(3, 17, 4, 3, dark);
-      rect(0, 18, 5, 3, dark); rect(-2, 20, 3, 3, dark);
-    } else if (key === 'mandu') {
-      rect(5, 5, 13, 11, main); rect(3, 14, 16, 9, main);
-      rect(4, 2, 5, 5, main); rect(9, 1, 6, 6, main); rect(14, 2, 5, 5, main);
-      rect(2, 7, 4, 8, main); rect(17, 7, 4, 8, main);
-    } else if (key === 'gamja') {
-      rect(5, 5, 13, 11, main); rect(4, 14, 14, 8, main);
-      rect(4, 2, 5, 5, main); rect(9, 1, 6, 6, main); rect(14, 2, 5, 5, main);
-      rect(2, 8, 5, 7, main); rect(17, 8, 5, 7, main);
-    } else {
-      rect(5, 5, 13, 11, main); rect(3, 14, 16, 9, main);
-      rect(2, 7, 4, 9, dark); rect(17, 7, 4, 9, dark); rect(17, 10, 4, 4, main);
-    }
-    rect(7, 9, 2, 2, '#16131a'); rect(14, 9, 2, 2, '#16131a');
-    rect(11, 12, 2, 2, '#241b1b');
-    rect(6, 22, 4, 3, main); rect(14, 22, 4, 3, main);
+    img.src = cfg?.src || '';
   }
 
   document.querySelectorAll('.char-card').forEach(card => {
@@ -274,6 +267,7 @@
       this.moveSpeed = 190;
       this.maxHp = 100;
       this.hp = 100;
+      this.xpGainMult = 1;
       this.basicCooldown = 1500;
       this.extraBasicShots = 0;
       this.basicPierce = 0;
@@ -282,6 +276,13 @@
       this.basicSizeMult = 1;
       this.shockwaveLevel = 0;
       this.shockwaveTimer = 0;
+      this.majorLevels = {};
+      this.majorTimers = { poopOrbit:0, discThrow:0, barkRoar:0, yellowGas:0, yawnWave:0, territoryMark:0, squeakyToy:0 };
+      this.poopOrbiters = [];
+      this.gasClouds = [];
+      this.territoryZones = [];
+      this.discDirectionIndex = 0;
+      this.facingAngle = 0;
       this.gemMagnetRange = 135;
       this.playerDamageMult = 1;
       this.augments = [];
@@ -307,6 +308,12 @@
         hellConductor: 0,
         bulletBarrage: 0
       };
+    }
+
+    preload() {
+      Object.entries(PLAYER_SPRITES).forEach(([key, data]) => {
+        this.load.image(`player_${key}`, data.src);
+      });
     }
 
     create() {
@@ -467,6 +474,17 @@
         g.lineStyle(5,0xffefb2,0.95); g.strokeCircle(28,28,22); g.lineStyle(2,0x87e7ff,0.9); g.strokeCircle(28,28,27);
       });
 
+      create('poopOrbit', 18, 18, g => {
+        g.fillStyle(0x6f4728,1); g.fillCircle(9,12,5); g.fillCircle(8,8,4); g.fillCircle(10,5,3);
+        g.fillStyle(0xa06b39,1); g.fillRect(7,5,3,2);
+      });
+      create('disc', 20, 20, g => {
+        g.fillStyle(0xf2d56d,1); g.fillCircle(10,10,9); g.fillStyle(0xc96f55,1); g.fillCircle(10,10,5); g.fillStyle(0xfff1b2,1); g.fillCircle(8,7,2);
+      });
+      create('squeakyToy', 24, 30, g => {
+        g.fillStyle(0xf17bb0,1); g.fillCircle(12,11,8); g.fillStyle(0xffd465,1); g.fillRect(8,18,8,8); g.fillStyle(0xffffff,1); g.fillCircle(9,9,2); g.fillCircle(15,9,2); g.fillStyle(0x332432,1); g.fillCircle(9,9,1); g.fillCircle(15,9,1);
+      });
+
       create('xpGem', 12, 14, g => {
         g.fillStyle(0x1c6d60, 1); g.fillRect(4, 1, 4, 2);
         g.fillStyle(0x43d5b4, 1); g.fillRect(2, 3, 8, 7);
@@ -565,8 +583,9 @@
 
     createPlayer() {
       const center = this.worldSize / 2;
+      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1.4 };
       this.player = this.physics.add.sprite(center, center, `player_${this.characterKey}`);
-      this.player.setScale(1.4).setDepth(10).setCollideWorldBounds(true);
+      this.player.setScale(spriteCfg.worldScale || 1.4).setDepth(10).setCollideWorldBounds(true);
       this.player.body.setSize(18, 18).setOffset(7, 10);
       this.player.setDrag(900, 900);
       this.player.setMaxVelocity(420, 420);
@@ -640,6 +659,15 @@
       };
     }
 
+    getBossEscalation() {
+      const bossCount = Math.floor(this.runTimeMs / 300000);
+      return {
+        bossCount,
+        hp: Math.pow(1.10, bossCount),
+        damage: Math.pow(1.05, bossCount)
+      };
+    }
+
     getWave() {
       return Math.floor(this.runTimeMs / 10000) + 1;
     }
@@ -682,6 +710,7 @@
 
     spawnEnemy(type, x, y, opts = {}) {
       const scaling = this.getScaling();
+      const bossScaling = this.getBossEscalation();
       const isElite = !!opts.elite;
       const isBoss = type === 'boss';
       const isRaid = type === 'raidBoss';
@@ -691,11 +720,11 @@
       if (isRaid) {
         const raidTextures = ['enemy_raid_grape', 'enemy_raid_choco', 'enemy_raid_onion'];
         texture = raidTextures[Math.max(0, this.raidBossCount - 1) % raidTextures.length];
-        baseHp = 1700 + this.raidBossCount * 550;
-        baseSpeed = 56 + Math.min(20, this.raidBossCount * 3);
-        damage = 28 + this.raidBossCount * 3;
+        baseHp = 3200 + this.raidBossCount * 900;
+        baseSpeed = 60 + Math.min(24, this.raidBossCount * 3);
+        damage = 34 + this.raidBossCount * 4;
         xp = 0;
-        spriteScale = 2.7;
+        spriteScale = 2.9;
         role = 'raidBoss';
       } else if (isBoss) {
         texture = 'enemy_boss';
@@ -708,9 +737,9 @@
       } else {
         const data = FOOD_ENEMIES[type] || FOOD_ENEMIES.grape;
         texture = data.texture;
-        baseHp = data.hp;
+        baseHp = data.hp * bossScaling.hp;
         baseSpeed = data.speed;
-        damage = data.damage;
+        damage = data.damage * bossScaling.damage;
         xp = data.xp;
         if (isElite) {
           baseHp *= 4.2;
@@ -738,7 +767,7 @@
       e.baseDisplayScale = spriteScale;
       e.nextShotAt = this.runTimeMs + Phaser.Math.Between(role === 'elite' ? 1300 : 900, role === 'elite' ? 2500 : 1700);
       e.shotPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3500, 6500);
+      e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3000, 5200);
       e.rushUntil = 0;
       e.setData('dead', false);
 
@@ -759,6 +788,17 @@
       return e;
     }
 
+    applyBossEscalationToLiveEnemies() {
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.getData('dead')) return;
+        if (e.enemyRole === 'normal' || e.enemyRole === 'elite') {
+          e.maxHp *= 1.10;
+          e.hp *= 1.10;
+          e.contactDamage *= 1.05;
+        }
+      });
+    }
+
     spawnRingEvent() {
       if (this.raidBossActive) return;
       const cx = this.player.x, cy = this.player.y;
@@ -774,6 +814,7 @@
 
     spawnBoss() {
       if (this.raidBossActive) return;
+      this.applyBossEscalationToLiveEnemies();
       const view = this.cameras.main.worldView;
       const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const r = Math.max(view.width, view.height) * 0.72;
@@ -939,6 +980,15 @@
       if (projectile.hitSet) projectile.hitSet.add(enemy);
       this.damageEnemy(enemy, projectile.damage || this.attackPower, projectile.kind || 'basic');
 
+      if (projectile.kind === 'disc') {
+        if (projectile.pierceLeft > 0) {
+          projectile.pierceLeft -= 1;
+          return;
+        }
+        projectile.destroy();
+        return;
+      }
+
       if (projectile.kind === 'basic') {
         if (this.skillLevels.shrinkRay && enemy.enemyRole !== 'raidBoss') {
           const nextScale = Math.max(enemy.baseDisplayScale * 0.62, enemy.scaleX * 0.9);
@@ -969,7 +1019,9 @@
 
     damageEnemy(enemy, amount, source) {
       if (!enemy.active || enemy.getData('dead')) return;
-      enemy.hp -= amount;
+      const vuln = this.runTimeMs < (enemy.vulnerableUntil || 0) ? (enemy.vulnerableMult || 1) : 1;
+      const effectiveAmount = amount * vuln;
+      enemy.hp -= effectiveAmount;
       enemy.hitFlashUntil = this.runTimeMs + 90;
       enemy.setTint(0xffffff);
       this.time.delayedCall(80, () => {
@@ -978,7 +1030,7 @@
         if (enemy.enemyRole === 'elite') enemy.setTint(0xc8a5a5);
         else if (enemy.enemyRole === 'boss') enemy.setTint(0xe6b26f);
       });
-      this.spawnDamageText(enemy.x, enemy.y - 18, Math.round(amount));
+      this.spawnDamageText(enemy.x, enemy.y - 18, Math.round(effectiveAmount));
       if (this.runTimeMs - (this.lastHitSfxAt || 0) > 45) {
         this.lastHitSfxAt = this.runTimeMs;
         playHitSfx(enemy.enemyRole === 'boss' || enemy.enemyRole === 'raidBoss');
@@ -1043,7 +1095,7 @@
       if (!gem.active) return;
       const val = gem.xpValue || 1;
       gem.destroy();
-      this.xp += val;
+      this.xp += val * (this.xpGainMult || 1);
       this.checkLevelProgression();
       this.updateHud();
     }
@@ -1081,7 +1133,7 @@
       document.querySelector('#levelup-eyebrow').textContent = 'LEVEL UP!';
       document.querySelector('#levelup-title').textContent = `Lv.${this.level} 강화 하나를 선택해`;
       root.innerHTML = '';
-      shuffle(LEVEL_UPGRADES).forEach(u => {
+      shuffle(LEVEL_UPGRADES).slice(0, 3).forEach(u => {
         const b = document.createElement('button');
         b.className = 'choice-card';
         b.innerHTML = `<span class="icon">${u.icon}</span><b>${u.title}</b><p>${u.desc}</p>`;
@@ -1140,7 +1192,8 @@
       picks.forEach(a => {
         const b = document.createElement('button');
         b.className = 'choice-card major-choice';
-        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">10레벨 전투 증강</span>`;
+        const current = this.majorLevels[a.id] || 0;
+        b.innerHTML = `<span class="icon">${a.icon}</span><b>${a.title}</b><p>${a.desc}</p><span class="level">현재 Lv.${current} → Lv.${current + 1}</span>`;
         b.onclick = () => {
           this.applyMajorAugment(a.id);
           screen.classList.remove('show');
@@ -1154,31 +1207,32 @@
     }
 
     applyLevelUpgrade(id) {
-      if (id === 'damage') this.attackPower *= 1.2;
-      if (id === 'speed') this.moveSpeed *= 1.1;
+      if (id === 'damage') this.attackPower *= 1.05;
+      if (id === 'speed') this.moveSpeed *= 1.02;
       if (id === 'health') {
-        this.maxHp += 20;
-        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.55);
+        this.maxHp += 10;
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.35);
       }
+      if (id === 'xpGain') this.xpGainMult *= 1.08;
+      if (id === 'attackSpeed') this.basicCooldown = Math.max(520, this.basicCooldown * 0.98);
       this.updateHud();
     }
 
     applyMilestoneAugment(id) {
       const data = MILESTONE_AUGMENTS.find(a => a.id === id);
       if (id === 'hunterInstinct') {
-        this.basicCooldown = Math.max(420, this.basicCooldown * 0.8);
-        this.attackPower *= 1.1;
+        this.basicCooldown = Math.max(520, this.basicCooldown * 0.90);
+        this.attackPower *= 1.05;
       }
-      if (id === 'doubleShot') this.extraBasicShots += 1;
-      if (id === 'sniffer') this.gemMagnetRange += 110;
+      if (id === 'sniffer') this.gemMagnetRange += 55;
       if (id === 'ironStomach') {
-        this.maxHp += 40;
-        this.hp = this.maxHp;
-        this.playerDamageMult *= 0.9;
+        this.maxHp += 20;
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.50);
+        this.playerDamageMult *= 0.95;
       }
       if (id === 'zoomies') {
-        this.moveSpeed *= 1.18;
-        this.basicCooldown = Math.max(420, this.basicCooldown * 0.92);
+        this.moveSpeed *= 1.09;
+        this.basicCooldown = Math.max(520, this.basicCooldown * 0.96);
       }
       if (data) this.augments.push(data.title);
       this.showBanner(data?.title || '증강 획득!', `Lv.${this.level} 특별 증강`);
@@ -1187,17 +1241,188 @@
 
     applyMajorAugment(id) {
       const data = MAJOR_AUGMENTS.find(a => a.id === id);
-      if (id === 'piercingRounds') this.basicPierce += 2;
-      if (id === 'blastRounds') this.basicExplosion += 1;
-      if (id === 'bigShot') {
-        this.basicSizeMult *= 1.35;
-        this.attackPower *= 1.18;
-      }
-      if (id === 'ricochet') this.basicRicochet += 1;
-      if (id === 'shockwave') this.shockwaveLevel += 1;
-      if (data) this.augments.push(`10Lv:${data.title}`);
-      this.showBanner(data?.title || '전투 증강!', `Lv.${this.level} 10레벨 증강`);
+      this.majorLevels[id] = (this.majorLevels[id] || 0) + 1;
+      if (id === 'poopOrbit') this.rebuildPoopOrbiters();
+      if (data) this.showBanner(`${data.title} Lv.${this.majorLevels[id]}`, `Lv.${this.level} 10레벨 증강`);
       this.updateHud();
+    }
+
+    rebuildPoopOrbiters() {
+      (this.poopOrbiters || []).forEach(o => { if (o?.active) o.destroy(); });
+      this.poopOrbiters = [];
+      const count = this.majorLevels.poopOrbit || 0;
+      for (let i = 0; i < count; i++) {
+        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.05);
+        this.poopOrbiters.push(o);
+      }
+    }
+
+    castDisc(level) {
+      const dirs = [this.facingAngle || 0, -Math.PI / 2, Math.PI / 2];
+      const angle = dirs[this.discDirectionIndex % dirs.length];
+      this.discDirectionIndex += 1;
+      const p = this.projectiles.create(this.player.x, this.player.y, 'disc').setDepth(14);
+      p.kind = 'disc';
+      p.damage = this.attackPower * (1.45 + Math.min(2, level - 1) * 0.45);
+      p.pierceLeft = Math.max(0, level - 3);
+      p.hitSet = new Set();
+      p.spawnAt = this.runTimeMs; p.lifeMs = 2600;
+      p.setRotation(angle);
+      this.physics.velocityFromRotation(angle, 360 + Math.min(80, level * 10), p.body.velocity);
+      noise(0.045, 0.025, 900); tone(260, 0.05, 'triangle', 0.018, 180);
+    }
+
+    castBarkRoar(level) {
+      const radius = 120 + (level - 1) * 30;
+      const damage = this.attackPower * (0.58 + level * 0.08);
+      const ring = this.add.image(this.player.x, this.player.y, 'shockwave').setDepth(16).setScale(0.35).setAlpha(0.9);
+      this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 420, onComplete: () => ring.destroy() });
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.getData('dead')) return;
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
+        if (d > radius) return;
+        this.damageEnemy(e, damage, 'barkRoar');
+        if (e.enemyRole !== 'raidBoss') {
+          const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
+          const push = e.enemyRole === 'boss' ? 5 : e.enemyRole === 'elite' ? 9 : 14;
+          e.x += Math.cos(a) * push; e.y += Math.sin(a) * push;
+        }
+      });
+      noise(0.12, 0.055, 420); tone(115, 0.15, 'sawtooth', 0.035, 75);
+    }
+
+    spawnGasCloud(level) {
+      const radius = 28 + Math.min(18, level * 3);
+      const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.16).setStrokeStyle(2, 0xbda934, 0.25).setDepth(3);
+      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 3200 + level * 220, nextTick:this.runTimeMs });
+      this.tweens.add({ targets: obj, alpha: 0.04, scale: 1.18, duration: 3200 + level * 220 });
+    }
+
+    castYawnWave(level) {
+      const range = 175 + (level - 1) * 18;
+      const halfAngle = 0.48 + Math.min(0.22, (level - 1) * 0.035);
+      const damage = this.attackPower * (0.28 + level * 0.035);
+      const spread = Math.tan(halfAngle) * range;
+      const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.16).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
+      this.tweens.add({ targets: tri, alpha: 0, scaleX: 1.08, duration: 420, onComplete: () => tri.destroy() });
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.getData('dead')) return;
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
+        if (d > range) return;
+        const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
+        if (Math.abs(Phaser.Math.Angle.Wrap(a - (this.facingAngle || 0))) > halfAngle) return;
+        this.damageEnemy(e, damage, 'yawnWave');
+        e.slowUntil = this.runTimeMs + 2400 + level * 120;
+        e.slowMult = Math.max(0.48, 0.68 - level * 0.025);
+      });
+      noise(0.10, 0.025, 350); tone(165, 0.18, 'sine', 0.025, 95);
+    }
+
+    spawnTerritoryZone(level) {
+      const radius = 52 + Math.min(24, level * 4);
+      const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.13).setStrokeStyle(3, 0xd4aa38, 0.38).setDepth(2);
+      this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 6500 + level * 250, nextTick:this.runTimeMs });
+      this.tweens.add({ targets: obj, alpha: { from:0.18, to:0.08 }, duration:700, yoyo:true, repeat:-1 });
+    }
+
+    dropSqueakyToy(level) {
+      const view = this.cameras.main.worldView;
+      const candidates = this.enemies.getChildren().filter(e => e.active && !e.getData('dead') && view.contains(e.x, e.y));
+      const target = candidates.length ? Phaser.Utils.Array.GetRandom(candidates) : this.nearestEnemy();
+      if (!target) return;
+      const toy = this.add.image(target.x, target.y - 105, 'squeakyToy').setDepth(30).setScale(1.05);
+      const tx = target.x, ty = target.y;
+      this.tweens.add({ targets: toy, y:ty, angle:Phaser.Math.Between(-35,35), duration:430, ease:'Quad.easeIn', onComplete:() => {
+        if (target.active && !target.getData('dead')) {
+          this.damageEnemy(target, this.attackPower * (1.45 + level * 0.22), 'squeakyToy');
+          target.stunUntil = this.runTimeMs + 320 + level * 35;
+          this.explodeAt(tx, ty, this.attackPower * (0.18 + level * 0.03), 34 + level * 2, target);
+        }
+        noise(0.07,0.04,650); tone(420,0.06,'square',0.025,250);
+        toy.destroy();
+      }});
+    }
+
+    updatePersistentMajorZones() {
+      const now = this.runTimeMs;
+      this.gasClouds = (this.gasClouds || []).filter(z => {
+        if (!z.obj?.active || now >= z.expire) { if (z.obj?.active) z.obj.destroy(); return false; }
+        if (now >= z.nextTick) {
+          z.nextTick = now + 500;
+          this.enemies.getChildren().forEach(e => {
+            if (!e.active || e.getData('dead')) return;
+            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) this.damageEnemy(e, this.attackPower * (0.075 + z.level * 0.022), 'yellowGas');
+          });
+        }
+        return true;
+      });
+      this.territoryZones = (this.territoryZones || []).filter(z => {
+        if (!z.obj?.active || now >= z.expire) { if (z.obj?.active) z.obj.destroy(); return false; }
+        if (now >= z.nextTick) {
+          z.nextTick = now + 500;
+          this.enemies.getChildren().forEach(e => {
+            if (!e.active || e.getData('dead')) return;
+            if (Phaser.Math.Distance.Between(z.x,z.y,e.x,e.y) <= z.radius) {
+              e.vulnerableUntil = now + 750;
+              e.vulnerableMult = 1.10 + z.level * 0.025;
+              this.damageEnemy(e, this.attackPower * (0.07 + z.level * 0.02), 'territoryMark');
+            }
+          });
+        }
+        return true;
+      });
+    }
+
+    updateMajorAugments(delta, moving) {
+      const lv = this.majorLevels || {};
+      if (lv.poopOrbit) {
+        if (this.poopOrbiters.length !== lv.poopOrbit) this.rebuildPoopOrbiters();
+        const count = this.poopOrbiters.length;
+        const radius = 48 + Math.min(20, lv.poopOrbit * 3);
+        this.poopOrbiters.forEach((o,i) => {
+          const a = this.runTimeMs * 0.0032 + (Math.PI * 2 * i) / count;
+          o.setPosition(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius);
+          this.enemies.getChildren().forEach(e => {
+            if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReady || 0)) return;
+            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 22) {
+              e.poopHitReady = this.runTimeMs + 380;
+              this.damageEnemy(e, this.attackPower * (0.22 + lv.poopOrbit * 0.035), 'poopOrbit');
+              if (e.enemyRole !== 'raidBoss') {
+                const pa = Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
+                e.x += Math.cos(pa) * 7; e.y += Math.sin(pa) * 7;
+              }
+            }
+          });
+        });
+      }
+      if (lv.discThrow) {
+        this.majorTimers.discThrow += delta;
+        const interval = Math.max(1900, 3400 - (lv.discThrow - 1) * 180);
+        if (this.majorTimers.discThrow >= interval) { this.majorTimers.discThrow = 0; this.castDisc(lv.discThrow); }
+      }
+      if (lv.barkRoar) {
+        this.majorTimers.barkRoar += delta;
+        if (this.majorTimers.barkRoar >= 6000) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
+      }
+      if (lv.yellowGas && moving) {
+        this.majorTimers.yellowGas += delta;
+        const interval = Math.max(480, 820 - lv.yellowGas * 45);
+        if (this.majorTimers.yellowGas >= interval) { this.majorTimers.yellowGas = 0; this.spawnGasCloud(lv.yellowGas); }
+      }
+      if (lv.yawnWave) {
+        this.majorTimers.yawnWave += delta;
+        if (this.majorTimers.yawnWave >= 5400) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
+      }
+      if (lv.territoryMark) {
+        this.majorTimers.territoryMark += delta;
+        if (this.majorTimers.territoryMark >= 7200) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
+      }
+      if (lv.squeakyToy) {
+        this.majorTimers.squeakyToy += delta;
+        const interval = Math.max(2800, 5000 - (lv.squeakyToy - 1) * 180);
+        if (this.majorTimers.squeakyToy >= interval) { this.majorTimers.squeakyToy = 0; this.dropSqueakyToy(lv.squeakyToy); }
+      }
+      this.updatePersistentMajorZones();
     }
 
     openChest() {
@@ -1351,10 +1576,12 @@
 
         const a = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
         let speed = e.speed;
+        if (this.runTimeMs < (e.stunUntil || 0)) speed = 0;
+        else if (this.runTimeMs < (e.slowUntil || 0)) speed *= (e.slowMult || 0.65);
         if (e.enemyRole === 'raidBoss') {
           if (this.runTimeMs >= e.nextRushAt) {
             e.rushUntil = this.runTimeMs + 850;
-            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(4300, 6200);
+            e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3200, 5000);
             this.showBanner('보스 돌진!', '피해!');
           }
           if (this.runTimeMs < e.rushUntil) speed *= 2.9;
@@ -1370,7 +1597,7 @@
         if ((e.enemyRole === 'elite' || e.enemyRole === 'boss' || e.enemyRole === 'raidBoss') && this.runTimeMs >= e.nextShotAt) {
           if (e.enemyRole === 'raidBoss') {
             this.fireRaidPattern(e);
-            e.nextShotAt = this.runTimeMs + Math.max(900, 1850 - this.raidBossCount * 80);
+            e.nextShotAt = this.runTimeMs + Math.max(650, 1450 - this.raidBossCount * 70);
           } else {
             this.fireEliteShot(e);
             e.nextShotAt = this.runTimeMs + (e.enemyRole === 'boss' ? Phaser.Math.Between(1500, 2300) : Phaser.Math.Between(2200, 3400));
@@ -1556,6 +1783,8 @@
       this.hudName.setText(`${this.charData.name}  Lv.${this.level}`);
       this.hudInfo.setText(`HP ${Math.ceil(this.hp)}/${this.maxHp}\nKILL ${this.kills}`);
       const names = SKILLS.filter(s => this.skillLevels[s.id]).map(s => `${s.title} Lv.${this.skillLevels[s.id]}`);
+      const majors = MAJOR_AUGMENTS.filter(a => this.majorLevels?.[a.id]).map(a => `${a.title} Lv.${this.majorLevels[a.id]}`);
+      if (majors.length) names.unshift(`10Lv: ${majors.join(', ')}`);
       if (this.augments?.length) names.unshift(`증강: ${this.augments.join(', ')}`);
       if (this.shieldCharges > 0) names.unshift(`장막 ${'◆'.repeat(this.shieldCharges)}`);
       const boss = this.enemies?.getChildren().find(e => e.active && !e.getData('dead') && (e.enemyRole === 'raidBoss' || e.enemyRole === 'boss'));
@@ -1593,6 +1822,8 @@
       if (this.cursors.down.isDown || this.keys.down.isDown) dy += 1;
       const len = Math.hypot(dx, dy) || 1;
       dx /= len; dy /= len;
+      const moving = Math.abs(dx) + Math.abs(dy) > 0.01;
+      if (moving) this.facingAngle = Math.atan2(dy, dx);
       this.player.body.setVelocity(dx * this.moveSpeed, dy * this.moveSpeed);
       if (dx !== 0) this.player.setFlipX(dx < 0);
       this.shadow.setPosition(this.player.x, this.player.y + 15);
@@ -1602,6 +1833,7 @@
       this.updateGems();
       this.updateProjectiles();
       this.updateSkills(delta);
+      this.updateMajorAugments(delta, moving);
       this.updateShieldVisual();
 
       this.basicTimer += delta;
