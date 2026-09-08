@@ -11,6 +11,36 @@
   <div id="game-shell">
     <div id="game-container"></div>
 
+    <div id="combat-hud" class="combat-hud" aria-hidden="true">
+      <section class="combat-player-hud" aria-label="플레이어 상태">
+        <div class="combat-portrait-frame"><img id="combat-player-portrait" alt="플레이어" draggable="false" /></div>
+        <div class="combat-player-main">
+          <div class="combat-player-title"><strong id="combat-player-name">찌개</strong><span id="combat-player-level">Lv.1</span></div>
+          <div class="combat-bar-line"><span class="combat-bar-label">HP</span><div class="combat-bar hp"><i id="combat-hp-fill"></i></div><b id="combat-hp-text">100/100</b></div>
+          <div class="combat-bar-line"><span class="combat-bar-label">XP</span><div class="combat-bar xp"><i id="combat-xp-fill"></i></div><b id="combat-xp-text">0/2</b></div>
+          <div id="combat-passive" class="combat-passive">왕성한 성량</div>
+        </div>
+        <div id="combat-partner-hud" class="combat-partner-hud" hidden>
+          <span id="combat-partner-name">PARTNER</span><div class="combat-partner-bar"><i id="combat-partner-hp-fill"></i></div><b id="combat-partner-hp-text">100/100</b>
+        </div>
+      </section>
+
+      <section class="combat-run-hud" aria-label="런 정보">
+        <time id="combat-time">00:00</time>
+        <div class="combat-run-meta"><span id="combat-wave">WAVE 1</span><span class="meta-dot">·</span><span id="combat-kill">KILL 0</span></div>
+        <div id="combat-pending" class="combat-pending" hidden>TRUE BOSS 접근</div>
+      </section>
+
+      <section id="combat-boss-hud" class="combat-boss-hud" hidden>
+        <div class="combat-boss-head"><span id="combat-boss-kind">BOSS</span><strong id="combat-boss-name">위험 음식</strong><span id="combat-boss-hp-text">0 / 0</span></div>
+        <div class="combat-boss-track"><i id="combat-boss-fill"></i></div>
+      </section>
+
+      <section id="combat-build-hud" class="combat-build-hud" aria-label="현재 빌드">
+        <div class="combat-build-label">BUILD</div><div id="combat-build-slots" class="combat-build-slots"></div>
+      </section>
+    </div>
+
     <div id="audio-widget" class="audio-widget">
       <button id="audio-toggle-btn" class="audio-toggle" type="button" aria-expanded="false" aria-label="사운드 설정">♪</button>
       <div id="audio-controls" class="audio-controls" aria-hidden="true">
@@ -45,7 +75,7 @@
           <section class="hero-card" aria-label="선택 캐릭터 정보">
             <div class="hero-preview-wrap">
               <div class="hero-paw-mark" aria-hidden="true">•</div>
-              <canvas id="selected-char-preview" class="hero-preview" width="240" height="220" data-hero="true"></canvas>
+              <img id="selected-char-preview" class="hero-preview" data-hero="true" alt="선택 캐릭터" draggable="false" />
               <div class="hero-shadow" aria-hidden="true"></div>
             </div>
             <div class="hero-copy">
@@ -63,16 +93,16 @@
 
             <div class="character-grid" id="character-grid" aria-label="캐릭터 선택">
               <button class="char-card selected" data-char="jjigae" type="button">
-                <canvas width="72" height="64"></canvas><span><b>찌개</b><small class="char-role">소리탄 특화</small></span>
+                <img class="char-thumb" alt="찌개" draggable="false" /><span><b>찌개</b><small class="char-role">소리탄 특화</small></span>
               </button>
               <button class="char-card" data-char="mandu" type="button">
-                <canvas width="72" height="64"></canvas><span><b>만두</b><small class="char-role">튼튼한 생존</small></span>
+                <img class="char-thumb" alt="만두" draggable="false" /><span><b>만두</b><small class="char-role">튼튼한 생존</small></span>
               </button>
               <button class="char-card" data-char="gamja" type="button">
-                <canvas width="72" height="64"></canvas><span><b>감자</b><small class="char-role">기동력 특화</small></span>
+                <img class="char-thumb" alt="감자" draggable="false" /><span><b>감자</b><small class="char-role">기동력 특화</small></span>
               </button>
               <button class="char-card" data-char="gucci" type="button">
-                <canvas width="72" height="64"></canvas><span><b>구찌</b><small class="char-role">기본 공격 특화</small></span>
+                <img class="char-thumb" alt="구찌" draggable="false" /><span><b>구찌</b><small class="char-role">기본 공격 특화</small></span>
               </button>
             </div>
           </section>
@@ -151,7 +181,7 @@
           <div class="eyebrow">PAUSED</div>
           <h2>일시정지</h2>
           <div class="pause-character">
-            <canvas id="pause-char-preview" width="132" height="124" data-hero="true"></canvas>
+            <img id="pause-char-preview" class="pause-char-preview" data-hero="true" alt="현재 캐릭터" draggable="false" />
             <div><small>현재 캐릭터</small><strong id="pause-char-name">-</strong><span id="pause-char-passive">-</span></div>
           </div>
           <p id="pause-run-summary" class="pause-summary">현재 진행 상황</p>

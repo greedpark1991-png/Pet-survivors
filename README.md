@@ -309,6 +309,42 @@ npm start
 
 Phaser는 CDN에서 불러오기 때문에 브라우저 플레이에는 인터넷 연결이 필요합니다.
 
+## v1.16.1 VISUAL POLISH / QUALITY FIX
+
+이 버전은 v1.16의 전투 밸런스나 콘텐츠를 변경하지 않고 실제 브라우저에서 확인된 그래픽 품질 문제를 정리한 비주얼 폴리싱 패치입니다.
+
+### 캐릭터 픽셀 비율
+
+- v1.16에서 사용하던 `worldScale 1.07~1.16` 소수 배율을 제거하고 네 캐릭터 모두 원본 64×64 PNG를 `setScale(1)`의 단일 균등 배율로 렌더합니다.
+- `scaleX === scaleY`를 유지하며 플레이어에 `displayWidth`, `displayHeight`, `setDisplaySize`를 사용하지 않습니다.
+- 감자/만두/구찌/찌개의 기존 피격판정은 그대로 유지합니다.
+- 플레이어 texture filtering을 `NEAREST`로 고정하고 Phaser `pixelArt:true`, `antialias:false`, `roundPixels:true`, ScaleManager `autoRound:true`를 사용합니다.
+- 로비/ESC 프리뷰는 원본 PNG를 `<img>`로 직접 표시하며 `height + width:auto`로 원본 aspect ratio를 유지합니다.
+
+### 전투 HUD 선명도
+
+- HP / XP / 캐릭터명 / Lv / 생존시간 / WAVE / KILL / 보스 HP / 빌드 슬롯을 Phaser Canvas 텍스트가 아닌 DOM/CSS overlay로 표시합니다.
+- Canvas 확대·축소에 HUD 글자가 함께 리샘플링되던 문제를 제거했습니다.
+- 좌상단/우상단/좌하단/우하단은 공통 `--hud-safe-x`, `--hud-safe-y`를 사용합니다.
+- 1800px 이상 화면에서는 HUD를 소폭 확대해 1920×1080 / 2560×1440에서도 지나치게 작지 않게 했습니다.
+- 사운드 버튼은 동일 safe area 안에 배치하고 팝업은 위쪽으로 열립니다.
+
+### 공원 배경 재설계
+
+- v1.16의 `pathTileH/pathTileV` 직사각형 타일 배치와 `parkPlaza` 대형 네모 texture를 제거했습니다.
+- 산책길은 고정 seed의 연속 Graphics polygon으로 그려 타일 연결부가 보이지 않으며, 가장자리 jitter / 잔디 침범 / 낮은 대비 마모 흔적을 적용합니다.
+- 중앙 광장은 작은 저대비 팔각형으로 축소하고 희미한 발바닥 문양만 남겼습니다.
+- 잔디 tile을 64×64 반복에서 256×256 저대비 패턴으로 변경했습니다.
+- 벤치 / 가로등 / 나무 / 표지판 / 울타리 / 꽃밭 / 놀이터의 외곽선·팔레트·명암 단계를 통일했습니다.
+- 장식 수를 늘리지 않고 오히려 줄였습니다. 모든 공원 오브젝트는 물리 충돌이 없는 배경입니다.
+
+### 기존 게임 로직 보존
+
+- v1.15 전투/보스/회복/pendingTrueBoss/TRUE BOSS 패턴/2인 부활/Host-authoritative 네트워크 로직의 회귀 테스트 28개를 그대로 통과합니다.
+- 스탯, 적 HP/속도, 스폰량, 경험치, 증강 효과, 보물상자 효과, 보스 패턴 수치, 회복, 부활 수치는 변경하지 않았습니다.
+
+자세한 검증 결과는 `V1.16.1_TEST_REPORT.md`를 참고하세요.
+
 ## v1.16 핵심 변경
 
 - 게임 타이틀형 로비 / 선택 캐릭터 대형 nearest-neighbor 프리뷰

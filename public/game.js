@@ -25,10 +25,10 @@
   };
 
   const PLAYER_SPRITES = {
-    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1.14, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
-    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1.16, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
-    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 1.07, hitbox: { w: 13, h: 13, ox: 10, oy: 12 } },
-    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1.16, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } }
+    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1, shadow: { w:24,h:7,oy:13 }, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
+    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1, shadow: { w:29,h:8,oy:15 }, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
+    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 1, shadow: { w:28,h:8,oy:15 }, hitbox: { w: 13, h: 13, ox: 10, oy: 12 } },
+    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1, shadow: { w:25,h:7,oy:13 }, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } }
   };
 
   const LEVEL_UPGRADES = [
@@ -342,25 +342,32 @@
     return `#${num.toString(16).padStart(6, '0')}`;
   }
 
-  function drawPreview(canvas, key) {
-    if (!canvas || typeof canvas.getContext !== 'function') return;
-    const c = canvas.getContext('2d');
+  function drawPreview(target, key) {
+    if (!target) return;
+    const cfg = PLAYER_SPRITES[key];
+    const src = cfg?.src || '';
+    if (target.tagName === 'IMG') {
+      target.src = src;
+      target.alt = CHARACTERS[key]?.name || '캐릭터';
+      return;
+    }
+    // 구버전 canvas 마크업과도 호환하되 원본 비율을 절대 변형하지 않는다.
+    if (typeof target.getContext !== 'function') return;
+    const c = target.getContext('2d');
     if (!c) return;
     c.imageSmoothingEnabled = false;
-    c.clearRect(0, 0, canvas.width, canvas.height);
-    const hero = canvas.dataset?.hero === 'true';
-    const cfg = PLAYER_SPRITES[key];
+    c.clearRect(0, 0, target.width, target.height);
     const img = new Image();
     img.onload = () => {
       c.imageSmoothingEnabled = false;
-      c.clearRect(0, 0, canvas.width, canvas.height);
-      const base = hero ? 192 : 64;
-      const size = Math.min(base, canvas.width - 8, canvas.height - 4);
-      const x = Math.floor((canvas.width - size) / 2);
-      const y = Math.floor(canvas.height - size - (hero ? 4 : 1));
-      c.drawImage(img, x, y, size, size);
+      c.clearRect(0, 0, target.width, target.height);
+      const maxW = target.width - 8, maxH = target.height - 8;
+      const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+      const w = Math.max(1, Math.floor(img.naturalWidth * ratio));
+      const h = Math.max(1, Math.floor(img.naturalHeight * ratio));
+      c.drawImage(img, Math.floor((target.width-w)/2), Math.floor(target.height-h-2), w, h);
     };
-    img.src = cfg?.src || '';
+    img.src = src;
   }
 
   function updateSelectedCharacterUI(key) {
@@ -445,7 +452,7 @@
 
   document.querySelectorAll('.char-card').forEach(card => {
     const key = card.dataset.char;
-    drawPreview(card.querySelector('canvas'), key);
+    drawPreview(card.querySelector('.char-thumb, canvas'), key);
     card.addEventListener('click', () => {
       selectedCharacter = key;
       document.querySelectorAll('.char-card').forEach(x => x.classList.toggle('selected', x === card));
@@ -499,6 +506,8 @@
     socket.on('coopReturnedLobby',room=>{
       coop.active=false; renderCoopRoom(room);
       document.querySelector('#coop-wait-screen')?.classList.remove('show');
+      document.querySelector('#game-shell')?.classList.remove('game-running');
+      document.querySelector('#combat-hud')?.setAttribute('aria-hidden','true');
       document.querySelector('#start-screen')?.classList.add('show');
       if(game?.scene?.isActive('SurvivorScene')||game?.scene?.isPaused('SurvivorScene'))game.scene.stop('SurvivorScene');
       stopBgm();
@@ -645,6 +654,10 @@
     create() {
       activeScene = this;
       this.createTextures();
+      Object.keys(PLAYER_SPRITES).forEach(key=>{
+        const tex=this.textures.get(`player_${key}`);
+        tex?.setFilter?.(Phaser.Textures.FilterMode.NEAREST);
+      });
       this.createWorld();
       this.createGroups();
       this.createPlayer();
@@ -676,12 +689,18 @@
         g.destroy();
       };
 
-      create('grassTile', 64, 64, g => {
-        g.fillStyle(0x5ca66b, 1); g.fillRect(0, 0, 64, 64);
-        g.fillStyle(0x4b8f59, 1);
-        [[6,8],[28,20],[52,11],[14,47],[42,50],[58,35]].forEach(([x,y]) => g.fillRect(x,y,3,3));
-        g.fillStyle(0x73b979, 1);
-        [[19,6],[36,35],[7,33],[51,56]].forEach(([x,y]) => { g.fillRect(x,y,2,4); g.fillRect(x+2,y+1,2,2); });
+      create('grassTile', 256, 256, g => {
+        // 큰 반복 주기를 가진 저대비 잔디. 64px 체크 패턴이 보이지 않도록 256px 한 장 안에 분산한다.
+        g.fillStyle(0x63a86b, 1); g.fillRect(0, 0, 256, 256);
+        const tones=[0x5b9f64,0x6caf72,0x73b579,0x579760];
+        for(let i=0;i<72;i++){
+          const x=(17+i*73+(i%5)*11)%250, y=(29+i*131+(i%7)*9)%250;
+          g.fillStyle(tones[i%tones.length], i%4===0?0.34:0.22);
+          if(i%3===0){g.fillRect(x,y,2,5);g.fillRect(x+2,y+2,2,3);}
+          else g.fillRect(x,y,3,2);
+        }
+        g.fillStyle(0x78b97d,0.16);
+        for(let i=0;i<22;i++){const x=(41+i*97)%248,y=(13+i*61)%248;g.fillRect(x,y,5,3);}
       });
       create('dirtPatch', 48, 32, g => {
         g.fillStyle(0xb78b54, 1); g.fillRect(4, 4, 40, 24);
@@ -709,48 +728,46 @@
         [[7,16,34,18],[38,8,28,16],[58,30,30,20],[17,42,44,18]].forEach(([x,y,w,h])=>g.fillRect(x,y,w,h));
         g.fillStyle(0x347647,0.12);[[20,18],[48,42],[70,22]].forEach(([x,y])=>g.fillRect(x,y,14,9));
       });
-      create('pathTileH', 96, 48, g => {
-        g.fillStyle(0xb9935d,0.95);g.fillRect(0,8,96,32);g.fillStyle(0xc9a56d,0.95);g.fillRect(0,12,96,24);
-        g.fillStyle(0xa67f4d,0.45);[[9,15,11,3],[34,30,13,3],[63,18,9,3],[80,29,10,2]].forEach(v=>g.fillRect(...v));
-      });
-      create('pathTileV', 48, 96, g => {
-        g.fillStyle(0xb9935d,0.95);g.fillRect(8,0,32,96);g.fillStyle(0xc9a56d,0.95);g.fillRect(12,0,24,96);
-        g.fillStyle(0xa67f4d,0.45);[[16,10,3,12],[29,33,3,14],[18,62,3,10],[30,81,2,9]].forEach(v=>g.fillRect(...v));
-      });
-      create('parkPlaza', 224, 184, g => {
-        g.fillStyle(0x9b805b,0.92);g.fillRect(42,12,140,160);g.fillRect(18,36,188,112);g.fillStyle(0xb39a73,0.96);g.fillRect(48,18,128,148);g.fillRect(24,42,176,100);
-        g.fillStyle(0xcab68f,0.7);for(let y=38;y<150;y+=24)for(let x=40+(y%48?8:0);x<188;x+=32)g.fillRect(x,y,20,4);
-        g.fillStyle(0x786247,0.36);g.fillRect(106,20,8,144);g.fillRect(34,88,156,8);
-      });
       create('parkPond', 220, 144, g => {
-        g.fillStyle(0x315d5b,0.65);g.fillRect(34,14,152,116);g.fillRect(18,34,184,76);
-        g.fillStyle(0x4f9392,0.94);g.fillRect(40,20,140,104);g.fillRect(24,40,172,64);
-        g.fillStyle(0x74b9b2,0.85);g.fillRect(52,30,90,8);g.fillRect(72,58,112,6);g.fillRect(42,90,84,7);
-        g.fillStyle(0x8ccf9a,0.75);g.fillRect(18,54,14,8);g.fillRect(180,82,18,9);g.fillRect(132,116,18,9);
-        g.fillStyle(0xe7d56b,0.8);g.fillRect(25,52,5,5);g.fillRect(187,84,5,5);
+        const edge=0x355f56,water=0x529393,light=0x72ada8;
+        g.fillStyle(edge,0.72);g.fillRect(38,10,144,124);g.fillRect(20,28,180,88);g.fillRect(12,48,196,48);
+        g.fillStyle(water,0.90);g.fillRect(44,18,132,108);g.fillRect(26,34,168,76);g.fillRect(20,52,180,40);
+        g.fillStyle(light,0.58);g.fillRect(56,31,64,4);g.fillRect(126,45,40,3);g.fillRect(74,77,86,4);g.fillRect(42,99,52,3);
+        g.fillStyle(0x4d8a59,0.62);g.fillRect(17,57,10,8);g.fillRect(193,76,10,9);g.fillRect(145,122,13,8);
+        g.fillStyle(0xe4cf73,0.72);g.fillRect(20,56,4,4);g.fillRect(196,78,4,4);
       });
       create('parkTree', 48, 64, g => {
-        g.fillStyle(0x6d4e32,0.92);g.fillRect(21,34,7,24);g.fillStyle(0x3f7548,0.96);g.fillRect(8,12,32,30);g.fillRect(14,6,22,36);
-        g.fillStyle(0x59935a,0.95);g.fillRect(13,10,18,12);g.fillRect(7,21,18,14);g.fillStyle(0x78aa67,0.75);g.fillRect(17,9,11,7);
+        g.fillStyle(0x2f4433,0.82);g.fillRect(19,33,11,27);
+        g.fillStyle(0x6a4b32,0.92);g.fillRect(22,34,6,23);g.fillStyle(0x382f2c,0.55);g.fillRect(22,49,6,5);
+        g.fillStyle(0x315f40,0.94);g.fillRect(8,13,32,29);g.fillRect(14,7,22,35);g.fillRect(5,22,38,14);
+        g.fillStyle(0x4f8653,0.94);g.fillRect(12,11,20,12);g.fillRect(9,24,17,12);g.fillStyle(0x6ba168,0.62);g.fillRect(17,10,10,6);g.fillRect(28,24,7,7);
       });
       create('parkBench', 48, 26, g => {
-        g.fillStyle(0x4b382a,0.95);g.fillRect(6,8,36,6);g.fillRect(8,16,32,5);g.fillStyle(0x896344,1);g.fillRect(8,6,32,5);g.fillRect(10,14,28,4);g.fillStyle(0x39343a,1);g.fillRect(10,20,4,5);g.fillRect(34,20,4,5);
+        g.fillStyle(0x352d2b,0.92);g.fillRect(5,7,38,6);g.fillRect(8,15,32,6);g.fillRect(9,20,5,5);g.fillRect(34,20,5,5);
+        g.fillStyle(0x76553d,0.96);g.fillRect(7,6,34,4);g.fillRect(9,14,30,4);g.fillStyle(0x9b7350,0.58);g.fillRect(10,6,12,2);g.fillRect(12,14,9,2);
       });
       create('parkLamp', 18, 48, g => {
-        g.fillStyle(0x34343b,1);g.fillRect(8,13,3,30);g.fillRect(5,42,9,3);g.fillStyle(0xf6dd82,0.9);g.fillRect(4,5,11,9);g.fillStyle(0x665e48,1);g.fillRect(3,4,13,3);g.fillRect(5,13,9,2);
+        g.fillStyle(0x302f34,0.96);g.fillRect(7,12,5,31);g.fillRect(4,42,11,4);g.fillRect(3,4,13,10);
+        g.fillStyle(0x5c5551,0.92);g.fillRect(8,14,3,27);g.fillStyle(0xe9d77c,0.82);g.fillRect(5,6,9,6);g.fillStyle(0xffedaa,0.52);g.fillRect(7,7,5,3);
       });
       create('parkSign', 36, 38, g => {
-        g.fillStyle(0x694a32,1);g.fillRect(16,20,4,17);g.fillStyle(0xe7d79c,0.98);g.fillRect(3,4,30,18);g.fillStyle(0x886c43,1);g.fillRect(5,6,26,3);g.fillStyle(0x4d8e5c,1);g.fillRect(8,12,8,5);g.fillRect(19,11,8,6);
+        g.fillStyle(0x3a302b,0.92);g.fillRect(15,19,6,18);g.fillRect(2,3,32,21);
+        g.fillStyle(0xb69668,0.96);g.fillRect(4,5,28,17);g.fillStyle(0xd8c493,0.74);g.fillRect(6,7,24,3);
+        g.fillStyle(0x4d8359,0.82);g.fillRect(8,13,7,5);g.fillRect(20,12,7,6);
       });
       create('parkFence', 48, 18, g => {
-        g.fillStyle(0xd7c59d,0.85);g.fillRect(0,6,48,4);g.fillRect(0,13,48,3);for(let x=4;x<48;x+=12){g.fillRect(x,1,4,17);g.fillRect(x+1,0,2,2);}
+        g.fillStyle(0x514b43,0.55);g.fillRect(0,7,48,4);g.fillRect(0,14,48,3);
+        g.fillStyle(0xc8b58e,0.76);g.fillRect(0,6,48,3);g.fillRect(0,13,48,2);for(let x=5;x<48;x+=12){g.fillRect(x,2,4,15);g.fillRect(x+1,1,2,2);}
       });
       create('flowerBed', 108, 58, g => {
-        g.fillStyle(0x4b8b55,0.28);g.fillRect(4,8,100,44);g.fillStyle(0x305f3c,0.6);g.fillRect(8,12,92,36);
-        const colors=[0xf2d166,0xf09ab5,0xf2eee1,0xa9c9ff];for(let i=0;i<24;i++){const x=12+(i*17)%84,y=15+((i*23)%29);g.fillStyle(colors[i%colors.length],0.95);g.fillRect(x,y,4,4);g.fillStyle(0x3e814d,0.8);g.fillRect(x+1,y+4,2,5);}
+        g.fillStyle(0x315f3d,0.44);g.fillRect(7,11,94,36);g.fillStyle(0x47794c,0.30);g.fillRect(3,17,102,24);
+        const colors=[0xe6ca69,0xdc91a7,0xe8e0cf,0x9fbad5];for(let i=0;i<18;i++){const x=11+(i*19)%86,y=14+((i*17)%27);g.fillStyle(colors[i%colors.length],0.78);g.fillRect(x,y,3,3);g.fillStyle(0x356d45,0.72);g.fillRect(x+1,y+3,1,4);}
       });
       create('dogParkSet', 120, 72, g => {
-        g.fillStyle(0x3f7a49,0.18);g.fillRect(4,8,112,58);g.fillStyle(0xe7b45b,0.95);g.fillRect(18,40,30,5);g.fillRect(19,27,5,18);g.fillRect(42,27,5,18);g.fillStyle(0x78b8cc,0.95);g.fillRect(70,25,8,32);g.fillRect(93,25,8,32);g.fillRect(76,29,19,5);g.fillStyle(0xed7d74,0.95);g.fillRect(77,48,18,5);
+        g.fillStyle(0x3e7148,0.16);g.fillRect(8,13,104,50);
+        g.fillStyle(0x51463a,0.82);g.fillRect(17,40,33,6);g.fillRect(19,26,5,20);g.fillRect(43,26,5,20);
+        g.fillStyle(0xc99a55,0.84);g.fillRect(19,39,29,4);g.fillStyle(0x486775,0.85);g.fillRect(70,24,8,34);g.fillRect(94,24,8,34);g.fillRect(76,29,20,5);
+        g.fillStyle(0x879fac,0.60);g.fillRect(77,30,18,2);g.fillStyle(0xc86f68,0.76);g.fillRect(78,49,17,5);
       });
       create('playerFxStar', 8, 8, g => {g.fillStyle(0xffe88a,1);g.fillRect(3,0,2,8);g.fillRect(0,3,8,2);g.fillStyle(0xffffff,1);g.fillRect(3,3,2,2);});
       create('playerFxHeal', 10, 10, g => {g.fillStyle(0x89e5a4,1);g.fillRect(4,1,2,8);g.fillRect(1,4,8,2);g.fillStyle(0xe6ffe8,1);g.fillRect(4,4,2,2);});
@@ -963,71 +980,100 @@
       this.cameras.main.setBounds(0, 0, W, W);
       this.worldDecorCount=0;
       const addDecor=(key,x,y,depth=-17,scale=1,alpha=1,rotation=0)=>{
-        const obj=this.add.image(x,y,key).setDepth(depth).setScale(scale).setAlpha(alpha).setRotation(rotation);
+        const obj=this.add.image(Math.round(x),Math.round(y),key).setDepth(depth).setScale(scale).setAlpha(alpha).setRotation(rotation);
         this.worldDecorCount+=1;
         return obj;
       };
-      const tile = this.add.tileSprite(W / 2, W / 2, W, W, 'grassTile').setDepth(-24);
-      tile.setScrollFactor(1);
+      this.add.tileSprite(W / 2, W / 2, W, W, 'grassTile').setDepth(-24).setScrollFactor(1);
 
-      const rand = new Phaser.Math.RandomDataGenerator(['pet-survivors-park-v16']);
-      // 잔디의 밝고 어두운 패치를 넓게 흩뿌려 단색 평지 느낌을 줄인다.
-      for(let i=0;i<90;i++){
-        addDecor(i%3===0?'grassPatchDark':'grassPatchLight',rand.between(80,W-80),rand.between(80,W-80),-23,rand.realInRange(1.1,2.4),rand.realInRange(0.55,0.9),rand.realInRange(-0.18,0.18));
-      }
+      const rand = new Phaser.Math.RandomDataGenerator(['pet-survivors-park-v161']);
+      const pathRand = new Phaser.Math.RandomDataGenerator(['pet-survivors-park-v161-path']);
+      const snap4=v=>Math.round(v/4)*4;
 
-      // 공원 전체를 가로지르는 산책길. 충돌은 전혀 없고 배경 기준점 역할만 한다.
-      for(let x=420;x<=W-420;x+=104){
-        const y=3000+Math.sin(x/680)*145;
-        addDecor('pathTileH',x,y,-21,1.12,0.88,Math.cos(x/680)*0.08);
-      }
-      for(let y=620;y<=W-620;y+=104){
-        const x=3000+Math.sin(y/760+1.2)*115;
-        addDecor('pathTileV',x,y,-21,1.12,0.82,-Math.cos(y/760+1.2)*0.07);
-      }
-
-      // 고정 랜드마크: 중앙 광장 / 연못 / 꽃밭 / 놀이터 / 휴식 구역.
-      addDecor('parkPlaza',3000,3000,-20,1.18,0.92);
-      addDecor('parkPond',1550,1550,-20,1.32,0.94);
-      addDecor('flowerBed',4460,1420,-19,1.75,0.92);
-      addDecor('flowerBed',4290,1510,-19,1.35,0.88);
-      addDecor('dogParkSet',4460,4340,-19,1.8,0.9);
-      addDecor('parkSign',4355,4250,-17,1.25,0.92);
-      addDecor('parkSign',1690,1650,-17,1.1,0.9);
-      addDecor('parkBench',1370,4350,-17,1.35,0.92);
-      addDecor('parkBench',1640,4430,-17,1.2,0.9);
-      addDecor('parkLamp',1290,4280,-17,1.05,0.9);
-      addDecor('parkLamp',1730,4510,-17,1.05,0.9);
-
-      // 놀이터 울타리는 바닥 장식 취급. 실제 이동/AI 충돌은 만들지 않는다.
-      [[4200,4170,0],[4320,4170,0],[4440,4170,0],[4560,4170,0],[4680,4170,0],
-       [4200,4520,0],[4320,4520,0],[4440,4520,0],[4560,4520,0],[4680,4520,0],
-       [4140,4230,Math.PI/2],[4140,4350,Math.PI/2],[4140,4470,Math.PI/2],[4740,4230,Math.PI/2],[4740,4350,Math.PI/2],[4740,4470,Math.PI/2]].forEach(([x,y,r])=>addDecor('parkFence',x,y,-18,1.1,0.75,r));
-
-      // 랜드마크 가장자리에만 큰 장식을 배치해 전투 중심 가독성을 지킨다.
-      const treeClusters=[
-        [1320,1320],[1770,1300],[1280,1740],[1800,1770],
-        [4200,1220],[4700,1240],[4180,1710],[4760,1690],
-        [1180,4130],[1850,4100],[1180,4670],[1880,4700],
-        [4140,4010],[4800,4030],[4070,4680],[4850,4680]
-      ];
-      treeClusters.forEach(([cx,cy],idx)=>{
-        for(let j=0;j<3;j++){
-          const a=(j/3)*Math.PI*2+idx*0.37;
-          addDecor('parkTree',cx+Math.cos(a)*(70+j*11),cy+Math.sin(a)*(58+j*9),-16,rand.realInRange(0.9,1.25),0.86);
+      // v1.16의 반복 직사각형 길 대신 하나의 연속된 픽셀 리본을 그린다.
+      // 물리/충돌 객체가 아니며 Graphics 1개만 사용한다.
+      const ground=this.add.graphics().setDepth(-22);
+      const drawHorizontalPath=(outerHalf=43,innerHalf=34)=>{
+        const samples=[];
+        for(let x=300;x<=W-300;x+=64){
+          const y=snap4(3000+Math.sin(x/650)*108+Math.sin(x/245)*16);
+          const edgeJitter=snap4(pathRand.between(-5,5));
+          samples.push({x:snap4(x),y,edgeJitter});
         }
-      });
-      [[2820,2820],[3180,2820],[2820,3180],[3180,3180],[1450,1830],[1750,1450],[4300,1710],[4680,1320],[1320,4500],[1740,4200]].forEach(([x,y],i)=>{
-        addDecor(i%2?'parkLamp':'parkBench',x,y,-17,i%2?0.92:1.05,0.82);
+        const polygon=(half,extra=0)=>[
+          ...samples.map(p=>new Phaser.Geom.Point(p.x,snap4(p.y-half-p.edgeJitter-extra))),
+          ...samples.slice().reverse().map(p=>new Phaser.Geom.Point(p.x,snap4(p.y+half+p.edgeJitter+extra)))
+        ];
+        ground.fillStyle(0x806b53,0.66);ground.fillPoints(polygon(outerHalf,3),true);
+        ground.fillStyle(0xaa916f,0.79);ground.fillPoints(polygon(innerHalf,0),true);
+        ground.fillStyle(0xc0a781,0.14);
+        for(let i=1;i<samples.length-1;i+=3){const p=samples[i];ground.fillRect(p.x-11,p.y-15+(i%4)*9,22,3);}
+        ground.fillStyle(0x5d9f65,0.55);
+        for(let i=2;i<samples.length-2;i+=5){const p=samples[i];ground.fillRect(p.x-5,p.y-outerHalf-2,8,5);ground.fillRect(p.x+6,p.y+outerHalf-3,6,5);}
+      };
+      const drawVerticalPath=(outerHalf=42,innerHalf=33)=>{
+        const samples=[];
+        for(let y=360;y<=W-360;y+=64){
+          const x=snap4(3000+Math.sin(y/720+1.15)*84+Math.sin(y/270)*13);
+          const edgeJitter=snap4(pathRand.between(-5,5));
+          samples.push({x,y:snap4(y),edgeJitter});
+        }
+        const polygon=(half,extra=0)=>[
+          ...samples.map(p=>new Phaser.Geom.Point(snap4(p.x-half-p.edgeJitter-extra),p.y)),
+          ...samples.slice().reverse().map(p=>new Phaser.Geom.Point(snap4(p.x+half+p.edgeJitter+extra),p.y))
+        ];
+        ground.fillStyle(0x806b53,0.66);ground.fillPoints(polygon(outerHalf,3),true);
+        ground.fillStyle(0xaa916f,0.79);ground.fillPoints(polygon(innerHalf,0),true);
+        ground.fillStyle(0xc0a781,0.14);
+        for(let i=1;i<samples.length-1;i+=3){const p=samples[i];ground.fillRect(p.x-15+(i%4)*9,p.y-11,3,22);}
+        ground.fillStyle(0x5d9f65,0.55);
+        for(let i=2;i<samples.length-2;i+=5){const p=samples[i];ground.fillRect(p.x-outerHalf-2,p.y-5,5,8);ground.fillRect(p.x+outerHalf-3,p.y+6,5,6);}
+      };
+      drawHorizontalPath();
+      drawVerticalPath();
+
+      // 중앙 광장은 작고 낮은 대비의 팔각형으로 바꾸고 발바닥 문양만 넣는다.
+      const cx=3000,cy=3000;
+      const oct=(rx,ry)=>[[-rx,-Math.round(ry*.55)],[-Math.round(rx*.58),-ry],[Math.round(rx*.58),-ry],[rx,-Math.round(ry*.55)],[rx,Math.round(ry*.55)],[Math.round(rx*.58),ry],[-Math.round(rx*.58),ry],[-rx,Math.round(ry*.55)]].map(([x,y])=>new Phaser.Geom.Point(cx+x,cy+y));
+      ground.fillStyle(0x796650,0.66);ground.fillPoints(oct(88,68),true);
+      ground.fillStyle(0xa48d6d,0.80);ground.fillPoints(oct(78,58),true);
+      ground.fillStyle(0xb8a07c,0.16);ground.fillRect(cx-34,cy-2,68,4);ground.fillRect(cx-2,cy-26,4,52);
+      ground.fillStyle(0x806d55,0.28);
+      ground.fillRect(cx-10,cy+4,20,12);ground.fillRect(cx-20,cy-14,7,7);ground.fillRect(cx-8,cy-20,7,7);ground.fillRect(cx+6,cy-19,7,7);ground.fillRect(cx+17,cy-12,7,7);
+
+      // 넓은 잔디 톤 변화는 저밀도, 저대비로만 사용한다.
+      for(let i=0;i<52;i++){
+        addDecor(i%4===0?'grassPatchDark':'grassPatchLight',rand.between(100,W-100),rand.between(100,W-100),-23,rand.realInRange(1.0,1.8),rand.realInRange(0.34,0.58),rand.realInRange(-0.12,0.12));
+      }
+
+      // 고정 랜드마크. 수보다 공간 구분과 아트 통일을 우선한다.
+      addDecor('parkPond',1550,1550,-20,1.14,0.84);
+      addDecor('flowerBed',4440,1435,-19,1.34,0.78);
+      addDecor('flowerBed',4310,1530,-19,1.05,0.72);
+      addDecor('dogParkSet',4460,4340,-19,1.34,0.76);
+      addDecor('parkSign',4335,4248,-17,1.0,0.80);
+      addDecor('parkSign',1685,1655,-17,0.95,0.78);
+
+      // 휴식 포인트는 짝을 맞춰 배치하고 무작위처럼 흩뿌리지 않는다.
+      [[1380,4350,0],[1650,4430,0],[2815,2830,0],[3185,3170,Math.PI],[1450,1830,0],[4290,1710,0]].forEach(([x,y,r])=>addDecor('parkBench',x,y,-17,1.0,0.78,r));
+      [[1285,4270],[1730,4510],[3180,2820],[2820,3180],[1745,1450],[4680,1325]].forEach(([x,y])=>addDecor('parkLamp',x,y,-17,0.96,0.74));
+
+      // 놀이터의 울타리도 장식일 뿐 실제 충돌은 없다.
+      [[4210,4175,0],[4370,4175,0],[4530,4175,0],[4690,4175,0],
+       [4210,4510,0],[4370,4510,0],[4530,4510,0],[4690,4510,0],
+       [4150,4260,Math.PI/2],[4150,4420,Math.PI/2],[4750,4260,Math.PI/2],[4750,4420,Math.PI/2]].forEach(([x,y,r])=>addDecor('parkFence',x,y,-18,1.0,0.62,r));
+
+      const treeClusters=[[1320,1290],[1820,1320],[1260,1780],[1830,1790],[4200,1220],[4760,1260],[4180,1740],[4780,1700],[1190,4140],[1850,4700],[4110,4700],[4860,4660]];
+      treeClusters.forEach(([tx,ty],idx)=>{
+        for(let j=0;j<2;j++){const a=(idx*.61+j*2.4);addDecor('parkTree',tx+Math.cos(a)*(34+j*24),ty+Math.sin(a)*(31+j*21),-16,rand.realInRange(0.92,1.08),0.78);}
       });
 
-      // 기존의 풀/꽃/돌 밀도는 유지하되 큰 오브젝트가 화면을 덮지 않도록 소형 장식 위주.
-      for (let i = 0; i < 205; i++) {
-        const x = rand.between(60, W - 60), y = rand.between(60, W - 60);
-        const r = rand.frac();
-        if (r < 0.36) addDecor('dirtPatch',x,y,-19,rand.realInRange(0.55,1.25),rand.realInRange(0.45,0.75));
-        else if (r < 0.59) addDecor('rock',x,y,-17,rand.realInRange(0.62,1.0),0.7);
-        else addDecor('flower',x,y,-17,rand.realInRange(0.72,1.05),0.84);
+      // 소형 디테일은 150개로 제한. 큰 흙 패치는 드물게, 꽃/돌 위주로 사용한다.
+      for(let i=0;i<150;i++){
+        const x=rand.between(70,W-70),y=rand.between(70,W-70),r=rand.frac();
+        if(r<0.18)addDecor('dirtPatch',x,y,-19,rand.realInRange(0.45,0.78),rand.realInRange(0.28,0.48));
+        else if(r<0.46)addDecor('rock',x,y,-17,rand.realInRange(0.58,0.88),0.58);
+        else addDecor('flower',x,y,-17,rand.realInRange(0.66,0.92),0.72);
       }
     }
 
@@ -1043,25 +1089,27 @@
     createPlayer() {
       const center = this.worldSize / 2;
       const localX = this.coopMode ? center - 34 : center;
-      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1.16, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } };
+      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1, shadow:{w:26,h:7,oy:14}, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } };
       this.player = this.physics.add.sprite(localX, center, `player_${this.characterKey}`);
-      this.player.setScale(spriteCfg.worldScale || 1.16).setDepth(10).setCollideWorldBounds(true);
+      this.player.setScale(spriteCfg.worldScale ?? 1).setDepth(10).setCollideWorldBounds(true);
       const hb = spriteCfg.hitbox || { w: 14, h: 14, ox: 10, oy: 12 };
       this.player.body.setSize(hb.w, hb.h).setOffset(hb.ox, hb.oy);
       this.player.setDrag(900, 900); this.player.setMaxVelocity(420, 420); this.player.netPlayerId = this.localId || 'solo';
-      this.shadow = this.add.ellipse(localX, center + 16, 34, 11, 0x0b120d, 0.20).setDepth(4);
-      this.localMarker=this.add.ellipse(localX,center+15,31,13,0xffe58b,0.035).setDepth(5).setStrokeStyle(1,0xffe58b,0.48);
+      const sh=spriteCfg.shadow||{w:26,h:7,oy:14};
+      this.shadow = this.add.ellipse(localX, center + sh.oy, sh.w, sh.h, 0x0b120d, 0.16).setDepth(4);
+      this.localMarker=this.add.ellipse(localX,center+sh.oy-1,sh.w+5,sh.h+4,0xffe58b,0.02).setDepth(5).setStrokeStyle(1,0xffe58b,0.38);
       this.localGuard=this.add.ellipse(localX,center,43,28,0x8ff0bc,0.025).setDepth(7).setStrokeStyle(2,0xb7ffd3,0.72).setVisible(false);
       this.localNameTag=this.coopMode?this.add.text(localX,center-31,`나 · ${this.charData.name}`,{fontFamily:'monospace',fontSize:'9px',fontStyle:'bold',color:'#fff1b0',stroke:'#162018',strokeThickness:3}).setOrigin(0.5).setDepth(13):null;
       if (this.coopMode && this.remotePlayerInfo) {
         const remoteCfg = PLAYER_SPRITES[this.remoteCharacterKey] || spriteCfg;
         this.ally = this.physics.add.sprite(center + 34, center, `player_${this.remoteCharacterKey}`);
-        this.ally.setScale(remoteCfg.worldScale || 1.16).setDepth(10).setCollideWorldBounds(true);
+        this.ally.setScale(remoteCfg.worldScale ?? 1).setDepth(10).setCollideWorldBounds(true);
         const ahb = remoteCfg.hitbox || hb;
         this.ally.body.setSize(ahb.w, ahb.h).setOffset(ahb.ox, ahb.oy);
         this.ally.setDrag(900,900); this.ally.setMaxVelocity(420,420); this.ally.netPlayerId = this.remotePlayerInfo.id;
-        this.allyShadow = this.add.ellipse(center + 34, center + 16, 34, 11, 0x0b120d, 0.20).setDepth(4);
-        this.allyMarker=this.add.ellipse(center+34,center+15,31,13,0x82d8ad,0.03).setDepth(5).setStrokeStyle(1,0x82d8ad,0.46);
+        const ash=remoteCfg.shadow||{w:26,h:7,oy:14};
+        this.allyShadow = this.add.ellipse(center + 34, center + ash.oy, ash.w, ash.h, 0x0b120d, 0.16).setDepth(4);
+        this.allyMarker=this.add.ellipse(center+34,center+ash.oy-1,ash.w+5,ash.h+4,0x82d8ad,0.02).setDepth(5).setStrokeStyle(1,0x82d8ad,0.36);
         this.allyGuard=this.add.ellipse(center+34,center,43,28,0x8ff0bc,0.025).setDepth(7).setStrokeStyle(2,0xb7ffd3,0.72).setVisible(false);
         this.allyNameTag=this.add.text(center+34,center-31,`P${this.remotePlayerInfo.slot||2} · ${this.remoteCharData.name}`,{fontFamily:'monospace',fontSize:'9px',fontStyle:'bold',color:'#bdebd3',stroke:'#162018',strokeThickness:3}).setOrigin(0.5).setDepth(13);
       }
@@ -1095,16 +1143,18 @@
     updateBuildPresentation(build){
       if(!build?.sprite?.active)return;
       const x=build.sprite.x,y=build.sprite.y,down=!!build.down;
-      build.shadow?.setPosition?.(x,y+16)?.setAlpha?.(down?0.07:0.20);
-      build.marker?.setPosition?.(x,y+15)?.setAlpha?.(down?0.08:0.55);
+      const psh=PLAYER_SPRITES[build.characterKey]?.shadow||{oy:14};
+      build.shadow?.setPosition?.(x,y+psh.oy)?.setAlpha?.(down?0.05:0.16);
+      build.marker?.setPosition?.(x,y+psh.oy-1)?.setAlpha?.(down?0.05:0.34);
       build.nameTag?.setPosition?.(x,y-31)?.setAlpha?.(down?0.42:0.92);
       const inv=(build.playerInvulnUntil||0)>this.runTimeMs&&!down;
       build.guard?.setPosition?.(x,y)?.setVisible?.(inv)?.setAlpha?.(inv?(0.48+Math.sin(this.runTimeMs/80)*0.18):0);
     }
     updateSoloPresentation(){
       if(!this.player?.active)return;
-      this.shadow?.setPosition(this.player.x,this.player.y+16).setAlpha(this.playerDown?0.07:0.20);
-      this.localMarker?.setPosition(this.player.x,this.player.y+15).setAlpha(this.playerDown?0.08:0.55);
+      const psh=PLAYER_SPRITES[this.characterKey]?.shadow||{oy:14};
+      this.shadow?.setPosition(this.player.x,this.player.y+psh.oy).setAlpha(this.playerDown?0.05:0.16);
+      this.localMarker?.setPosition(this.player.x,this.player.y+psh.oy-1).setAlpha(this.playerDown?0.05:0.34);
       const inv=(this.playerInvulnUntil||0)>this.runTimeMs&&!this.playerDown;
       this.localGuard?.setPosition(this.player.x,this.player.y).setVisible(inv).setAlpha(inv?(0.48+Math.sin(this.runTimeMs/80)*0.18):0);
     }
@@ -1259,7 +1309,7 @@
       document.querySelector('#coop-wait-screen')?.classList.remove('show');
       this.time.paused = false; this.physics.world.resume(); stopBgm();
       if(this.coopMode){if(this.networkRole==='host')socket?.emit('coopBackLobby');else{socket?.emit('coopLeave');coop.room=null;coop.active=false;renderCoopRoom(null);}}
-      this.scene.stop(); activeScene = null; document.querySelector('#start-screen').classList.add('show');
+      this.scene.stop(); activeScene = null; document.querySelector('#game-shell')?.classList.remove('game-running'); document.querySelector('#combat-hud')?.setAttribute('aria-hidden','true'); document.querySelector('#start-screen').classList.add('show');
     }
     handleCoopPartnerLeft(){if(!this.coopMode)return;this.showBanner('파트너 연결 종료','로비로 돌아가 다시 방을 만들어줘.');this.time.delayedCall(500,()=>this.returnToLobby());}
 
@@ -1282,6 +1332,7 @@
         if (this._escHandler) this.input?.keyboard?.off('keydown-ESC', this._escHandler);
         if (this.builds) [...this.builds.values()].forEach(b => this.clearReviveUi?.(b));
         if (activeScene === this) activeScene = null;
+        this.hudDom=null;
       });
       const resumeBtn = document.querySelector('#pause-resume-btn');
       const lobbyBtn = document.querySelector('#pause-lobby-btn');
@@ -1290,43 +1341,25 @@
     }
 
     createHud() {
-      const cam = this.cameras.main;
-      const fixed = (obj) => obj.setScrollFactor(0).setDepth(1000);
-      this.hudBg = fixed(this.add.rectangle(10, 10, 294, 62, 0x17151d, 0.78).setOrigin(0));
-      this.hudBg.setStrokeStyle(1, 0x5b5261, 0.9);
-      this.hudPortraitPlate=fixed(this.add.rectangle(18,18,31,43,0x202821,0.92).setOrigin(0)).setStrokeStyle(1,0x4d6754,0.8);
-      this.hudPortrait=fixed(this.add.image(33,39,`player_${this.characterKey}`).setScale(0.67));
-      this.hudName = fixed(this.add.text(55, 14, '', { fontFamily: 'monospace', fontSize: '12px', fontStyle:'bold', color: '#fff3c7' }));
-      this.hpBg = fixed(this.add.rectangle(55, 36, 184, 9, 0x49252e, 0.96).setOrigin(0, 0.5));
-      this.hpBar = fixed(this.add.rectangle(55, 36, 184, 9, 0xe26463, 1).setOrigin(0, 0.5));
-      this.xpBg = fixed(this.add.rectangle(55, 52, 184, 5, 0x203d3b, 0.96).setOrigin(0, 0.5));
-      this.xpBar = fixed(this.add.rectangle(55, 52, 0, 5, 0x50d1ad, 1).setOrigin(0, 0.5));
-      this.hudHpText=fixed(this.add.text(245,31,'',{fontFamily:'monospace',fontSize:'8px',color:'#f4c3c1'}));
-      this.hudXpText=fixed(this.add.text(245,47,'',{fontFamily:'monospace',fontSize:'8px',color:'#9ee4cf'}));
-      this.hudInfo = fixed(this.add.text(55, 59, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8d858f' }));
-
-      this.partnerHudBg=fixed(this.add.rectangle(10,78,250,27,0x161a18,0.74).setOrigin(0)).setStrokeStyle(1,0x456252,0.7).setVisible(this.coopMode);
-      this.partnerHpBg=fixed(this.add.rectangle(84,93,132,6,0x26372f,0.96).setOrigin(0,0.5)).setVisible(this.coopMode);
-      this.partnerHpBar=fixed(this.add.rectangle(84,93,132,6,0x76cfa3,1).setOrigin(0,0.5)).setVisible(this.coopMode);
-      this.partnerText=fixed(this.add.text(18,84,'',{fontFamily:'monospace',fontSize:'9px',fontStyle:'bold',color:'#bdebd3'})).setVisible(this.coopMode);
-      this.partnerHpText=fixed(this.add.text(220,88,'',{fontFamily:'monospace',fontSize:'7px',color:'#9bc8af'})).setVisible(this.coopMode);
-
-      this.timerText = fixed(this.add.text(cam.width - 16, 13, '00:00', { fontFamily: 'monospace', fontSize: '26px', fontStyle: 'bold', color: '#fff4cb', stroke:'#17131a',strokeThickness:3 }).setOrigin(1, 0));
-      this.waveText = fixed(this.add.text(cam.width - 16, 44, 'WAVE 1', { fontFamily: 'monospace', fontSize: '12px', fontStyle:'bold', color: '#8ee1bd' }).setOrigin(1, 0));
-      this.killText = fixed(this.add.text(cam.width - 16, 60, 'KILL 0', { fontFamily: 'monospace', fontSize: '8px', color: '#a49aa7' }).setOrigin(1, 0));
-
-      this.bossHpBg = fixed(this.add.rectangle(cam.width / 2, 79, 340, 12, 0x25151b, 0.94).setOrigin(0.5)).setVisible(false);
-      this.bossHpBar = fixed(this.add.rectangle(cam.width / 2 - 170, 79, 340, 12, 0xd45455, 1).setOrigin(0, 0.5)).setVisible(false);
-      this.bossHpAccent=fixed(this.add.rectangle(cam.width/2,70,120,2,0xf4c96d,0.9).setOrigin(0.5)).setVisible(false);
-      this.bossHpText = fixed(this.add.text(cam.width / 2, 58, '', { fontFamily: 'monospace', fontSize: '10px', fontStyle: 'bold', color: '#ffe3c4', stroke: '#21151b', strokeThickness: 3 }).setOrigin(0.5)).setVisible(false);
-
-      this.buildHudLabel=fixed(this.add.text(17,cam.height-53,'BUILD',{fontFamily:'monospace',fontSize:'8px',fontStyle:'bold',color:'#b5a8b6',backgroundColor:'#17151dbc',padding:{x:5,y:3}}).setOrigin(0,1));
-      this.buildSlotContainer=fixed(this.add.container(17,cam.height-15));
-      this.buildTooltip=fixed(this.add.text(17,cam.height-61,'',{fontFamily:'monospace',fontSize:'9px',color:'#fff0c4',backgroundColor:'#17151dee',padding:{x:7,y:5},stroke:'#17151d',strokeThickness:1}).setOrigin(0,1)).setVisible(false);
+      const cam=this.cameras.main;
+      const fixed=obj=>obj.setScrollFactor(0).setDepth(1000);
+      this.hudDom={
+        root:document.querySelector('#combat-hud'),
+        portrait:document.querySelector('#combat-player-portrait'),
+        name:document.querySelector('#combat-player-name'),
+        level:document.querySelector('#combat-player-level'),
+        hpFill:document.querySelector('#combat-hp-fill'),hpText:document.querySelector('#combat-hp-text'),
+        xpFill:document.querySelector('#combat-xp-fill'),xpText:document.querySelector('#combat-xp-text'),passive:document.querySelector('#combat-passive'),
+        partner:document.querySelector('#combat-partner-hud'),partnerName:document.querySelector('#combat-partner-name'),partnerFill:document.querySelector('#combat-partner-hp-fill'),partnerText:document.querySelector('#combat-partner-hp-text'),
+        time:document.querySelector('#combat-time'),wave:document.querySelector('#combat-wave'),kill:document.querySelector('#combat-kill'),pending:document.querySelector('#combat-pending'),
+        boss:document.querySelector('#combat-boss-hud'),bossKind:document.querySelector('#combat-boss-kind'),bossName:document.querySelector('#combat-boss-name'),bossHpText:document.querySelector('#combat-boss-hp-text'),bossFill:document.querySelector('#combat-boss-fill'),
+        buildSlots:document.querySelector('#combat-build-slots')
+      };
+      if(this.hudDom.root){this.hudDom.root.setAttribute('aria-hidden','false');}
       this.buildHudSignature='';
-      this.buildHudObjects=[];
-
-      this.banner = fixed(this.add.text(cam.width / 2, 112, '', { fontFamily: 'monospace', fontSize: '21px', fontStyle: 'bold', align: 'center', color: '#fff2b6', stroke: '#201922', strokeThickness: 5 }).setOrigin(0.5));
+      // 움직이는 월드와 같은 Canvas에 고정 텍스트를 그리면 FIT 배율에서 번질 수 있어 HUD 텍스트는 DOM으로 분리한다.
+      // Phaser에는 전투 배너만 남긴다.
+      this.banner=fixed(this.add.text(Math.round(cam.width/2),112,'',{fontFamily:'monospace',fontSize:'21px',fontStyle:'bold',align:'center',color:'#fff2b6',stroke:'#201922',strokeThickness:5,resolution:2}).setOrigin(0.5));
       this.banner.setAlpha(0);
       this.updateHud();
     }
@@ -1342,23 +1375,14 @@
       return items;
     }
     refreshBuildHud(){
-      if(!this.buildSlotContainer)return;
+      const root=this.hudDom?.buildSlots;if(!root)return;
       const all=this.getBuildHudItems();
       const signature=all.map(x=>`${x.kind}:${x.name}:${x.level}`).join('|');
       if(signature===this.buildHudSignature)return;
       this.buildHudSignature=signature;
-      (this.buildHudObjects||[]).forEach(o=>o?.destroy?.());this.buildHudObjects=[];
-      const shown=all.slice(0,10),palette={shield:0x78b8d8,special:0xd2ad5b,exclusive:0x77d0a4,major:0xc58d5c,skill:0x8ebbcf};
-      shown.forEach((it,i)=>{
-        const x=i*34,y=-31;
-        const bg=this.add.rectangle(x,y,29,29,0x17151d,0.90).setOrigin(0,0.5).setStrokeStyle(1,palette[it.kind]||0x756b79,0.9);
-        const icon=this.add.text(x+14,y-4,it.icon,{fontFamily:'monospace',fontSize:'13px',fontStyle:'bold',color:'#fff1c7'}).setOrigin(0.5);
-        const lv=this.add.text(x+26,y+8,`${it.level}`,{fontFamily:'monospace',fontSize:'7px',fontStyle:'bold',color:'#b8f0d7',backgroundColor:'#151319'}).setOrigin(1,1);
-        bg.setInteractive?.({useHandCursor:true});bg.on?.('pointerover',()=>this.buildTooltip?.setText(`${it.name} · Lv.${it.level}`).setVisible(true));bg.on?.('pointerout',()=>this.buildTooltip?.setVisible(false));
-        this.buildSlotContainer.add([bg,icon,lv]);this.buildHudObjects.push(bg,icon,lv);
-      });
-      if(all.length>shown.length){const more=this.add.text(shown.length*34+2,-31,`+${all.length-shown.length}`,{fontFamily:'monospace',fontSize:'9px',fontStyle:'bold',color:'#bdb3bf',backgroundColor:'#17151dcc',padding:{x:5,y:7}}).setOrigin(0,0.5);this.buildSlotContainer.add(more);this.buildHudObjects.push(more);}
-      this.buildHudLabel?.setText(all.length?'BUILD':'BUILD · 아직 비어 있음');
+      const shown=all.slice(0,10),palette={shield:'#78b8d8',special:'#d2ad5b',exclusive:'#77d0a4',major:'#c58d5c',skill:'#8ebbcf'};
+      if(!shown.length){root.innerHTML='<span class="combat-build-empty">아직 비어 있음</span>';return;}
+      root.innerHTML=shown.map(it=>`<span class="combat-build-slot" style="--slot:${palette[it.kind]||'#756b79'}" data-tooltip="${it.name} · Lv.${it.level}" aria-label="${it.name} Lv.${it.level}"><span>${it.icon}</span><b>${it.level}</b></span>`).join('')+(all.length>shown.length?`<span class="combat-build-slot" style="--slot:#756b79" data-tooltip="추가 빌드 ${all.length-shown.length}개"><span>+${all.length-shown.length}</span></span>`:'');
     }
 
     createPhysics() {
@@ -3256,7 +3280,7 @@
       this.syncNetworkGroup(this.netGemMap,s.gems,this.gems,6);
       this.syncNetworkGroup(this.netItemMap,s.items,this.items,7);
       this.syncNetworkExtras(s.extras);
-      this.timerText?.setText(formatTime((s.t||0)/1000));this.waveText?.setText(`WAVE ${s.wave||1} · 2P CO-OP${s.raidPendingActive?' · TRUE BOSS 접근':''}`);this.updateHud();
+      this.updateHud();
     }
     updateCoopGuest(delta){
       if(this.isGameOver)return;
@@ -3286,45 +3310,44 @@
       this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);
       this.updateRevives(delta);
       this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();
-      this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.timerText.setText(formatTime(this.runTimeMs/1000));this.waveText.setText(`WAVE ${this.getWave()} · 2P CO-OP${this.pendingTrueBoss?' · TRUE BOSS 접근':''}`);this.updateHud();}
+      this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.updateHud();}
       this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=110){this.snapshotTimer=0;(socket?.volatile||socket)?.emit?.('coopSnapshot',this.buildNetworkSnapshot());}
     }
     updateHud() {
-      if (!this.hpBar) return;
-      const hpPct = Phaser.Math.Clamp(this.hp / Math.max(1,this.maxHp), 0, 1);
-      const xpPct = Phaser.Math.Clamp(this.xp / Math.max(1,this.xpNeed), 0, 1);
-      this.hpBar.setSize(184 * hpPct,9);
-      this.xpBar.setSize(184 * xpPct,5);
-      this.hudName.setText(`${this.charData.name}  Lv.${this.level}${this.coopMode ? ' · TEAM' : ''}`);
-      this.hudHpText?.setText(`${Math.ceil(this.hp)}/${Math.ceil(this.maxHp)}`);
-      this.hudXpText?.setText(`${Math.floor(this.xp)}/${this.xpNeed}`);
-      this.hudInfo?.setText(this.charData.passive?.name||'');
-      this.killText?.setText(`${this.coopMode?'TEAM ':''}KILL ${this.kills}`);
+      const d=this.hudDom;if(!d)return;
+      const hpPct=Phaser.Math.Clamp(this.hp/Math.max(1,this.maxHp),0,1);
+      const xpPct=Phaser.Math.Clamp(this.xp/Math.max(1,this.xpNeed),0,1);
+      if(d.portrait){const src=PLAYER_SPRITES[this.characterKey]?.src||'';if(d.portrait.getAttribute('src')!==src)d.portrait.src=src;}
+      if(d.name)d.name.textContent=this.charData.name;
+      if(d.level)d.level.textContent=`Lv.${this.level}${this.coopMode?' · TEAM':''}`;
+      if(d.hpFill)d.hpFill.style.width=`${Math.round(hpPct*1000)/10}%`;
+      if(d.hpText)d.hpText.textContent=`${Math.ceil(this.hp)}/${Math.ceil(this.maxHp)}`;
+      if(d.xpFill)d.xpFill.style.width=`${Math.round(xpPct*1000)/10}%`;
+      if(d.xpText)d.xpText.textContent=`${Math.floor(this.xp)}/${this.xpNeed}`;
+      if(d.passive)d.passive.textContent=this.charData.passive?.name||'';
+      if(d.time)d.time.textContent=formatTime(this.runTimeMs/1000);
+      if(d.wave)d.wave.textContent=`WAVE ${this.getWave()}`;
+      if(d.kill)d.kill.textContent=`${this.coopMode?'TEAM ':''}KILL ${this.kills}`;
+      if(d.pending)d.pending.hidden=!this.pendingTrueBoss;if(d.pending&&!d.pending.hidden)d.pending.textContent='TRUE BOSS 접근';
+
       if(this.coopMode&&this.builds){
         const partner=[...this.builds.values()].find(b=>b.id!==this.currentBuildId);
         const pp=partner?Phaser.Math.Clamp((partner.hp||0)/Math.max(1,partner.maxHp||1),0,1):0;
-        const label=partner?`${partner.charData?.name||'파트너'}${partner.down?' · DOWN':''}`:'파트너 -';
-        this.partnerText?.setVisible(true).setText(label);
-        this.partnerHpBg?.setVisible(true);
-        this.partnerHpBar?.setVisible(true).setSize(132*pp,6).setFillStyle(partner?.down?0x8b5961:0x76cfa3,1);
-        this.partnerHpText?.setVisible(true).setText(partner?(partner.down?'구조 필요':`${Math.ceil(partner.hp)}/${Math.ceil(partner.maxHp)}`):'-');
-        this.partnerHudBg?.setVisible(true).setStrokeStyle(1,partner?.down?0x87515a:0x456252,0.8);
-      }else{
-        this.partnerHudBg?.setVisible(false);this.partnerHpBg?.setVisible(false);this.partnerHpBar?.setVisible(false);this.partnerText?.setVisible(false);this.partnerHpText?.setVisible(false);
-      }
+        if(d.partner)d.partner.hidden=false;
+        if(d.partnerName)d.partnerName.textContent=partner?`${partner.charData?.name||'파트너'}${partner.down?' · DOWN':''}`:'파트너';
+        if(d.partnerFill){d.partnerFill.style.width=`${Math.round(pp*1000)/10}%`;d.partnerFill.style.background=partner?.down?'#98616a':'#79cda4';}
+        if(d.partnerText)d.partnerText.textContent=partner?(partner.down?'구조 필요':`${Math.ceil(partner.hp)}/${Math.ceil(partner.maxHp)}`):'-';
+      }else if(d.partner)d.partner.hidden=true;
 
-      const boss = this.enemies?.getChildren().find(e => e.active && !e.getData('dead') && (e.enemyRole === 'raidBoss' || e.enemyRole === 'boss'));
-      if (boss) {
-        const raid=boss.enemyRole==='raidBoss';
-        const width=raid?430:340,height=raid?16:12,pct=Phaser.Math.Clamp(boss.hp/boss.maxHp,0,1),center=this.cameras.main.width/2;
-        this.bossHpBg.setVisible(true).setPosition(center,raid?83:79).setSize(width,height).setFillStyle(raid?0x2c1118:0x25151b,0.95).setStrokeStyle(raid?2:1,raid?0xf1b35d:0x8c5b5e,raid?0.9:0.7);
-        this.bossHpBar.setVisible(true).setPosition(center-width/2,raid?83:79).setSize(width*pct,height).setFillStyle(raid?0xe8534d:0xc95b5c,1);
-        this.bossHpAccent?.setVisible(raid).setPosition(center,70).setSize(raid?180:120,2);
-        const bossLabel=raid?`${boss.raidName||this.raidBossName||'TRUE BOSS'}${boss.raidPhase2?' · 2 PHASE':''}`:`위험 음식 BOSS ${boss.bossIndex||this.regularBossCount||1}`;
-        this.bossHpText.setVisible(true).setPosition(center,raid?57:58).setFontSize(raid?'12px':'10px').setColor(raid?'#fff0b8':'#ffd9c8').setText(`${bossLabel}   ${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`);
-      } else {
-        this.bossHpBg.setVisible(false);this.bossHpBar.setVisible(false);this.bossHpText.setVisible(false);this.bossHpAccent?.setVisible(false);
-      }
+      const boss=this.enemies?.getChildren().find(e=>e.active&&!e.getData('dead')&&(e.enemyRole==='raidBoss'||e.enemyRole==='boss'));
+      if(boss&&d.boss){
+        const raid=boss.enemyRole==='raidBoss',pct=Phaser.Math.Clamp(boss.hp/Math.max(1,boss.maxHp),0,1);
+        d.boss.hidden=false;d.boss.classList.toggle('raid',raid);
+        if(d.bossKind)d.bossKind.textContent=raid?'TRUE BOSS':'BOSS';
+        if(d.bossName)d.bossName.textContent=raid?`${boss.raidName||this.raidBossName||'TRUE BOSS'}${boss.raidPhase2?' · 2 PHASE':''}`:`위험 음식 ${boss.bossIndex||this.regularBossCount||1}`;
+        if(d.bossHpText)d.bossHpText.textContent=`${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`;
+        if(d.bossFill)d.bossFill.style.width=`${Math.round(pct*1000)/10}%`;
+      }else if(d.boss)d.boss.hidden=true;
       this.refreshBuildHud();
     }
 
@@ -3370,9 +3393,8 @@
         this.fireBasicProjectile();
       }
 
-      this.timerText.setText(formatTime(sec));
-      this.waveText.setText(`WAVE ${this.getWave()}${this.pendingTrueBoss?' · TRUE BOSS 접근':''}`);
-      this.updateHud();
+      this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;
+      if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.updateHud();}
     }
   }
 
@@ -3390,6 +3412,8 @@
     document.querySelector('#audio-widget')?.classList.remove('open');
     document.querySelector('#audio-toggle-btn')?.setAttribute('aria-expanded','false');
     document.querySelector('#audio-controls')?.setAttribute('aria-hidden','true');
+    document.querySelector('#game-shell')?.classList.add('game-running');
+    document.querySelector('#combat-hud')?.setAttribute('aria-hidden','false');
 
     if (!game) {
       game = new Phaser.Game({
@@ -3407,7 +3431,8 @@
         },
         scale: {
           mode: Phaser.Scale.FIT,
-          autoCenter: Phaser.Scale.CENTER_BOTH
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+          autoRound: true
         }
       });
       game.scene.add('SurvivorScene', SurvivorScene, false);
