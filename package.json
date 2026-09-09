@@ -1,12 +1,12 @@
 {
   "name": "pet-survivors-phaser",
-  "version": "1.16.1",
+  "version": "1.16.2",
   "private": true,
-  "description": "Pixel pet survivor roguelite with co-op and v1.16.1 visual quality polish, made with Phaser 3",
+  "description": "Pixel pet survivor roguelite with co-op and v1.16.2 combat-feel / collision hotfix, made with Phaser 3",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/v15_logic_test.js && node tests/v15_server_mock_test.js && node tests/v161_visual_static_test.js"
+    "test": "node tests/v15_logic_test.js && node tests/v15_server_mock_test.js && node tests/v162_combat_feel_static_test.js"
   },
   "engines": {
     "node": ">=20"

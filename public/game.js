@@ -25,10 +25,35 @@
   };
 
   const PLAYER_SPRITES = {
-    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1, shadow: { w:24,h:7,oy:13 }, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
-    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1, shadow: { w:29,h:8,oy:15 }, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } },
-    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 1, shadow: { w:28,h:8,oy:15 }, hitbox: { w: 13, h: 13, ox: 10, oy: 12 } },
-    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1, shadow: { w:25,h:7,oy:13 }, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } }
+    // v1.16.2: 피격 중심을 머리/귀가 아니라 몸통으로 내리고 원형 판정으로 통일한다.
+    // cx/cy는 64x64 원본 texture 좌표 기준이며, 감자는 체형에 맞춰 더 작게 유지한다.
+    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1, shadow: { w:24,h:7,oy:13 }, hitbox: { r: 6, cx: 33, cy: 50 } },
+    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1, shadow: { w:29,h:8,oy:15 }, hitbox: { r: 7, cx: 31, cy: 49 } },
+    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 1, shadow: { w:28,h:8,oy:15 }, hitbox: { r: 7, cx: 31, cy: 47 } },
+    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1, shadow: { w:25,h:7,oy:13 }, hitbox: { r: 7, cx: 31, cy: 47 } }
+  };
+
+  const ENEMY_BULLET_HITBOX = {
+    // visualRadius는 texture에서 보이는 바깥 원, hitRadius는 실제 Arcade circle 반경이다.
+    // 외곽선은 읽기 위한 그래픽이고 판정은 더 안쪽에 둔다.
+    enemy: { visualRadius:5, hitRadius:3.5 },
+    boss:  { visualRadius:7, hitRadius:5.0 },
+    raid:  { visualRadius:8, hitRadius:5.5 }
+  };
+
+  const GRAPE_RUSH = {
+    telegraphMs: 600,
+    phase2TelegraphMs: 540,
+    overshoot: 52,
+    phase2Overshoot: 60,
+    minDistance: 210,
+    maxDistance: 900,
+    minTravelMs: 220,
+    maxTravelMs: 280,
+    targetSpeed: 1650,
+    recoveryMs: 380,
+    nextRushMin: 6800,
+    nextRushMax: 9200
   };
 
   const LEVEL_UPGRADES = [
@@ -743,17 +768,23 @@
         g.fillStyle(0x4f8653,0.94);g.fillRect(12,11,20,12);g.fillRect(9,24,17,12);g.fillStyle(0x6ba168,0.62);g.fillRect(17,10,10,6);g.fillRect(28,24,7,7);
       });
       create('parkBench', 48, 26, g => {
-        g.fillStyle(0x352d2b,0.92);g.fillRect(5,7,38,6);g.fillRect(8,15,32,6);g.fillRect(9,20,5,5);g.fillRect(34,20,5,5);
-        g.fillStyle(0x76553d,0.96);g.fillRect(7,6,34,4);g.fillRect(9,14,30,4);g.fillStyle(0x9b7350,0.58);g.fillRect(10,6,12,2);g.fillRect(12,14,9,2);
+        const outline=0x353039,wood=0x795941,light=0x9b7555;
+        g.fillStyle(0x304a36,0.20);g.fillEllipse(24,23,38,5);
+        g.fillStyle(outline,0.94);g.fillRect(5,7,38,6);g.fillRect(8,15,32,6);g.fillRect(9,20,5,5);g.fillRect(34,20,5,5);
+        g.fillStyle(wood,0.96);g.fillRect(7,6,34,4);g.fillRect(9,14,30,4);g.fillStyle(light,0.62);g.fillRect(10,6,12,2);g.fillRect(12,14,9,2);
       });
-      create('parkLamp', 18, 48, g => {
-        g.fillStyle(0x302f34,0.96);g.fillRect(7,12,5,31);g.fillRect(4,42,11,4);g.fillRect(3,4,13,10);
-        g.fillStyle(0x5c5551,0.92);g.fillRect(8,14,3,27);g.fillStyle(0xe9d77c,0.82);g.fillRect(5,6,9,6);g.fillStyle(0xffedaa,0.52);g.fillRect(7,7,5,3);
+      create('parkLamp', 20, 48, g => {
+        const outline=0x34333a,metal=0x5b585b;
+        g.fillStyle(0x304a36,0.18);g.fillEllipse(10,45,15,4);
+        g.fillStyle(outline,0.96);g.fillRect(7,12,6,31);g.fillRect(4,42,12,4);g.fillRect(3,4,14,10);
+        g.fillStyle(metal,0.92);g.fillRect(9,14,2,27);g.fillStyle(0xe4d37d,0.78);g.fillRect(5,6,10,6);g.fillStyle(0xffefad,0.54);g.fillRect(7,7,6,3);
       });
       create('parkSign', 36, 38, g => {
-        g.fillStyle(0x3a302b,0.92);g.fillRect(15,19,6,18);g.fillRect(2,3,32,21);
-        g.fillStyle(0xb69668,0.96);g.fillRect(4,5,28,17);g.fillStyle(0xd8c493,0.74);g.fillRect(6,7,24,3);
-        g.fillStyle(0x4d8359,0.82);g.fillRect(8,13,7,5);g.fillRect(20,12,7,6);
+        const outline=0x3a3330,wood=0xa48762;
+        g.fillStyle(0x304a36,0.18);g.fillEllipse(18,36,18,4);
+        g.fillStyle(outline,0.94);g.fillRect(15,19,6,18);g.fillRect(2,3,32,21);
+        g.fillStyle(wood,0.94);g.fillRect(4,5,28,17);g.fillStyle(0xd4c194,0.66);g.fillRect(6,7,24,3);
+        g.fillStyle(0x527a59,0.76);g.fillRect(8,13,7,5);g.fillRect(20,12,7,6);
       });
       create('parkFence', 48, 18, g => {
         g.fillStyle(0x514b43,0.55);g.fillRect(0,7,48,4);g.fillRect(0,14,48,3);
@@ -915,10 +946,11 @@
         g.fillStyle(0xd59a57,1); g.fillRect(4,4,14,8); g.fillRect(1,5,5,6); g.fillRect(16,5,5,6);
         g.fillStyle(0xf0c77a,1); g.fillRect(6,6,10,4); g.fillStyle(0xffedb2,1); g.fillRect(8,6,3,2);
       });
-      create('rushWarning', 220, 14, g => {
-        g.fillStyle(0x3a0a0d,0.28); g.fillRect(0,3,220,8);
-        g.fillStyle(0xff3d33,0.62); g.fillRect(0,5,202,4);
-        g.fillStyle(0xffdf51,0.9); g.fillTriangle(202,1,220,7,202,13);
+      create('rushLine', 128, 8, g => {
+        // 공격체처럼 보이는 화살촉은 없애고 바닥에 깔리는 얇은 점선만 남긴다.
+        g.fillStyle(0x5b3b24,0.18); g.fillRect(0,3,128,2);
+        g.fillStyle(0xffd27a,0.58);
+        for(let x=4;x<124;x+=16)g.fillRect(x,3,9,2);
       });
 
       create('proj_bark', 22, 14, g => {
@@ -993,7 +1025,7 @@
       // v1.16의 반복 직사각형 길 대신 하나의 연속된 픽셀 리본을 그린다.
       // 물리/충돌 객체가 아니며 Graphics 1개만 사용한다.
       const ground=this.add.graphics().setDepth(-22);
-      const drawHorizontalPath=(outerHalf=43,innerHalf=34)=>{
+      const drawHorizontalPath=(outerHalf=39,innerHalf=30)=>{
         const samples=[];
         for(let x=300;x<=W-300;x+=64){
           const y=snap4(3000+Math.sin(x/650)*108+Math.sin(x/245)*16);
@@ -1004,14 +1036,17 @@
           ...samples.map(p=>new Phaser.Geom.Point(p.x,snap4(p.y-half-p.edgeJitter-extra))),
           ...samples.slice().reverse().map(p=>new Phaser.Geom.Point(p.x,snap4(p.y+half+p.edgeJitter+extra)))
         ];
-        ground.fillStyle(0x806b53,0.66);ground.fillPoints(polygon(outerHalf,3),true);
-        ground.fillStyle(0xaa916f,0.79);ground.fillPoints(polygon(innerHalf,0),true);
-        ground.fillStyle(0xc0a781,0.14);
-        for(let i=1;i<samples.length-1;i+=3){const p=samples[i];ground.fillRect(p.x-11,p.y-15+(i%4)*9,22,3);}
-        ground.fillStyle(0x5d9f65,0.55);
-        for(let i=2;i<samples.length-2;i+=5){const p=samples[i];ground.fillRect(p.x-5,p.y-outerHalf-2,8,5);ground.fillRect(p.x+6,p.y+outerHalf-3,6,5);}
+        ground.fillStyle(0x766a57,0.40);ground.fillPoints(polygon(outerHalf,3),true);
+        ground.fillStyle(0x8f7d65,0.52);ground.fillPoints(polygon(innerHalf+5,0),true);
+        ground.fillStyle(0x9a886f,0.74);ground.fillPoints(polygon(innerHalf,0),true);
+        ground.fillStyle(0xb9a17e,0.12);
+        for(let i=1;i<samples.length-1;i+=3){const p=samples[i];ground.fillRect(p.x-10,p.y-15+(i%4)*9,20,2);}
+        ground.fillStyle(0x7c684f,0.18);
+        for(let i=2;i<samples.length-2;i+=4){const p=samples[i];ground.fillRect(p.x+((i%3)-1)*14,p.y-7+(i%4)*5,5,2);}
+        ground.fillStyle(0x5d9f65,0.50);
+        for(let i=2;i<samples.length-2;i+=5){const p=samples[i];ground.fillRect(p.x-5,p.y-outerHalf-2,8,4);ground.fillRect(p.x+6,p.y+outerHalf-2,6,4);}
       };
-      const drawVerticalPath=(outerHalf=42,innerHalf=33)=>{
+      const drawVerticalPath=(outerHalf=38,innerHalf=30)=>{
         const samples=[];
         for(let y=360;y<=W-360;y+=64){
           const x=snap4(3000+Math.sin(y/720+1.15)*84+Math.sin(y/270)*13);
@@ -1022,12 +1057,15 @@
           ...samples.map(p=>new Phaser.Geom.Point(snap4(p.x-half-p.edgeJitter-extra),p.y)),
           ...samples.slice().reverse().map(p=>new Phaser.Geom.Point(snap4(p.x+half+p.edgeJitter+extra),p.y))
         ];
-        ground.fillStyle(0x806b53,0.66);ground.fillPoints(polygon(outerHalf,3),true);
-        ground.fillStyle(0xaa916f,0.79);ground.fillPoints(polygon(innerHalf,0),true);
-        ground.fillStyle(0xc0a781,0.14);
-        for(let i=1;i<samples.length-1;i+=3){const p=samples[i];ground.fillRect(p.x-15+(i%4)*9,p.y-11,3,22);}
-        ground.fillStyle(0x5d9f65,0.55);
-        for(let i=2;i<samples.length-2;i+=5){const p=samples[i];ground.fillRect(p.x-outerHalf-2,p.y-5,5,8);ground.fillRect(p.x+outerHalf-3,p.y+6,5,6);}
+        ground.fillStyle(0x766a57,0.40);ground.fillPoints(polygon(outerHalf,3),true);
+        ground.fillStyle(0x8f7d65,0.52);ground.fillPoints(polygon(innerHalf+5,0),true);
+        ground.fillStyle(0x9a886f,0.74);ground.fillPoints(polygon(innerHalf,0),true);
+        ground.fillStyle(0xb9a17e,0.12);
+        for(let i=1;i<samples.length-1;i+=3){const p=samples[i];ground.fillRect(p.x-15+(i%4)*9,p.y-10,2,20);}
+        ground.fillStyle(0x7c684f,0.18);
+        for(let i=2;i<samples.length-2;i+=4){const p=samples[i];ground.fillRect(p.x-7+(i%4)*5,p.y+((i%3)-1)*14,2,5);}
+        ground.fillStyle(0x5d9f65,0.50);
+        for(let i=2;i<samples.length-2;i+=5){const p=samples[i];ground.fillRect(p.x-outerHalf-2,p.y-5,4,8);ground.fillRect(p.x+outerHalf-2,p.y+6,4,6);}
       };
       drawHorizontalPath();
       drawVerticalPath();
@@ -1035,11 +1073,12 @@
       // 중앙 광장은 작고 낮은 대비의 팔각형으로 바꾸고 발바닥 문양만 넣는다.
       const cx=3000,cy=3000;
       const oct=(rx,ry)=>[[-rx,-Math.round(ry*.55)],[-Math.round(rx*.58),-ry],[Math.round(rx*.58),-ry],[rx,-Math.round(ry*.55)],[rx,Math.round(ry*.55)],[Math.round(rx*.58),ry],[-Math.round(rx*.58),ry],[-rx,Math.round(ry*.55)]].map(([x,y])=>new Phaser.Geom.Point(cx+x,cy+y));
-      ground.fillStyle(0x796650,0.66);ground.fillPoints(oct(88,68),true);
-      ground.fillStyle(0xa48d6d,0.80);ground.fillPoints(oct(78,58),true);
-      ground.fillStyle(0xb8a07c,0.16);ground.fillRect(cx-34,cy-2,68,4);ground.fillRect(cx-2,cy-26,4,52);
-      ground.fillStyle(0x806d55,0.28);
-      ground.fillRect(cx-10,cy+4,20,12);ground.fillRect(cx-20,cy-14,7,7);ground.fillRect(cx-8,cy-20,7,7);ground.fillRect(cx+6,cy-19,7,7);ground.fillRect(cx+17,cy-12,7,7);
+      ground.fillStyle(0x766a57,0.46);ground.fillPoints(oct(78,60),true);
+      ground.fillStyle(0x91806a,0.76);ground.fillPoints(oct(69,51),true);
+      ground.fillStyle(0xab9475,0.14);ground.fillRect(cx-34,cy-2,68,3);ground.fillRect(cx-2,cy-26,3,52);
+      ground.fillStyle(0x776650,0.34);
+      ground.fillRect(cx-9,cy+3,18,10);ground.fillRect(cx-18,cy-12,6,6);ground.fillRect(cx-7,cy-17,6,6);ground.fillRect(cx+5,cy-17,6,6);ground.fillRect(cx+15,cy-10,6,6);
+      ground.fillStyle(0xb39b78,0.15);ground.fillRect(cx-42,cy+29,9,3);ground.fillRect(cx+31,cy-33,7,3);ground.fillRect(cx+38,cy+15,5,3);
 
       // 넓은 잔디 톤 변화는 저밀도, 저대비로만 사용한다.
       for(let i=0;i<52;i++){
@@ -1089,11 +1128,12 @@
     createPlayer() {
       const center = this.worldSize / 2;
       const localX = this.coopMode ? center - 34 : center;
-      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1, shadow:{w:26,h:7,oy:14}, hitbox: { w: 14, h: 14, ox: 10, oy: 12 } };
+      const spriteCfg = PLAYER_SPRITES[this.characterKey] || { worldScale: 1, shadow:{w:26,h:7,oy:14}, hitbox: { r: 7, cx: 32, cy: 48 } };
       this.player = this.physics.add.sprite(localX, center, `player_${this.characterKey}`);
       this.player.setScale(spriteCfg.worldScale ?? 1).setDepth(10).setCollideWorldBounds(true);
-      const hb = spriteCfg.hitbox || { w: 14, h: 14, ox: 10, oy: 12 };
-      this.player.body.setSize(hb.w, hb.h).setOffset(hb.ox, hb.oy);
+      const hb = spriteCfg.hitbox || { r: 7, cx: 32, cy: 48 };
+      this.player.body.setCircle(hb.r, hb.cx-hb.r, hb.cy-hb.r);
+      this.player.hitRadius=hb.r;
       this.player.setDrag(900, 900); this.player.setMaxVelocity(420, 420); this.player.netPlayerId = this.localId || 'solo';
       const sh=spriteCfg.shadow||{w:26,h:7,oy:14};
       this.shadow = this.add.ellipse(localX, center + sh.oy, sh.w, sh.h, 0x0b120d, 0.16).setDepth(4);
@@ -1105,7 +1145,8 @@
         this.ally = this.physics.add.sprite(center + 34, center, `player_${this.remoteCharacterKey}`);
         this.ally.setScale(remoteCfg.worldScale ?? 1).setDepth(10).setCollideWorldBounds(true);
         const ahb = remoteCfg.hitbox || hb;
-        this.ally.body.setSize(ahb.w, ahb.h).setOffset(ahb.ox, ahb.oy);
+        this.ally.body.setCircle(ahb.r, ahb.cx-ahb.r, ahb.cy-ahb.r);
+        this.ally.hitRadius=ahb.r;
         this.ally.setDrag(900,900); this.ally.setMaxVelocity(420,420); this.ally.netPlayerId = this.remotePlayerInfo.id;
         const ash=remoteCfg.shadow||{w:26,h:7,oy:14};
         this.allyShadow = this.add.ellipse(center + 34, center + ash.oy, ash.w, ash.h, 0x0b120d, 0.16).setDepth(4);
@@ -1327,9 +1368,17 @@
         if (this.manualPause) this.closeManualPause();
         else this.openManualPause();
       };
+      this._hitboxHandler=()=>{
+        this.hitboxDebug=!this.hitboxDebug;
+        if(!this.hitboxDebug&&this.hitboxDebugGraphics)this.hitboxDebugGraphics.clear();
+        this.showBanner(`HITBOX DEBUG ${this.hitboxDebug?'ON':'OFF'}`,this.hitboxDebug?'초록=플레이어 · 빨강=적 탄환':'F2로 다시 켤 수 있어');
+      };
       this.input.keyboard.on('keydown-ESC', this._escHandler);
+      this.input.keyboard.on('keydown-F2', this._hitboxHandler);
       this.events.once('shutdown', () => {
         if (this._escHandler) this.input?.keyboard?.off('keydown-ESC', this._escHandler);
+        if (this._hitboxHandler) this.input?.keyboard?.off('keydown-F2', this._hitboxHandler);
+        this.hitboxDebugGraphics?.destroy?.();this.hitboxDebugGraphics=null;
         if (this.builds) [...this.builds.values()].forEach(b => this.clearReviveUi?.(b));
         if (activeScene === this) activeScene = null;
         this.hudDom=null;
@@ -1398,6 +1447,28 @@
         this.physics.add.overlap(this.ally,this.gems,this.collectGem,null,this);
         this.physics.add.overlap(this.ally,this.items,this.collectItem,null,this);
       }
+    }
+
+
+    updateHitboxDebug(){
+      if(!this.hitboxDebug){if(this.hitboxDebugGraphics)this.hitboxDebugGraphics.clear();return;}
+      if(!this.hitboxDebugGraphics)this.hitboxDebugGraphics=this.add.graphics().setDepth(2500);
+      const g=this.hitboxDebugGraphics;g.clear();
+      const drawPlayer=(sprite,key)=>{
+        if(!sprite?.active)return;
+        const cfg=PLAYER_SPRITES[key]?.hitbox||{r:7,cx:32,cy:48};
+        const sx=sprite.scaleX||1,sy=sprite.scaleY||sx;
+        const cx=sprite.x+(cfg.cx-32)*sx,cy=sprite.y+(cfg.cy-32)*sy;
+        g.lineStyle(1,0x72f0a8,0.92);g.strokeCircle(cx,cy,cfg.r*Math.min(Math.abs(sx),Math.abs(sy)));
+      };
+      drawPlayer(this.player,this.characterKey);
+      if(this.coopMode&&this.ally)drawPlayer(this.ally,this.remoteCharacterKey);
+      this.enemyProjectiles?.getChildren?.().forEach(b=>{
+        if(!b?.active)return;
+        const kind=b.kind||(b.texture?.key==='raidBullet'?'raid':b.texture?.key==='bossBullet'?'boss':'enemy');
+        const r=b.hitRadius||ENEMY_BULLET_HITBOX[kind]?.hitRadius||3.5;
+        g.lineStyle(1,kind==='raid'?0xff6b4f:kind==='boss'?0xc775ff:0xff6477,0.88);g.strokeCircle(b.x,b.y,r*Math.abs(b.scaleX||1));
+      });
     }
 
     showBanner(title, subtitle = '') {
@@ -1549,7 +1620,8 @@
       e.eliteShotMult=mutationShotMult;
       e.nextShotAt = this.runTimeMs + Phaser.Math.Between(role === 'elite' ? 1300 : 900, role === 'elite' ? 2500 : 1700) * mutationShotMult;
       e.shotPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      e.nextRushAt = this.runTimeMs + Phaser.Math.Between(3000, 5200);
+      const raidKindAtSpawn=role==='raidBoss'?['grape','choco','onion'][Math.max(0,this.raidBossCount-1)%3]:null;
+      e.nextRushAt = this.runTimeMs + (raidKindAtSpawn==='grape'?Phaser.Math.Between(6500,8500):Phaser.Math.Between(3000,5200));
       e.rushUntil = 0;
       e.raidPhase2 = false;
       e.setData('dead', false);
@@ -1570,8 +1642,9 @@
       if (role === 'boss') e.setTint(0xe6b26f);
       if (role === 'raidBoss') {
         e.raidName=this.raidBossName || TRUE_BOSS_NAMES[Math.max(0,this.raidBossCount-1)%TRUE_BOSS_NAMES.length];
+        e.raidBaseScale=spriteScale;
+        e.rushRecoveryUntil=0;e.rushTrailAt=0;e.rushPostDone=false;e.rushTelegraphStart=0;
         e.setTint(0xffffff);
-        this.tweens.add({ targets: e, scaleX: spriteScale * 1.05, scaleY: spriteScale * 1.05, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       }
       if(opts.offspring){
         e.isOffspring=true;e.maxHp*=0.42;e.hp=e.maxHp;e.speed*=1.12;e.contactDamage*=0.72;e.xpValue=0;e.setScale(spriteScale*0.72);e.baseDisplayScale=spriteScale*0.72;
@@ -2613,9 +2686,11 @@
       b.lifeMs = lifeMs;
       b.setRotation(angle);
       this.physics.velocityFromRotation(angle, speed, b.body.velocity);
-      if (kind === 'raid') b.body.setCircle(6, 3, 3);
-      else if(kind === 'boss') b.body.setCircle(5, 3, 3);
-      else b.body.setCircle(4, 2, 2);
+      const hit=ENEMY_BULLET_HITBOX[kind]||ENEMY_BULLET_HITBOX.enemy;
+      const center=kind==='raid'?9:kind==='boss'?8:6;
+      b.hitRadius=hit.hitRadius;
+      b.visualRadius=hit.visualRadius;
+      b.body.setCircle(hit.hitRadius,center-hit.hitRadius,center-hit.hitRadius);
       return b;
     }
 
@@ -2855,55 +2930,143 @@
       if(enemy)enemy.raidTelegraph=null;
     }
 
+    spawnRaidRushDust(x,y,angle,count=5){
+      for(let i=0;i<count;i++){
+        const a=angle+Math.PI+Phaser.Math.FloatBetween(-0.55,0.55),dist=Phaser.Math.Between(8,22);
+        const px=x+Math.cos(a)*Phaser.Math.Between(2,8),py=y+Math.sin(a)*Phaser.Math.Between(2,8);
+        const d=this.add.rectangle(px,py,Phaser.Math.Between(3,5),Phaser.Math.Between(2,4),i%2?0xb79a71:0x8d7659,0.55).setDepth(9);
+        this.tweens.add({targets:d,x:px+Math.cos(a)*dist,y:py+Math.sin(a)*dist,alpha:0,duration:180+Phaser.Math.Between(0,70),ease:'Quad.easeOut',onComplete:()=>d.destroy()});
+      }
+    }
+
+    spawnRaidRushAfterimage(enemy){
+      if(!enemy?.active)return;
+      const ghost=this.add.image(enemy.x,enemy.y,enemy.texture.key).setDepth(7).setScale(enemy.scaleX,enemy.scaleY).setRotation(enemy.rotation||0).setAlpha(0.19).setTint(0xd9c5df);
+      this.tweens.add({targets:ghost,alpha:0,duration:170,ease:'Quad.easeOut',onComplete:()=>ghost.destroy()});
+    }
+
+    spawnRaidRushImpact(enemy){
+      if(!enemy?.active)return;
+      const fx=this.add.image(enemy.x,enemy.y,'shockwave').setDepth(12).setScale(0.52).setAlpha(0.64);
+      this.tweens.add({targets:fx,scale:1.08,alpha:0,duration:230,ease:'Quad.easeOut',onComplete:()=>fx.destroy()});
+      this.spawnRaidRushDust(enemy.x,enemy.y,enemy.rushAngle||0,5);
+    }
+
     beginRaidRushTelegraph(enemy,target=null,forced=false) {
       if(!enemy?.active||enemy.getData('dead'))return false;
-      if((enemy.rushTelegraphUntil||0)>this.runTimeMs||(enemy.rushUntil||0)>this.runTimeMs)return false;
+      if((enemy.rushTelegraphUntil||0)>this.runTimeMs||(enemy.rushUntil||0)>this.runTimeMs||(enemy.rushRecoveryUntil||0)>this.runTimeMs)return false;
       const t=target||this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
       if(!t)return false;
-      enemy.rushAngle=this.predictedAimAngle(enemy,t,forced?260:120,0.45);
-      enemy.rushTelegraphUntil=this.runTimeMs+(enemy.raidPhase2?560:640);
+      const kind=this.raidBossKind(enemy);
+      // Phase2 패턴 슬롯 때문에 돌진이 과도하게 연속되는 것을 막는다. 실제 돌진 주기는 nextRushAt가 관리한다.
+      if(kind==='grape'&&forced&&this.runTimeMs<(enemy.nextRushAt||0))return false;
+
       enemy.rushPostDone=false;
-      const distance=176;
-      const w=this.add.image(enemy.x+Math.cos(enemy.rushAngle)*distance,enemy.y+Math.sin(enemy.rushAngle)*distance,'rushWarning').setDepth(25).setRotation(enemy.rushAngle).setScale(1.6,1).setAlpha(0.8);
-      enemy.raidTelegraph=w;
-      this.showBanner('돌진 예고!','붉은 선을 보고 방향을 바꿔!');
+      enemy.rushOriginX=enemy.x;enemy.rushOriginY=enemy.y;
+      enemy.rushTelegraphStart=this.runTimeMs;
+      if(kind==='grape'){
+        // 포도는 준비 순간의 실제 플레이어 위치를 잠근다. 돌진이 시작된 뒤에는 절대 추적하지 않는다.
+        enemy.rushTargetX=t.x;enemy.rushTargetY=t.y;
+        enemy.rushAngle=Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y);
+        const direct=Phaser.Math.Distance.Between(enemy.x,enemy.y,t.x,t.y);
+        const overshoot=enemy.raidPhase2?GRAPE_RUSH.phase2Overshoot:GRAPE_RUSH.overshoot;
+        const desired=Phaser.Math.Clamp(direct+overshoot,GRAPE_RUSH.minDistance,GRAPE_RUSH.maxDistance);
+        enemy.rushEndX=Phaser.Math.Clamp(enemy.x+Math.cos(enemy.rushAngle)*desired,72,this.worldSize-72);
+        enemy.rushEndY=Phaser.Math.Clamp(enemy.y+Math.sin(enemy.rushAngle)*desired,72,this.worldSize-72);
+        enemy.rushDistance=Phaser.Math.Distance.Between(enemy.x,enemy.y,enemy.rushEndX,enemy.rushEndY);
+        const telegraphMs=enemy.raidPhase2?GRAPE_RUSH.phase2TelegraphMs:GRAPE_RUSH.telegraphMs;
+        enemy.rushTelegraphUntil=this.runTimeMs+telegraphMs;
+        const lineLen=Phaser.Math.Clamp(Math.min(enemy.rushDistance,360),120,360);
+        enemy.raidTelegraph=this.add.image(enemy.x+Math.cos(enemy.rushAngle)*lineLen*0.5,enemy.y+Math.sin(enemy.rushAngle)*lineLen*0.5,'rushLine').setDepth(6).setRotation(enemy.rushAngle).setScale(lineLen/128,1).setAlpha(0.42);
+      }else{
+        // 다른 TRUE BOSS의 기존 이동 수치/조준 성격은 유지하되 화살촉 연출만 제거한다.
+        enemy.rushAngle=this.predictedAimAngle(enemy,t,forced?260:120,0.45);
+        enemy.rushTelegraphUntil=this.runTimeMs+(enemy.raidPhase2?560:640);
+        const lineLen=176;
+        enemy.raidTelegraph=this.add.image(enemy.x+Math.cos(enemy.rushAngle)*lineLen*0.5,enemy.y+Math.sin(enemy.rushAngle)*lineLen*0.5,'rushLine').setDepth(6).setRotation(enemy.rushAngle).setScale(lineLen/128,1).setAlpha(0.36);
+      }
       return true;
     }
 
     finishRaidRush(enemy) {
       if(!enemy?.active||enemy.rushPostDone)return;
       enemy.rushPostDone=true;
+      enemy.body?.setVelocity(0,0);
       this.destroyRaidRushTelegraph(enemy);
+      enemy.clearTint?.();
+      this.spawnRaidRushImpact(enemy);
       const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
       const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):enemy.rushAngle||0;
       this.spawnRaidRing(enemy,{count:this.coopMode?12:10,speed:178,damage:10+this.raidBossCount*1.35,offset:(enemy.rushAngle||0)+0.18,gapCenter:base,gapWidth:0.55,lifeMs:4800});
-      const minRush=this.coopMode?3000:3600,maxRush=this.coopMode?4500:5400;
-      const phaseCut=enemy.raidPhase2?500:0;
-      enemy.nextRushAt=this.runTimeMs+Phaser.Math.Between(Math.max(2200,minRush-phaseCut),Math.max(3200,maxRush-phaseCut));
-      enemy.nextShotAt=Math.max(enemy.nextShotAt||0,this.runTimeMs+550);
+      const kind=this.raidBossKind(enemy);
+      if(kind==='grape')enemy.nextRushAt=this.runTimeMs+Phaser.Math.Between(GRAPE_RUSH.nextRushMin,GRAPE_RUSH.nextRushMax);
+      else{
+        const minRush=this.coopMode?3000:3600,maxRush=this.coopMode?4500:5400;
+        const phaseCut=enemy.raidPhase2?500:0;
+        enemy.nextRushAt=this.runTimeMs+Phaser.Math.Between(Math.max(2200,minRush-phaseCut),Math.max(3200,maxRush-phaseCut));
+      }
+      const recovery=kind==='grape'?GRAPE_RUSH.recoveryMs:340;
+      enemy.rushRecoveryUntil=this.runTimeMs+recovery;
+      enemy.nextShotAt=Math.max(enemy.nextShotAt||0,enemy.rushRecoveryUntil+120);
     }
 
     updateRaidRushState(enemy,targetPlayer,baseSpeed) {
       if(!enemy?.active)return false;
+      const kind=this.raidBossKind(enemy);
+      if((enemy.rushRecoveryUntil||0)>0){
+        if(this.runTimeMs<enemy.rushRecoveryUntil){
+          enemy.body.setVelocity(0,0);
+          if(kind==='grape'){
+            const left=enemy.rushRecoveryUntil-this.runTimeMs;
+            enemy.setAngle(Math.sin(left*0.045)*2.4*(left/GRAPE_RUSH.recoveryMs));
+          }
+          return true;
+        }
+        enemy.rushRecoveryUntil=0;enemy.setAngle(0);enemy.clearTint?.();
+      }
       if((enemy.rushTelegraphUntil||0)>0){
         if(this.runTimeMs<enemy.rushTelegraphUntil){
           enemy.body.setVelocity(0,0);
-          const distance=176;
-          enemy.raidTelegraph?.setPosition(enemy.x+Math.cos(enemy.rushAngle||0)*distance,enemy.y+Math.sin(enemy.rushAngle||0)*distance).setRotation(enemy.rushAngle||0);
+          if(kind==='grape'){
+            const total=enemy.raidPhase2?GRAPE_RUSH.phase2TelegraphMs:GRAPE_RUSH.telegraphMs;
+            const p=Phaser.Math.Clamp((this.runTimeMs-(enemy.rushTelegraphStart||this.runTimeMs))/Math.max(1,total),0,1);
+            const back=6*Math.sin(Math.min(1,p/0.52)*Math.PI*0.5);
+            const wiggle=p>0.38?Math.sin((p-0.38)*Math.PI*7)*2.1*Math.min(1,(p-0.38)*2.4):0;
+            const nx=Math.cos((enemy.rushAngle||0)+Math.PI/2),ny=Math.sin((enemy.rushAngle||0)+Math.PI/2);
+            enemy.setPosition((enemy.rushOriginX||enemy.x)-Math.cos(enemy.rushAngle||0)*back+nx*wiggle,(enemy.rushOriginY||enemy.y)-Math.sin(enemy.rushAngle||0)*back+ny*wiggle);
+            enemy.setAngle(Math.sin(p*Math.PI*8)*2.2);
+            if(p>0.72&&Math.floor(p*14)%2===0)enemy.setTint(0xffedb2);else enemy.clearTint?.();
+          }
           return true;
         }
         enemy.rushTelegraphUntil=0;
         this.destroyRaidRushTelegraph(enemy);
-        enemy.rushUntil=this.runTimeMs+(enemy.raidPhase2?900:820);
+        enemy.clearTint?.();
+        if(kind==='grape'){
+          enemy.rushStartX=enemy.x;enemy.rushStartY=enemy.y;
+          const dist=Phaser.Math.Distance.Between(enemy.x,enemy.y,enemy.rushEndX,enemy.rushEndY);
+          const travelMs=Phaser.Math.Clamp((dist/GRAPE_RUSH.targetSpeed)*1000,GRAPE_RUSH.minTravelMs,GRAPE_RUSH.maxTravelMs);
+          enemy.rushTravelMs=travelMs;enemy.rushSpeed=dist/(travelMs/1000);enemy.rushUntil=this.runTimeMs+travelMs;enemy.rushTrailAt=this.runTimeMs-1;
+          this.spawnRaidRushDust(enemy.x,enemy.y,enemy.rushAngle||0,6);
+        }else enemy.rushUntil=this.runTimeMs+(enemy.raidPhase2?900:820);
       }
       if((enemy.rushUntil||0)>0){
         if(this.runTimeMs<enemy.rushUntil){
-          const mult=enemy.raidPhase2?3.0:2.85;
-          enemy.body.setVelocity(Math.cos(enemy.rushAngle||0)*baseSpeed*mult,Math.sin(enemy.rushAngle||0)*baseSpeed*mult);
+          if(kind==='grape'){
+            enemy.body.setVelocity(Math.cos(enemy.rushAngle||0)*(enemy.rushSpeed||GRAPE_RUSH.targetSpeed),Math.sin(enemy.rushAngle||0)*(enemy.rushSpeed||GRAPE_RUSH.targetSpeed));
+            enemy.setAngle((Math.cos(enemy.rushAngle||0)>=0?1:-1)*4);
+            if(this.runTimeMs>=(enemy.rushTrailAt||0)){enemy.rushTrailAt=this.runTimeMs+90;this.spawnRaidRushAfterimage(enemy);}
+          }else{
+            const mult=enemy.raidPhase2?3.0:2.85;
+            enemy.body.setVelocity(Math.cos(enemy.rushAngle||0)*baseSpeed*mult,Math.sin(enemy.rushAngle||0)*baseSpeed*mult);
+          }
           return true;
         }
         enemy.rushUntil=0;
+        if(kind==='grape'&&Number.isFinite(enemy.rushEndX)&&Number.isFinite(enemy.rushEndY))enemy.setPosition(enemy.rushEndX,enemy.rushEndY);
+        enemy.setAngle(0);
         this.finishRaidRush(enemy);
+        return true;
       }
       if(this.runTimeMs>=(enemy.nextRushAt||Infinity)){
         this.beginRaidRushTelegraph(enemy,targetPlayer,false);
@@ -2943,6 +3106,8 @@
             if (d > 360) speed *= 1.55;
             if (d < 190) speed *= 0.55;
             e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
+            if(this.raidBossKind(e)==='grape')e.setAngle(Math.sin(this.runTimeMs*0.0042)*1.15);
+            else e.setAngle(0);
           }
         } else {
           e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
@@ -3198,7 +3363,7 @@
       });
       this.enemies.getChildren().forEach(e=>{
         if(e?.active&&e.enemyRole==='raidBoss'&&e.raidTelegraph?.active){
-          extras.push({id:`rush-${this.entityNetId(e,'e')}`,kind:'image',texture:'rushWarning',x:Math.round(e.raidTelegraph.x),y:Math.round(e.raidTelegraph.y),rotation:Math.round((e.raidTelegraph.rotation||0)*100)/100,scaleX:Math.round((e.raidTelegraph.scaleX||1)*100)/100,scaleY:Math.round((e.raidTelegraph.scaleY||1)*100)/100,alpha:e.raidTelegraph.alpha??0.8});
+          extras.push({id:`rush-${this.entityNetId(e,'e')}`,kind:'image',texture:'rushLine',x:Math.round(e.raidTelegraph.x),y:Math.round(e.raidTelegraph.y),rotation:Math.round((e.raidTelegraph.rotation||0)*100)/100,scaleX:Math.round((e.raidTelegraph.scaleX||1)*100)/100,scaleY:Math.round((e.raidTelegraph.scaleY||1)*100)/100,alpha:e.raidTelegraph.alpha??0.8});
         }
       });
       const boss=this.enemies.getChildren().find(e=>e.active&&!e.getData('dead')&&(e.enemyRole==='raidBoss'||e.enemyRole==='boss'));
@@ -3249,7 +3414,7 @@
       }
     }
     syncNetworkExtras(extras){
-      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(d.texture==='rushWarning'?25:14);this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{const sx=d.scaleX??d.scale??1,sy=d.scaleY??d.scale??sx;o.setScale(sx,sy);o.setRotation(d.rotation||0);o.setAlpha(d.alpha??1);o.setDepth(d.texture==='rushWarning'?25:14);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
+      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(d.texture==='rushLine'?6:14);this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{const sx=d.scaleX??d.scale??1,sy=d.scaleY??d.scale??sx;o.setScale(sx,sy);o.setRotation(d.rotation||0);o.setAlpha(d.alpha??1);o.setDepth(d.texture==='rushLine'?6:14);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
     }
     applyNetworkSnapshot(s){
       if(!this.coopMode||this.networkRole!=='guest'||!s)return;
@@ -3304,6 +3469,7 @@
       }
       const rb=this.getRemoteBuild();if(rb?.sprite&&Number.isFinite(rb.netX)&&Number.isFinite(rb.netY)){const f=1-Math.exp(-Math.max(1,delta)/70);rb.sprite.x=Phaser.Math.Linear(rb.sprite.x,rb.netX,f);rb.sprite.y=Phaser.Math.Linear(rb.sprite.y,rb.netY,f);this.updateBuildPresentation(rb);}
       this.interpolateNetworkMap(this.netEnemyMap,delta,78);this.interpolateNetworkMap(this.netProjectileMap,delta,42);this.interpolateNetworkMap(this.netEnemyBulletMap,delta,38);this.interpolateNetworkMap(this.netGemMap,delta,80);this.interpolateNetworkMap(this.netItemMap,delta,90);this.interpolateNetworkMap(this.netExtraMap,delta,90);
+      this.updateHitboxDebug();
     }
     updateCoopHost(delta){
       if(this.isGameOver||this.manualPause||this.isChoiceOpen)return;
@@ -3312,6 +3478,7 @@
       this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();
       this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.updateHud();}
       this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=110){this.snapshotTimer=0;(socket?.volatile||socket)?.emit?.('coopSnapshot',this.buildNetworkSnapshot());}
+      this.updateHitboxDebug();
     }
     updateHud() {
       const d=this.hudDom;if(!d)return;
@@ -3395,6 +3562,7 @@
 
       this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;
       if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.updateHud();}
+      this.updateHitboxDebug();
     }
   }
 

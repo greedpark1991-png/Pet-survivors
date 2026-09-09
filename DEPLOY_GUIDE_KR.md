@@ -1,9 +1,9 @@
-# Pet-survivors v1.16.1 Visual Polish 배포
+# Pet-survivors v1.16.2 Combat Feel Hotfix 배포
 
 ## 기존 Pet-survivors Render 링크 업데이트
 새 Render 서비스를 만들 필요가 없습니다.
 
-1. `pet-survivors-phaser-v1.16.1-visual-polish.zip`을 압축 해제합니다.
+1. `pet-survivors-phaser-v1.16.2-combat-feel-hotfix.zip`을 압축 해제합니다.
 2. 압축 안의 `public/`, `tests/`, `server.js`, `package.json`, `render.yaml`, `README.md` 등 **내용물 전체**를 기존 GitHub `Pet-survivors` 저장소 최상위에 덮어씁니다.
 3. GitHub에서 `Commit changes`를 누릅니다.
 4. 기존 Render 서비스의 Auto-Deploy가 시작됩니다.
@@ -34,9 +34,14 @@ npm test
 npm start
 ```
 
-`npm test`는 v1.15 전투/네트워크 회귀 테스트와 v1.16.1 비주얼 정적 검사를 함께 실행합니다. 브라우저 비주얼 검증 스크립트는 `python3 tests/v161_visual_browser_test.py`입니다.
+`npm test`는 기존 전투/네트워크 회귀 테스트와 v1.16.2 판정·돌진 정적 검사를 함께 실행합니다. 브라우저 UI/맵 검증 스크립트는 `python3 tests/v162_visual_browser_test.py`, 판정/돌진 시각 진단은 `python3 tests/v162_collision_visual_test.py`입니다.
 
-## v1.16.1 확인 포인트
+## v1.16.2 확인 포인트
+
+- F2를 눌러 초록색 플레이어 몸통 원 / 적 탄환 충돌 코어를 개발용으로 확인할 수 있는지 확인 (기본 OFF)
+- 포도 TRUE BOSS 돌진에서 화살촉/창 모양이 사라지고 얇은 바닥 점선 + 보스 몸 움찔로 예고되는지 확인
+- 포도가 돌진 시작 순간 목표 방향을 잠그고 플레이어 위치를 지나쳐 직선으로 돌진하는지 확인
+- 돌진 종료 후 먼지/충격파와 약 0.38초 recovery가 있는지 확인
 
 - 로비/ESC에서 네 캐릭터 PNG의 원본 종횡비가 유지되는지 확인
 - 전투에서 캐릭터 얼굴/눈/귀가 눌리거나 늘어나지 않는지 확인
