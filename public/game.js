@@ -42,18 +42,19 @@
   };
 
   const GRAPE_RUSH = {
-    telegraphMs: 600,
-    phase2TelegraphMs: 540,
+    // v1.17: v1.16.2의 target lock + overshoot 장점은 유지하되 반응 시간을 늘린다.
+    telegraphMs: 820,
+    phase2TelegraphMs: 760,
     overshoot: 52,
     phase2Overshoot: 60,
     minDistance: 210,
     maxDistance: 900,
-    minTravelMs: 220,
-    maxTravelMs: 280,
-    targetSpeed: 1650,
-    recoveryMs: 380,
-    nextRushMin: 6800,
-    nextRushMax: 9200
+    minTravelMs: 280,
+    maxTravelMs: 480,
+    targetSpeed: 1340,
+    recoveryMs: 620,
+    nextRushMin: 7000,
+    nextRushMax: 9600
   };
 
   const LEVEL_UPGRADES = [
@@ -65,13 +66,14 @@
   ];
 
   const SKILLS = [
-    { id: 'magicMissile', icon: '✦', title: '마법미사일', desc: '5초마다 마법미사일 3개가 플레이어 주위를 회전한 뒤 적을 추적한다.' },
-    { id: 'shrinkRay', icon: '⌁', title: '축소 광선', desc: '기본 투사체가 적을 작게 만들고 3초 동안 그 적의 접촉 피해를 15% 감소시킨다.' },
-    { id: 'juiceBox', icon: '▣', title: '마도사의 주스 상자', desc: '기본 투사체가 적중할 때마다 최대 HP의 5%를 회복한다.' },
-    { id: 'veil', icon: '◯', title: '감시의 장막', desc: '30초마다 한 번, 다음 적의 공격을 무효화하는 주문 보호막을 생성한다.' },
-    { id: 'sword', icon: '†', title: '검을 뽑아라', desc: '3초마다 플레이어의 위·아래를 동시에 크게 베어낸다.' },
-    { id: 'hellConductor', icon: '♨', title: '지옥의 전도체', desc: '주기적으로 플레이어 둘레에 원형 불기둥을 터뜨린다.' },
-    { id: 'bulletBarrage', icon: '•', title: '탄환 세례', desc: '4초마다 한 적에게 탄환 5발을 연속으로 퍼붓는다.' }
+    // 내부 id는 기존 저장/네트워크 호환을 위해 유지하고, 이름/역할/행동만 멍냥 세계관으로 리워크한다.
+    { id: 'magicMissile', icon: '▤', title: '자동 급식기', desc: '근처에 자동 급식기를 설치해 사료알을 쏜다. 성장하면 다발·관통·폭주 급식시간이 열린다.' },
+    { id: 'shrinkRay', icon: '🐾', title: '쪼그라들개!', desc: '기본 공격을 여러 번 맞힌 적을 쪼그라뜨리고 성장할수록 둔화·피해증폭까지 건다.' },
+    { id: 'juiceBox', icon: '♥', title: '간식 냠냠', desc: '공격 적중으로 간식 게이지를 채우고, 가득 차면 간식이 날아와 체력을 회복한다.' },
+    { id: 'veil', icon: '◉', title: '넥카라 철벽', desc: '반투명 넥카라가 공격을 막는다. 성장하면 파괴 충격파와 2회 저장이 가능해진다.' },
+    { id: 'sword', icon: '///', title: '발톱 슥삭', desc: '주변을 발톱 자국으로 베어낸다. 성장하면 십자·8방향 공격과 일반탄 제거가 열린다.' },
+    { id: 'hellConductor', icon: '⌁', title: '산책줄 휘리릭', desc: '산책줄이 몸 주변을 빙빙 돌며 적을 때린다. 성장하면 두 줄과 큰 휘두르기가 열린다.' },
+    { id: 'bulletBarrage', icon: '✣', title: '발바닥 도장', desc: '이동한 자리에 폭발하는 발바닥 도장을 남긴다. 많이 움직일수록 강해진다.' }
   ];
 
 
@@ -95,13 +97,13 @@
 
 
   const MAJOR_AUGMENTS = [
-    { id: 'poopOrbit', icon: '●', title: '똥강아지', desc: '캐릭터 주변을 똥이 회전하며 닿는 적을 갉아먹고 밀어낸다. 레벨마다 똥 +1.' },
-    { id: 'discThrow', icon: '◉', title: '원반 던지기', desc: '바라보는 방향·위·아래로 강한 원반을 주기적으로 던진다. 초반엔 피해가 오르고 Lv.4부터 관통한다.' },
-    { id: 'barkRoar', icon: ')))', title: '댕자후', desc: '일정 주기마다 주변에 소음 폭격을 퍼붓는다. 레벨이 오를수록 폭격 범위가 넓어진다.' },
-    { id: 'yellowGas', icon: '☁', title: '멍가스', desc: '이동한 자리에 노란 가스 구름을 남긴다. 구름에 닿은 적은 지속 피해를 입는다.' },
-    { id: 'yawnWave', icon: '≋', title: '음파 하품', desc: '전방 부채꼴에 낮은 피해의 하품 파동을 쏘고 맞은 적을 느려지게 한다.' },
-    { id: 'territoryMark', icon: '◎', title: '영역표시', desc: '주기적으로 고유 장판을 생성한다. 장판의 적은 지속 피해를 받고 받는 피해가 증가한다.' },
-    { id: 'squeakyToy', icon: '★', title: '마성의 뾱뾱이 인형', desc: '주기적으로 화면 내 무작위 적의 머리 위에 뾱뾱이 인형을 떨어뜨려 큰 피해를 준다.' }
+    { id: 'poopOrbit', icon: '●', title: '똥강아지', desc: '주변을 도는 똥이 레벨마다 개수·궤도가 커지고, 완성형에서는 바깥으로 똥을 던진다.' },
+    { id: 'discThrow', icon: '◉', title: '원반 던지기', desc: '원반이 커지고 관통하며, 완성형에서는 부메랑처럼 되돌아온다.' },
+    { id: 'barkRoar', icon: ')))', title: '댕자후', desc: '주변 음파의 반경·두께·파동 횟수가 성장한다.' },
+    { id: 'yellowGas', icon: '☁', title: '멍가스', desc: '이동 경로의 가스가 넓고 오래 남으며 높은 레벨에서는 작은 가스가 퍼진다.' },
+    { id: 'yawnWave', icon: '≋', title: '음파 하품', desc: '전방 하품 파동의 범위와 형태가 성장하고 완성형은 두 겹으로 나간다.' },
+    { id: 'territoryMark', icon: '◎', title: '영역표시', desc: '작은 장판에서 여러 장판·시간차 확산으로 성장한다.' },
+    { id: 'squeakyToy', icon: '★', title: '마성의 뾱뾱이 인형', desc: '인형 낙하가 커지고 튕김·파편까지 추가되어 더 병맛스럽게 성장한다.' }
   ];
 
   const FOOD_ENEMIES = {
@@ -138,29 +140,31 @@
   // TRUE BOSS 패턴은 메타데이터 + 실행 키로 관리한다.
   // 향후 패턴을 추가할 때 기존 AI 분기를 크게 건드리지 않아도 된다.
   const TRUE_BOSS_PATTERNS = {
+    // 포도 = 포도알 원형 탄막 + 직선 돌진 / 초콜릿 = 분열 + 각진 탄 + 공간 제한 / 양파 = 겹 + 회전 + 나선
     grape: [
       { id:'grapeSpiralRing', phase:1, weight:4, cooldown:1550, minDistance:0, condition:'any', execute:'grapeSpiralRing' },
       { id:'grapePredictFan', phase:1, weight:3, cooldown:1650, minDistance:120, condition:'any', execute:'grapePredictFan' },
       { id:'grapeStaggeredRings', phase:1, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'grapeStaggeredRings' },
-      { id:'grapeRingPredict', phase:2, weight:4, cooldown:1600, minDistance:0, condition:'any', execute:'grapeRingPredict' },
-      { id:'grapeDashBurst', phase:2, weight:3, cooldown:1900, minDistance:120, condition:'canRush', execute:'grapeDashBurst' },
-      { id:'grapeShiftedGap', phase:2, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'grapeShiftedGap' }
+      { id:'grapeRingPredict', phase:2, weight:3, cooldown:1650, minDistance:0, condition:'any', execute:'grapeRingPredict' },
+      { id:'grapeDashBurst', phase:2, weight:3, cooldown:1950, minDistance:120, condition:'canRush', execute:'grapeDashBurst' },
+      { id:'grapeShiftedGap', phase:2, weight:2, cooldown:1750, minDistance:0, condition:'any', execute:'grapeShiftedGap' },
+      { id:'grapeClusterSplit', phase:2, weight:3, cooldown:1900, minDistance:100, condition:'any', execute:'grapeClusterSplit' }
     ],
     choco: [
-      { id:'chocoFan', phase:1, weight:4, cooldown:1500, minDistance:0, condition:'any', execute:'chocoFan' },
-      { id:'chocoSideClamp', phase:1, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'chocoSideClamp' },
-      { id:'chocoDelayedLock', phase:1, weight:3, cooldown:1850, minDistance:100, condition:'any', execute:'chocoDelayedLock' },
-      { id:'chocoSweep', phase:2, weight:4, cooldown:1650, minDistance:0, condition:'any', execute:'chocoSweep' },
-      { id:'chocoCrossfire', phase:2, weight:3, cooldown:1800, minDistance:80, condition:'any', execute:'chocoCrossfire' },
-      { id:'chocoBurstPair', phase:2, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'chocoBurstPair' }
+      { id:'chocoBarSplit', phase:1, weight:4, cooldown:1750, minDistance:100, condition:'any', execute:'chocoBarSplit' },
+      { id:'chocoFan', phase:1, weight:3, cooldown:1550, minDistance:0, condition:'any', execute:'chocoFan' },
+      { id:'chocoMelt', phase:1, weight:3, cooldown:2050, minDistance:0, condition:'any', execute:'chocoMelt' },
+      { id:'chocoCrossBreak', phase:2, weight:4, cooldown:1800, minDistance:80, condition:'any', execute:'chocoCrossBreak' },
+      { id:'chocoBounce', phase:2, weight:3, cooldown:1750, minDistance:0, condition:'any', execute:'chocoBounce' },
+      { id:'chocoMeltClamp', phase:2, weight:3, cooldown:2100, minDistance:0, condition:'any', execute:'chocoMeltClamp' }
     ],
     onion: [
-      { id:'onionSpiral', phase:1, weight:4, cooldown:1550, minDistance:0, condition:'any', execute:'onionSpiral' },
-      { id:'onionReverse', phase:1, weight:3, cooldown:1650, minDistance:0, condition:'any', execute:'onionReverse' },
-      { id:'onionPulse', phase:1, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'onionPulse' },
-      { id:'onionTriSpeed', phase:2, weight:4, cooldown:1600, minDistance:0, condition:'any', execute:'onionTriSpeed' },
-      { id:'onionReverseDouble', phase:2, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'onionReverseDouble' },
-      { id:'onionGapShift', phase:2, weight:3, cooldown:1750, minDistance:0, condition:'any', execute:'onionGapShift' }
+      { id:'onionPeelSpiral', phase:1, weight:4, cooldown:1600, minDistance:0, condition:'any', execute:'onionPeelSpiral' },
+      { id:'onionRingGap', phase:1, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'onionRingGap' },
+      { id:'onionLayered', phase:1, weight:3, cooldown:1900, minDistance:0, condition:'any', execute:'onionLayered' },
+      { id:'onionTriSpiral', phase:2, weight:4, cooldown:1650, minDistance:0, condition:'any', execute:'onionTriSpiral' },
+      { id:'onionCounterSpiral', phase:2, weight:3, cooldown:1900, minDistance:0, condition:'any', execute:'onionCounterSpiral' },
+      { id:'onionRingPulse', phase:2, weight:3, cooldown:1800, minDistance:0, condition:'any', execute:'onionRingPulse' }
     ]
   };
 
@@ -182,8 +186,10 @@
     'attackPower','moveSpeed','maxHp','hp','levelUpgradeCounts','xpGainMult','basicCooldown','extraBasicShots',
     'basicPierce','basicExplosion','basicRicochet','basicSizeMult','basicDamageMult','basicProjectileScale','shockwaveLevel','shockwaveTimer','majorLevels',
     'majorTimers','poopOrbiters','gasClouds','territoryZones','discDirectionIndex','facingAngle','gemMagnetRange',
-    'playerDamageMult','augments','characterAugmentLevels','basicTimer','playerInvulnUntil','shieldCharges','skillLevels','skillTimers','shieldVisual',
-    'juiceComboUntil','juiceComboHits','reviveProgress','reviveNeedMs','deathCount'
+    'playerDamageMult','augments','characterAugmentLevels','basicTimer','playerInvulnUntil','shieldCharges','skillLevels','skillTimers','shieldVisual','shieldChargeText',
+    'juiceComboUntil','juiceComboHits','snackGauge','snackProcReadyAt','snackSpeedUntil','snackSpeedMult','snackGaugeBack','snackGaugeFill',
+    'feeders','leashOrbiters','pawMines','pawLastX','pawLastY','pawDistanceAcc','pawStampBurstReadyAt','gasSpawnSeq',
+    'reviveProgress','reviveNeedMs','deathCount'
   ];
 
   function characterStartStats(key) {
@@ -222,26 +228,134 @@
 
   function treasureSkillStats(id, level) {
     const lv = Math.max(1, level || 1);
-    if (id === 'magicMissile') return { interval:Math.max(2500,5000-(lv-1)*350), count:3+Math.floor((lv-1)/2), damageMult:0.8+lv*0.12 };
-    if (id === 'shrinkRay') return { stepScale:Math.max(0.84,0.90-(lv-1)*0.01), minScale:Math.max(0.44,0.66-lv*0.04), contactDamageMult:Math.max(0.65,0.85-(lv-1)*0.04), duration:Math.min(6000,3000+(lv-1)*500) };
-    if (id === 'juiceBox') return { healPct:Math.min(0.07,0.05+Math.min(2,lv-1)*0.005+Math.max(0,lv-3)*0.0025), repeatFactor:Math.min(0.50,0.35+(lv-1)*0.03), comboWindow:220 };
-    if (id === 'veil') return { interval:Math.max(18000,30000-(lv-1)*1800), maxCharges:1+Math.floor((lv-1)/3) };
-    if (id === 'sword') return { interval:Math.max(1700,3000-(lv-1)*180), damageMult:1.7+lv*0.18 };
-    if (id === 'hellConductor') return { interval:Math.max(2600,4500-(lv-1)*250), count:8+Math.min(4,lv-1), radius:105+lv*4, damageMult:1.25+lv*0.16 };
-    if (id === 'bulletBarrage') return { interval:Math.max(2400,4000-(lv-1)*220), count:5, damageMult:0.45+lv*0.05 };
+    const tier = Math.min(5, lv);
+    const over = Math.max(0, lv - 5);
+    if (id === 'magicMissile') {
+      const table=[null,
+        {summonInterval:6500,duration:3800,shotInterval:900,shots:1,pelletScale:0.90,damageMult:0.55,pierce:0,frenzy:false},
+        {summonInterval:6200,duration:4200,shotInterval:720,shots:1,pelletScale:1.10,damageMult:0.60,pierce:0,frenzy:false},
+        {summonInterval:6000,duration:4400,shotInterval:700,shots:2,pelletScale:1.10,damageMult:0.58,pierce:0,frenzy:false},
+        {summonInterval:5800,duration:4600,shotInterval:650,shots:2,pelletScale:1.16,damageMult:0.62,pierce:1,frenzy:false},
+        {summonInterval:5600,duration:5000,shotInterval:600,shots:2,pelletScale:1.22,damageMult:0.65,pierce:1,frenzy:true}
+      ];
+      const st={...table[tier]};st.summonInterval=Math.max(4800,st.summonInterval-over*120);st.shotInterval=Math.max(500,st.shotInterval-over*20);st.damageMult+=over*0.035;return st;
+    }
+    if (id === 'shrinkRay') {
+      const table=[null,
+        {hitsNeeded:5,stepScale:0.88,minScale:0.75,contactDamageMult:0.90,duration:3500,slowMult:1,vulnerableMult:1,spreadRadius:0},
+        {hitsNeeded:4,stepScale:0.82,minScale:0.62,contactDamageMult:0.86,duration:4000,slowMult:1,vulnerableMult:1,spreadRadius:0},
+        {hitsNeeded:4,stepScale:0.78,minScale:0.56,contactDamageMult:0.83,duration:4500,slowMult:0.88,vulnerableMult:1,spreadRadius:0},
+        {hitsNeeded:3,stepScale:0.75,minScale:0.52,contactDamageMult:0.80,duration:5000,slowMult:0.86,vulnerableMult:1.08,spreadRadius:0},
+        {hitsNeeded:3,stepScale:0.72,minScale:0.46,contactDamageMult:0.78,duration:5500,slowMult:0.84,vulnerableMult:1.10,spreadRadius:100}
+      ];
+      const st={...table[tier]};st.duration=Math.min(6500,st.duration+over*180);st.vulnerableMult+=over*0.01;return st;
+    }
+    if (id === 'juiceBox') {
+      const table=[null,
+        {threshold:8,healPct:0.050,repeatFactor:0.35,comboWindow:220,snackScale:0.90,speedMult:1,speedDuration:0,partyCount:1},
+        {threshold:7,healPct:0.050,repeatFactor:0.37,comboWindow:220,snackScale:1.00,speedMult:1,speedDuration:0,partyCount:1},
+        {threshold:7,healPct:0.060,repeatFactor:0.39,comboWindow:220,snackScale:1.15,speedMult:1,speedDuration:0,partyCount:1},
+        {threshold:6,healPct:0.060,repeatFactor:0.41,comboWindow:220,snackScale:1.20,speedMult:1.10,speedDuration:1500,partyCount:1},
+        {threshold:6,healPct:0.080,repeatFactor:0.43,comboWindow:220,snackScale:1.45,speedMult:1.12,speedDuration:1800,partyCount:4}
+      ];
+      const st={...table[tier]};st.healPct=Math.min(0.095,st.healPct+over*0.003);return st;
+    }
+    if (id === 'veil') {
+      const table=[null,
+        {interval:30000,maxCharges:1,breakRadius:0,breakDamageMult:0,push:0,clearNormalBullets:false},
+        {interval:24000,maxCharges:1,breakRadius:0,breakDamageMult:0,push:0,clearNormalBullets:false},
+        {interval:22000,maxCharges:1,breakRadius:82,breakDamageMult:0.48,push:0,clearNormalBullets:false},
+        {interval:20500,maxCharges:2,breakRadius:92,breakDamageMult:0.52,push:0,clearNormalBullets:false},
+        {interval:19000,maxCharges:2,breakRadius:118,breakDamageMult:0.58,push:20,clearNormalBullets:true}
+      ];
+      const st={...table[tier]};st.interval=Math.max(16000,st.interval-over*650);return st;
+    }
+    if (id === 'sword') {
+      const table=[null,
+        {interval:3000,damageMult:1.78,reach:50,directions:2,clearNormalBullets:false,finisher:false},
+        {interval:2800,damageMult:1.90,reach:62,directions:2,clearNormalBullets:false,finisher:false},
+        {interval:2650,damageMult:2.02,reach:64,directions:4,clearNormalBullets:false,finisher:false},
+        {interval:2500,damageMult:2.12,reach:68,directions:8,clearNormalBullets:true,finisher:false},
+        {interval:2320,damageMult:2.25,reach:72,directions:8,clearNormalBullets:true,finisher:true}
+      ];
+      const st={...table[tier]};st.interval=Math.max(1900,st.interval-over*80);st.damageMult+=over*0.08;return st;
+    }
+    if (id === 'hellConductor') {
+      const table=[null,
+        {count:1,radius:76,outerRadius:76,spin:0.0024,damageMult:0.30,knock:0,bigSwingInterval:0},
+        {count:1,radius:96,outerRadius:96,spin:0.0025,damageMult:0.33,knock:0,bigSwingInterval:0},
+        {count:2,radius:98,outerRadius:98,spin:0.0026,damageMult:0.35,knock:0,bigSwingInterval:0},
+        {count:2,radius:104,outerRadius:104,spin:0.0032,damageMult:0.38,knock:6,bigSwingInterval:0},
+        {count:2,radius:98,outerRadius:136,spin:0.0035,damageMult:0.42,knock:8,bigSwingInterval:3300}
+      ];
+      const st={...table[tier]};st.damageMult+=over*0.025;if(st.bigSwingInterval)st.bigSwingInterval=Math.max(2600,st.bigSwingInterval-over*100);return st;
+    }
+    if (id === 'bulletBarrage') {
+      const table=[null,
+        {spacing:110,radius:34,damageMult:1.00,lifeMs:4500,spawnCount:1,maxMines:8,chain:false,rapidBurst:false},
+        {spacing:108,radius:44,damageMult:1.10,lifeMs:4700,spawnCount:1,maxMines:9,chain:false,rapidBurst:false},
+        {spacing:84,radius:46,damageMult:0.76,lifeMs:4800,spawnCount:2,maxMines:12,chain:false,rapidBurst:false},
+        {spacing:76,radius:50,damageMult:0.80,lifeMs:5000,spawnCount:2,maxMines:14,chain:true,rapidBurst:false},
+        {spacing:58,radius:56,damageMult:0.84,lifeMs:5200,spawnCount:2,maxMines:16,chain:true,rapidBurst:true}
+      ];
+      const st={...table[tier]};st.damageMult+=over*0.035;st.spacing=Math.max(46,st.spacing-over*2);return st;
+    }
     return {};
   }
 
+  function treasureSkillUpgradeSummary(id, nextLevel) {
+    const lv=Math.max(1,nextLevel||1);
+    const tier=Math.min(5,lv);
+    const table={
+      magicMissile:['급식기 1개 설치','사료가 커지고 더 빠르게 발사','한 번에 사료 2발','사료 1회 관통','폭주 급식시간 해금'],
+      shrinkRay:['5회 적중하면 적이 쪼그라듦','4회 적중 · 축소량 증가','쪼그라든 적 이동속도 감소','쪼그라든 적이 받는 피해 증가','완전 쫄았개 · 주변에도 약화 전파'],
+      juiceBox:['8회 적중마다 간식 회복','필요 적중 8 → 7','회복량 증가 · 간식이 더 크게 보임','회복 시 잠깐 우다다 속도','간식 파티 · 큰 회복 + 여러 간식'],
+      veil:['공격 1회 막는 넥카라','넥카라 재생시간 단축','파괴 시 작은 충격파','보호막 최대 2회 저장','초대형 넥카라 · 일반탄 밀어내기'],
+      sword:['위·아래 발톱 베기','베기 크기와 사거리 증가','좌·우 추가 · 십자 베기','대각선 추가 · 일반탄 제거','슥삭 대난동 · 8방향 + 마무리 원형베기'],
+      hellConductor:['산책줄 1개 회전','산책줄 길이와 범위 증가','반대편 두 번째 산책줄','회전속도 증가 · 일반 적 밀치기','대환장 산책시간 · 다른 반경 + 큰 휘두르기'],
+      bulletBarrage:['이동한 자리에 발바닥 도장','폭발 범위 증가','도장 2개씩 · 생성 간격 감소','주변 도장 연쇄폭발','우다다 발도장 · 빠른 생성 + 순차 폭발']
+    };
+    if(lv>5)return '완성형 유지 · 피해와 발동 효율 소폭 강화';
+    return table[id]?.[tier-1]||'스킬 기능 강화';
+  }
+
   function treasureSkillDescription(id, level) {
-    const lv=Math.max(1,level||1), st=treasureSkillStats(id,lv);
-    if(id==='magicMissile')return `Lv.${lv}: ${Math.round(st.interval/100)/10}초마다 ${st.count}발 · 1발 피해 ${Math.round(st.damageMult*100)}%.`;
-    if(id==='shrinkRay')return `Lv.${lv}: 최소 크기 ${Math.round(st.minScale*100)}% · 접촉 피해 ${Math.round((1-st.contactDamageMult)*100)}% 감소 · ${Math.round(st.duration/100)/10}초 유지.`;
-    if(id==='juiceBox')return `Lv.${lv}: 첫 적중 최대 HP ${Math.round(st.healPct*1000)/10}% 회복 · 연속 다발탄은 ${Math.round(st.repeatFactor*100)}% 효율로 추가 회복.`;
-    if(id==='veil')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 장막 생성 · 최대 ${st.maxCharges}개 저장.`;
-    if(id==='sword')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 위·아래 베기 · 피해 ${Math.round(st.damageMult*100)}%.`;
-    if(id==='hellConductor')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 불기둥 ${st.count}개 · 피해 ${Math.round(st.damageMult*100)}%.`;
-    if(id==='bulletBarrage')return `Lv.${lv}: 약 ${Math.round(st.interval/100)/10}초마다 ${st.count}연사 · 1발 피해 ${Math.round(st.damageMult*100)}%.`;
+    const lv=Math.max(1,level||1), st=treasureSkillStats(id,lv), summary=treasureSkillUpgradeSummary(id,lv);
+    if(id==='magicMissile')return `${summary}. 약 ${Math.round(st.summonInterval/100)/10}초마다 ${Math.round(st.duration/100)/10}초 설치 · 사료 ${st.shots}발 · 피해 ${Math.round(st.damageMult*100)}%${st.pierce?` · 관통 ${st.pierce}`:''}.`;
+    if(id==='shrinkRay')return `${summary}. 발동 후 최소 크기 ${Math.round(st.minScale*100)}% · 접촉피해 ${Math.round((1-st.contactDamageMult)*100)}% 감소 · ${Math.round(st.duration/100)/10}초.`;
+    if(id==='juiceBox')return `${summary}. 게이지 ${st.threshold} 필요 · 발동 시 최대 HP ${Math.round(st.healPct*1000)/10}% 회복 · 같은 다발탄 후속 적중은 ${Math.round(st.repeatFactor*100)}%만 충전.`;
+    if(id==='veil')return `${summary}. 재생 ${Math.round(st.interval/100)/10}초 · 최대 ${st.maxCharges}회 저장${st.breakRadius?` · 파괴 충격파 ${st.breakRadius}px`:''}.`;
+    if(id==='sword')return `${summary}. 약 ${Math.round(st.interval/100)/10}초마다 ${st.directions}방향 · 피해 ${Math.round(st.damageMult*100)}% · 사거리 ${st.reach}px.`;
+    if(id==='hellConductor')return `${summary}. 산책줄 ${st.count}개 · 반경 ${st.radius}${st.outerRadius!==st.radius?`/${st.outerRadius}`:''}px · 접촉 피해 ${Math.round(st.damageMult*100)}%.`;
+    if(id==='bulletBarrage')return `${summary}. 이동 ${st.spacing}px마다 ${st.spawnCount}개 · 폭발 반경 ${st.radius}px · 개당 피해 ${Math.round(st.damageMult*100)}%.`;
     return SKILLS.find(s=>s.id===id)?.desc||'';
+  }
+
+  function majorAugmentUpgradeSummary(id,nextLevel){
+    const lv=Math.max(1,nextLevel||1),tier=Math.min(5,lv);
+    const table={
+      poopOrbit:['똥 1개 회전','똥 2개 · 궤도 확대','똥 3개 · 서로 다른 궤도','똥 4개 · 회전 가속','똥 5개 + 가끔 바깥으로 투척'],
+      discThrow:['원반 1개 투척','원반 크기·피해 증가','원반이 더 크고 빠르게','관통 해금','부메랑처럼 되돌아옴'],
+      barkRoar:['큰 음파 1회','음파 반경·두께 증가','메아리 1회 추가','밀치기와 범위 강화','큰 파동 뒤 두 번째 메아리'],
+      yellowGas:['작은 가스 구름','범위·지속시간 증가','더 자주 넓게 남김','가끔 작은 가스가 옆으로 퍼짐','작은 가스 확산 빈도 증가'],
+      yawnWave:['전방 하품 파동','사거리 증가','부채꼴 폭 증가','둔화 강화','두 겹 하품 파동'],
+      territoryMark:['작은 영역표시 1개','장판 반경 증가','앞쪽에 두 번째 장판','장판이 잠시 뒤 한 번 더 퍼짐','세 방향 장판 + 시간차 확산'],
+      squeakyToy:['인형 1개 낙하','폭발 범위 증가','한 번 튕겨 두 번째 적 공격','튕김 + 작은 파편','뾱뾱이 파편 3개 추가']
+    };
+    if(lv>5)return '완성형 유지 · 피해/주기 소폭 강화';
+    return table[id]?.[tier-1]||'전투 증강 강화';
+  }
+
+  function majorAugmentDescription(id,nextLevel){
+    const lv=Math.max(1,nextLevel||1),summary=majorAugmentUpgradeSummary(id,lv);
+    if(id==='poopOrbit')return `${summary}. 레벨이 오를수록 개수·궤도·피해가 함께 성장한다.`;
+    if(id==='discThrow')return `${summary}. Lv.4부터 관통하고 Lv.5부터 되돌아오며 다시 적을 칠 수 있다.`;
+    if(id==='barkRoar')return `${summary}. 음파 반경과 파동 횟수가 화면에서 직접 커진다.`;
+    if(id==='yellowGas')return `${summary}. 가스는 이동 경로에 남아 지속 피해를 준다.`;
+    if(id==='yawnWave')return `${summary}. 하품 파동은 피해와 함께 적을 둔화한다.`;
+    if(id==='territoryMark')return `${summary}. 장판 안 적은 지속 피해와 피해 증폭을 받는다.`;
+    if(id==='squeakyToy')return `${summary}. 낙하 직격 + 주변 폭발 역할은 유지하면서 행동이 추가된다.`;
+    return MAJOR_AUGMENTS.find(a=>a.id===id)?.desc||'';
   }
 
   let audioCtx = null;
@@ -435,7 +549,7 @@
       goodDeal:'기본 투사체 +1', hunterInstinct:'공속 +14% · 공격력 +7%', sniffer:'보석 흡입범위 +75px', ironStomach:'HP·회복·피해감소 동시 강화', zoomies:'이속 +12% · 공속 +6%',
       vocalBurst:'소리탄 충격파 확률 추가', stickySnot:'콧물탄 적중 시 둔화', highPressurePee:'오줌빔 관통·탄속 강화', sheddingSeason:'추가 털뭉치 발사 확률',
       poopOrbit:'주변 회전 공격체 +1', discThrow:'강한 원반 자동 투척', barkRoar:'주기적 주변 광역 폭격', yellowGas:'이동 경로에 지속피해 가스', yawnWave:'전방 광역 둔화 파동', territoryMark:'피해 증폭 장판 생성', squeakyToy:'무작위 적에게 고화력 낙하 공격',
-      magicMissile:'추적 미사일 자동 발사', shrinkRay:'적 축소 + 접촉피해 약화', juiceBox:'기본탄 적중 시 HP 회복', veil:'주기적으로 1회 방어', sword:'위·아래 자동 베기', hellConductor:'주변 불기둥 광역 공격', bulletBarrage:'한 적에게 5연사 집중 공격'
+      magicMissile:'자동 급식기 설치', shrinkRay:'적을 쪼그라뜨리는 누적 약화', juiceBox:'공격으로 간식 게이지 충전', veil:'넥카라로 공격 방어', sword:'발톱 방향 베기', hellConductor:'산책줄 지속 회전딜', bulletBarrage:'이동 경로에 발바닥 지뢰'
     };
     return map[id] || String(desc).split(/[.。]/)[0] || '빌드를 강화한다';
   }
@@ -444,11 +558,11 @@
     const exclusive=!!option.exclusive;
     const type=choiceTypeFor(kind, option.id, exclusive);
     const tag=choiceTagFor(kind, exclusive);
-    const summary=choiceSummaryFor(kind, option.id, option.desc);
+    const summary=option.upgradeSummary||choiceSummaryFor(kind, option.id, option.desc);
     const lv=Number.isFinite(option.level)
       ? `<span class="level">${exclusive?'전용 · ':''}현재 Lv.${option.level} → Lv.${option.level+1}</span>`
       : '';
-    return { type, html:`<div class="choice-top"><span class="icon">${option.icon||'✦'}</span><span class="choice-tag">${tag}</span></div><b>${option.title}</b><p class="choice-summary">${summary}</p><p class="choice-detail">${option.desc||''}</p>${lv}` };
+    return { type, html:`<div class="choice-top"><span class="icon">${option.icon||'✦'}</span><span class="choice-tag">${tag}</span></div><b>${option.title}</b><p class="choice-summary${option.upgradeSummary?' choice-upgrade':''}">${summary}</p><p class="choice-detail">${option.desc||''}</p>${lv}` };
   }
 
   function decorateChoiceButton(button, option, kind) {
@@ -655,8 +769,24 @@
       this.magnetUntil = 0;
       this.playerInvulnUntil = 0;
       this.shieldCharges = 0;
+      this.shieldChargeText = null;
       this.juiceComboUntil = 0;
       this.juiceComboHits = 0;
+      this.snackGauge = 0;
+      this.snackProcReadyAt = 0;
+      this.snackSpeedUntil = 0;
+      this.snackSpeedMult = 1;
+      this.snackGaugeBack = null;
+      this.snackGaugeFill = null;
+      this.feeders = [];
+      this.leashOrbiters = [];
+      this.pawMines = [];
+      this.pawLastX = null;
+      this.pawLastY = null;
+      this.pawDistanceAcc = 0;
+      this.pawStampBurstReadyAt = 0;
+      this.gasSpawnSeq = 0;
+      this.raidHazards = [];
       this.reviveProgress = 0;
       this.reviveNeedMs = 4800;
       this.deathCount = 0;
@@ -946,11 +1076,13 @@
         g.fillStyle(0xd59a57,1); g.fillRect(4,4,14,8); g.fillRect(1,5,5,6); g.fillRect(16,5,5,6);
         g.fillStyle(0xf0c77a,1); g.fillRect(6,6,10,4); g.fillStyle(0xffedb2,1); g.fillRect(8,6,3,2);
       });
-      create('rushLine', 128, 8, g => {
-        // 공격체처럼 보이는 화살촉은 없애고 바닥에 깔리는 얇은 점선만 남긴다.
-        g.fillStyle(0x5b3b24,0.18); g.fillRect(0,3,128,2);
-        g.fillStyle(0xffd27a,0.58);
-        for(let x=4;x<124;x+=16)g.fillRect(x,3,9,2);
+      create('rushLine', 128, 24, g => {
+        // v1.17: 화살촉 없이 실제 돌진 폭을 읽을 수 있는 낮은 바닥 통로.
+        g.fillStyle(0x5b3b24,0.12); g.fillRect(0,3,128,18);
+        g.fillStyle(0xf0b75c,0.18); g.fillRect(0,5,128,14);
+        g.fillStyle(0xffd990,0.42);
+        for(let x=4;x<124;x+=18)g.fillRect(x,10,11,4);
+        g.fillStyle(0x5b3b24,0.22); g.fillRect(0,3,128,2); g.fillRect(0,19,128,2);
       });
 
       create('proj_bark', 22, 14, g => {
@@ -964,6 +1096,74 @@
       });
       create('proj_hairball', 14, 14, g => {
         g.fillStyle(0x72645b, 1); g.fillRect(3, 2, 8, 10); g.fillStyle(0x94877d, 1); g.fillRect(1, 5, 12, 5); g.fillStyle(0x4f4642, 1); g.fillRect(4, 4, 3, 3);
+      });
+      // v1.17 treasure-skill / TRUE BOSS themed pixels.
+      create('autoFeeder', 30, 24, g => {
+        g.fillStyle(0x352a28,1); g.fillRect(5,3,20,16);
+        g.fillStyle(0xe6d7b6,1); g.fillRect(7,4,16,12);
+        g.fillStyle(0x9c7554,1); g.fillRect(11,7,8,5);
+        g.fillStyle(0x5f4638,1); g.fillRect(3,16,24,5);
+        g.fillStyle(0xe4b65f,1); g.fillRect(8,18,14,3);
+      });
+      create('kibblePellet', 10, 8, g => {
+        g.fillStyle(0x3e2920,1); g.fillCircle(5,4,4); g.fillStyle(0xc68b4d,1); g.fillCircle(5,4,3); g.fillStyle(0xf0bd70,1); g.fillRect(4,2,2,2);
+      });
+      create('debuffPaw', 14, 14, g => {
+        g.fillStyle(0x442e56,0.95); g.fillCircle(7,9,4); [[3,4],[6,2],[9,2],[12,4]].forEach(([x,y])=>g.fillCircle(x,y,2));
+        g.fillStyle(0xdcb7ef,0.75); g.fillCircle(7,8,2);
+      });
+      create('snackNibble', 14, 10, g => {
+        g.fillStyle(0x3c291f,1); g.fillRect(2,3,10,5); g.fillStyle(0xd9a05c,1); g.fillRect(1,2,12,6); g.fillStyle(0xffdfa0,1); g.fillRect(5,3,4,2);
+      });
+      create('collarShield', 68, 68, g => {
+        g.lineStyle(5,0xd9f4e2,0.78); g.strokeCircle(34,34,29);
+        g.lineStyle(3,0x74d8aa,0.72); g.strokeCircle(34,34,23);
+        g.fillStyle(0xa9eed0,0.10); g.fillCircle(34,34,27);
+      });
+      create('clawSlash', 42, 24, g => {
+        g.lineStyle(4,0xfff0c1,0.92);
+        g.lineBetween(3,19,34,3); g.lineBetween(7,22,38,6); g.lineBetween(1,15,30,1);
+        g.lineStyle(2,0xe8896d,0.70); g.lineBetween(5,20,36,4);
+      });
+      create('leashOrbit', 74, 14, g => {
+        g.lineStyle(4,0x493b35,0.95); g.lineBetween(3,7,58,7);
+        g.lineStyle(2,0xd9b26a,1); g.lineBetween(5,6,58,6);
+        g.fillStyle(0xe5826d,1); g.fillRoundedRect(57,2,13,10,3);
+      });
+      create('pawStamp', 22, 20, g => {
+        g.fillStyle(0x47384b,0.90); g.fillCircle(11,13,5);
+        [[5,6],[9,4],[14,4],[18,7]].forEach(([x,y])=>g.fillCircle(x,y,3));
+        g.fillStyle(0xe7b9d0,0.72); g.fillCircle(11,12,2);
+      });
+      create('pawBlast', 54, 54, g => {
+        g.lineStyle(4,0xffd687,0.78); g.strokeCircle(27,27,19);
+        g.lineStyle(2,0xffffff,0.55); g.strokeCircle(27,27,25);
+      });
+      create('raidGrapeBullet', 18, 18, g => {
+        g.fillStyle(0x210d2a,1); g.fillCircle(9,9,8); g.fillStyle(0x8f4bb0,1); g.fillCircle(9,9,6); g.fillStyle(0xd6a4eb,1); g.fillCircle(7,6,2);
+      });
+      create('raidGrapeCluster', 26, 26, g => {
+        [[8,8],[14,7],[18,12],[10,14],[15,18]].forEach(([x,y],i)=>{g.fillStyle(i%2?0x71328d:0x934ab0,1);g.fillCircle(x,y,5);});
+        g.fillStyle(0x4a8b45,1); g.fillRect(13,1,4,6);
+      });
+      create('raidChocoBullet', 18, 18, g => {
+        g.fillStyle(0x281713,1); g.fillRect(2,2,14,14); g.fillStyle(0x78422e,1); g.fillRect(4,4,10,10); g.fillStyle(0xc87848,1); g.fillRect(5,5,3,3);
+      });
+      create('raidChocoBig', 24, 24, g => {
+        g.fillStyle(0x281713,1); g.fillRect(2,2,20,20); g.fillStyle(0x75412f,1); g.fillRect(4,4,16,16);
+        g.lineStyle(2,0xc17b4c,1); g.strokeRect(5,5,14,14); g.lineBetween(12,5,12,19); g.lineBetween(5,12,19,12);
+      });
+      create('raidOnionPeel', 20, 20, g => {
+        g.lineStyle(4,0x542741,1); g.beginPath(); g.arc(10,10,7,-1.9,1.9,false); g.strokePath();
+        g.lineStyle(2,0xd5aac6,1); g.beginPath(); g.arc(10,10,5,-1.7,1.7,false); g.strokePath();
+      });
+      create('raidOnionRing', 20, 20, g => {
+        g.lineStyle(4,0x542741,1); g.strokeCircle(10,10,8); g.lineStyle(3,0xe0c8d7,1); g.strokeCircle(10,10,5);
+      });
+      create('chocoPuddle', 52, 34, g => {
+        g.fillStyle(0x2c1b17,0.62); g.fillEllipse(26,20,48,23);
+        g.fillStyle(0x68402d,0.64); g.fillEllipse(25,17,42,19);
+        g.fillStyle(0xb77a4f,0.35); g.fillEllipse(19,13,11,5);
       });
       create('magicMissile', 12, 12, g => {
         g.fillStyle(0x7be3f3, 1); g.fillRect(5, 0, 2, 12); g.fillRect(0, 5, 12, 2);
@@ -1166,7 +1366,9 @@
         majorLevels:{},majorTimers:{poopOrbit:0,discThrow:0,barkRoar:0,yellowGas:0,yawnWave:0,territoryMark:0,squeakyToy:0},
         poopOrbiters:[],gasClouds:[],territoryZones:[],discDirectionIndex:0,facingAngle:0,gemMagnetRange:135,playerDamageMult:1,
         augments:[],characterAugmentLevels:{},basicTimer:350,playerInvulnUntil:0,shieldCharges:0,skillLevels:{},juiceComboUntil:0,juiceComboHits:0,
-        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,down:false,reviveProgress:0,reviveNeedMs:4800,deathCount:0,reviveUi:null
+        snackGauge:0,snackProcReadyAt:0,snackSpeedUntil:0,snackSpeedMult:1,snackGaugeBack:null,snackGaugeFill:null,
+        feeders:[],leashOrbiters:[],pawMines:[],pawLastX:null,pawLastY:null,pawDistanceAcc:0,pawStampBurstReadyAt:0,gasSpawnSeq:0,
+        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,shieldChargeText:null,down:false,reviveProgress:0,reviveNeedMs:4800,deathCount:0,reviveUi:null
       };
     }
     setupCoopBuilds() {
@@ -1222,7 +1424,7 @@
         }
       });
     }
-    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,extraBasicShots:b.extraBasicShots||0,basicDamageMult:b.basicDamageMult||1,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,characterAugmentLevels:b.characterAugmentLevels,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges,reviveProgress:b.reviveProgress||0,reviveNeedMs:b.reviveNeedMs||4800,deathCount:b.deathCount||0,invulnLeft:Math.max(0,(b.playerInvulnUntil||0)-this.runTimeMs)}:null;}
+    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,extraBasicShots:b.extraBasicShots||0,basicDamageMult:b.basicDamageMult||1,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,characterAugmentLevels:b.characterAugmentLevels,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges,snackGauge:b.snackGauge||0,snackSpeedLeft:Math.max(0,(b.snackSpeedUntil||0)-this.runTimeMs),reviveProgress:b.reviveProgress||0,reviveNeedMs:b.reviveNeedMs||4800,deathCount:b.deathCount||0,invulnLeft:Math.max(0,(b.playerInvulnUntil||0)-this.runTimeMs)}:null;}
 
     milestoneChoicesForBuild(build){
       const picks=shuffle(MILESTONE_AUGMENTS).slice(0,3).map(x=>({...x,exclusive:false}));
@@ -1239,8 +1441,10 @@
       const list=kind==='base'?LEVEL_UPGRADES:kind==='major'?MAJOR_AUGMENTS:SKILLS;
       return shuffle(list).slice(0,3).map(x=>{
         const current=kind==='major'?(b?.majorLevels?.[x.id]||0):kind==='chest'?(b?.skillLevels?.[x.id]||0):null;
-        const desc=kind==='chest'?treasureSkillDescription(x.id,(current||0)+1):x.desc;
-        return {id:x.id,icon:x.icon,title:x.title,desc,level:current};
+        const next=(current||0)+1;
+        const desc=kind==='chest'?treasureSkillDescription(x.id,next):kind==='major'?majorAugmentDescription(x.id,next):x.desc;
+        const upgradeSummary=kind==='chest'?treasureSkillUpgradeSummary(x.id,next):kind==='major'?majorAugmentUpgradeSummary(x.id,next):null;
+        return {id:x.id,icon:x.icon,title:x.title,desc,level:current,upgradeSummary};
       });
     }
     showCoopWait(title='상대 플레이어 선택 대기 중',text='둘 다 선택하면 게임이 다시 시작돼.'){const w=document.querySelector('#coop-wait-screen'),t=document.querySelector('#coop-wait-title'),d=document.querySelector('#coop-wait-text');if(t)t.textContent=title;if(d)d.textContent=text;w?.classList.add('show');}
@@ -1415,7 +1619,7 @@
 
     getBuildHudItems(){
       const items=[];
-      if(this.shieldCharges>0)items.push({icon:'◈',name:'감시의 장막',level:this.shieldCharges,kind:'shield'});
+      if(this.shieldCharges>0)items.push({icon:'◉',name:'넥카라 철벽',level:this.shieldCharges,kind:'shield'});
       const counts=new Map();(this.augments||[]).forEach(name=>counts.set(name,(counts.get(name)||0)+1));
       counts.forEach((count,name)=>{const d=MILESTONE_AUGMENTS.find(a=>a.title===name);items.push({icon:d?.icon||'✦',name,level:count,kind:'special'});});
       CHARACTER_AUGMENTS.filter(a=>a.character===this.characterKey).forEach(a=>{const lv=this.characterAugmentLevels?.[a.id]||0;if(lv>0)items.push({icon:a.icon,name:a.title,level:lv,kind:'exclusive'});});
@@ -1782,6 +1986,7 @@
         e.destroy();
       });
       this.enemyProjectiles.clear(true, true);
+      this.clearRaidHazards();
       const cleanupXp=Math.max(0,Math.floor(rawXp*HEALING.cleanupXpRatio));
       if(cleanupXp>0){
         this.xp+=cleanupXp;
@@ -1993,6 +2198,271 @@
       return true;
     }
 
+
+    applyShrinkOnBasicHit(enemy, level) {
+      if (!enemy?.active || !level) return;
+      const st=treasureSkillStats('shrinkRay',level);
+      const owner=this.currentBuildId||this.localId||'solo';
+      enemy.shrinkHitsBy=enemy.shrinkHitsBy||{};
+      enemy.shrinkHitsBy[owner]=(enemy.shrinkHitsBy[owner]||0)+1;
+      if(enemy.shrinkHitsBy[owner] < st.hitsNeeded)return;
+      enemy.shrinkHitsBy[owner]=0;
+
+      const mark=this.add.image(enemy.x,enemy.y-24,'debuffPaw').setDepth(24).setScale(0.8).setAlpha(0.9);
+      this.tweens.add({targets:mark,y:mark.y-8,alpha:0,duration:520,onComplete:()=>mark.destroy()});
+      if(enemy.enemyRole==='raidBoss'){
+        enemy.slowUntil=Math.max(enemy.slowUntil||0,this.runTimeMs+Math.min(2200,st.duration*0.38));
+        enemy.slowMult=Math.min(enemy.slowMult||1,Math.max(0.92,st.slowMult));
+        if(level>=4){enemy.vulnerableUntil=this.runTimeMs+1800;enemy.vulnerableMult=Math.max(enemy.vulnerableMult||1,1.03+(level>=5?0.02:0));}
+        return;
+      }
+      const base=enemy.baseDisplayScale||enemy.scaleX||1;
+      enemy.setScale(Math.max(base*st.minScale,(enemy.scaleX||base)*st.stepScale));
+      enemy.contactDamageMult=Math.min(enemy.contactDamageMult||1,st.contactDamageMult);
+      enemy.shrinkUntil=this.runTimeMs+st.duration;
+      if(level>=3){enemy.slowUntil=Math.max(enemy.slowUntil||0,this.runTimeMs+st.duration);enemy.slowMult=Math.min(enemy.slowMult||1,st.slowMult);}
+      if(level>=4){enemy.vulnerableUntil=this.runTimeMs+st.duration;enemy.vulnerableMult=Math.max(enemy.vulnerableMult||1,st.vulnerableMult);}
+      if(level>=5&&st.spreadRadius>0){
+        this.enemies.getChildren().forEach(e=>{
+          if(!e.active||e===enemy||e.getData('dead')||e.enemyRole==='raidBoss')return;
+          if(Phaser.Math.Distance.Between(enemy.x,enemy.y,e.x,e.y)>st.spreadRadius)return;
+          e.slowUntil=Math.max(e.slowUntil||0,this.runTimeMs+1700);e.slowMult=Math.min(e.slowMult||1,0.91);
+          e.vulnerableUntil=this.runTimeMs+1500;e.vulnerableMult=Math.max(e.vulnerableMult||1,1.04);
+          const m=this.add.image(e.x,e.y-18,'debuffPaw').setDepth(23).setScale(0.55).setAlpha(0.65);
+          this.tweens.add({targets:m,alpha:0,y:m.y-5,duration:380,onComplete:()=>m.destroy()});
+        });
+      }
+    }
+
+    ensureSnackGaugeVisual() {
+      if(!(this.skillLevels?.juiceBox>0)||!this.player?.active)return;
+      if(!this.snackGaugeBack?.active){
+        this.snackGaugeBack=this.add.rectangle(this.player.x,this.player.y-34,34,5,0x201a1d,0.72).setDepth(22).setStrokeStyle(1,0xd8c08b,0.75);
+        this.snackGaugeFill=this.add.rectangle(this.player.x-16,this.player.y-34,0,3,0xf0b86c,0.95).setOrigin(0,0.5).setDepth(23);
+      }
+      const st=treasureSkillStats('juiceBox',this.skillLevels.juiceBox);
+      const ratio=Phaser.Math.Clamp((this.snackGauge||0)/Math.max(1,st.threshold),0,1);
+      this.snackGaugeBack.setPosition(this.player.x,this.player.y-34).setVisible(!this.playerDown);
+      this.snackGaugeFill.setPosition(this.player.x-16,this.player.y-34).setSize(32*ratio,3).setVisible(!this.playerDown);
+    }
+
+    chargeSnackOnHit(projectile, level) {
+      if(!level)return;
+      const st=treasureSkillStats('juiceBox',level);
+      const now=this.runTimeMs;
+      if(now>(this.juiceComboUntil||0))this.juiceComboHits=0;
+      const repeat=(this.juiceComboHits||0)>0;
+      this.snackGauge=(this.snackGauge||0)+(repeat?st.repeatFactor:1);
+      this.juiceComboHits=(this.juiceComboHits||0)+1;
+      this.juiceComboUntil=now+st.comboWindow;
+      this.ensureSnackGaugeVisual();
+      if(this.snackGauge+1e-6>=st.threshold&&now>=(this.snackProcReadyAt||0)){
+        this.snackGauge=Math.max(0,this.snackGauge-st.threshold);
+        this.snackProcReadyAt=now+260;
+        this.triggerSnackNibble(level,projectile?.x??this.player.x,projectile?.y??this.player.y);
+      }
+    }
+
+    triggerSnackNibble(level, sourceX, sourceY) {
+      const st=treasureSkillStats('juiceBox',level);
+      const count=Math.max(1,st.partyCount||1);
+      for(let i=0;i<count;i++){
+        const snack=this.add.image(sourceX+Phaser.Math.Between(-10,10),sourceY+Phaser.Math.Between(-8,8),'snackNibble').setDepth(26).setScale((st.snackScale||1)*(i?0.72:1)).setAlpha(0.95);
+        this.tweens.add({targets:snack,x:this.player.x+Phaser.Math.Between(-5,5),y:this.player.y-4+Phaser.Math.Between(-4,4),duration:230+i*45,ease:'Quad.easeIn',onComplete:()=>snack.destroy()});
+      }
+      this.heal(this.maxHp*st.healPct);
+      if(st.speedMult>1){this.snackSpeedMult=st.speedMult;this.snackSpeedUntil=Math.max(this.snackSpeedUntil||0,this.runTimeMs+st.speedDuration);}
+      if(level>=5){
+        const heart=this.add.text(this.player.x,this.player.y-38,'♥',{fontFamily:'monospace',fontSize:'15px',fontStyle:'bold',color:'#a8f0b7',stroke:'#24452e',strokeThickness:3}).setOrigin(.5).setDepth(28);
+        this.tweens.add({targets:heart,y:heart.y-16,alpha:0,duration:600,onComplete:()=>heart.destroy()});
+      }
+    }
+
+    spawnAutoFeeder(level) {
+      const st=treasureSkillStats('magicMissile',level);
+      (this.feeders||[]).forEach(f=>{if(f?.obj?.active)f.obj.destroy();});
+      this.feeders=[];
+      const a=(this.facingAngle||0)+Math.PI*.72;
+      const x=Phaser.Math.Clamp(this.player.x+Math.cos(a)*52,18,this.worldSize-18);
+      const y=Phaser.Math.Clamp(this.player.y+Math.sin(a)*42,18,this.worldSize-18);
+      const obj=this.add.image(x,y,'autoFeeder').setDepth(12).setScale(0.92+Math.min(5,level)*0.035);
+      const f={obj,x,y,level,ownerId:this.currentBuildId||this.localId||'solo',attackPower:this.attackPower,expire:this.runTimeMs+st.duration,nextShot:this.runTimeMs+220,frenzyAt:st.frenzy?this.runTimeMs+Math.max(1200,st.duration-1250):Infinity,frenzyDone:false};
+      this.feeders.push(f);
+      const pop=this.add.image(x,y,'shockwave').setDepth(11).setScale(.2).setAlpha(.55);
+      this.tweens.add({targets:pop,scale:0.75,alpha:0,duration:280,onComplete:()=>pop.destroy()});
+    }
+
+    fireFeederPellets(f, frenzy=false) {
+      const st=treasureSkillStats('magicMissile',f.level);
+      const count=frenzy?Math.max(8,8+Math.min(4,f.level)):st.shots;
+      if(frenzy){
+        for(let i=0;i<count;i++){
+          const angle=Math.PI*2*i/count+(this.runTimeMs%500)/500*.35;
+          this.spawnFeederPellet(f.obj.x,f.obj.y,angle,st,f);
+        }
+        return;
+      }
+      const target=this.nearestEnemy(f.obj.x,f.obj.y,780); if(!target)return;
+      const base=Phaser.Math.Angle.Between(f.obj.x,f.obj.y,target.x,target.y);
+      for(let i=0;i<count;i++)this.spawnFeederPellet(f.obj.x,f.obj.y,base+(i-(count-1)/2)*0.14,st,f);
+    }
+
+    spawnFeederPellet(x,y,angle,st,f) {
+      const p=this.projectiles.create(x,y,'kibblePellet').setDepth(13).setScale(st.pelletScale||1);
+      p.ownerId=f.ownerId;p.kind='feederPellet';p.damage=(f.attackPower||this.attackPower)*st.damageMult;p.hitSet=new Set();p.pierceLeft=st.pierce||0;
+      p.spawnAt=this.runTimeMs;p.lifeMs=2200;p.rotation=angle;this.physics.velocityFromRotation(angle,390,p.body.velocity);p.body.setCircle(3.2,2,1);
+    }
+
+    updateAutoFeeders() {
+      this.feeders=(this.feeders||[]).filter(f=>{
+        if(!f?.obj?.active||this.runTimeMs>=f.expire){if(f?.obj?.active)f.obj.destroy();return false;}
+        const st=treasureSkillStats('magicMissile',f.level);
+        if(this.runTimeMs>=f.nextShot){f.nextShot=this.runTimeMs+st.shotInterval;this.fireFeederPellets(f,false);}
+        if(st.frenzy&&!f.frenzyDone&&this.runTimeMs>=f.frenzyAt){f.frenzyDone=true;this.fireFeederPellets(f,true);this.time.delayedCall(170,()=>{if(f.obj?.active)this.fireFeederPellets(f,true);});}
+        return true;
+      });
+    }
+
+    onCollarBreak(level) {
+      const st=treasureSkillStats('veil',level);if(!st.breakRadius)return;
+      const ring=this.add.image(this.player.x,this.player.y,'shockwave').setDepth(20).setScale(.3).setAlpha(.75);
+      this.tweens.add({targets:ring,scale:st.breakRadius/28,alpha:0,duration:340,onComplete:()=>ring.destroy()});
+      this.enemies.getChildren().forEach(e=>{
+        if(!e.active||e.getData('dead')||Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y)>st.breakRadius)return;
+        this.damageEnemy(e,this.attackPower*st.breakDamageMult,'collarBreak');
+        if(st.push&&e.enemyRole!=='raidBoss'){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(a)*st.push;e.y+=Math.sin(a)*st.push;}
+      });
+      if(st.clearNormalBullets)this.enemyProjectiles.getChildren().forEach(b=>{if(b.active&&b.kind==='enemy'&&Phaser.Math.Distance.Between(this.player.x,this.player.y,b.x,b.y)<=st.breakRadius)b.destroy();});
+    }
+
+    castClawSwipe(level) {
+      const st=treasureSkillStats('sword',level),dirs=st.directions;
+      const angles=dirs===2?[-Math.PI/2,Math.PI/2]:dirs===4?[0,Math.PI/2,Math.PI,-Math.PI/2]:Array.from({length:8},(_,i)=>i*Math.PI/4);
+      const owner=this.currentBuildId||this.localId||'solo';
+      angles.forEach((a,i)=>{
+        const x=this.player.x+Math.cos(a)*st.reach*.55,y=this.player.y+Math.sin(a)*st.reach*.55;
+        const slash=this.add.image(x,y,'clawSlash').setDepth(18).setRotation(a).setScale(.72+Math.min(5,level)*.06).setAlpha(.92);
+        this.tweens.add({targets:slash,alpha:0,scaleX:slash.scaleX*1.18,duration:250,onComplete:()=>slash.destroy()});
+        this.enemies.getChildren().forEach(e=>{
+          if(!e.active||e.getData('dead'))return;
+          const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y);if(d>st.reach)return;
+          const ea=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
+          if(Math.abs(Phaser.Math.Angle.Wrap(ea-a))<0.36)this.damageEnemy(e,this.attackPower*st.damageMult,'clawSwipe');
+        });
+      });
+      if(st.clearNormalBullets){
+        this.enemyProjectiles.getChildren().forEach(b=>{if(b.active&&b.kind==='enemy'&&Phaser.Math.Distance.Between(this.player.x,this.player.y,b.x,b.y)<=st.reach+8)b.destroy();});
+      }
+      if(st.finisher){
+        this.time.delayedCall(160,()=>{
+          const ring=this.add.image(this.player.x,this.player.y,'shockwave').setDepth(17).setAlpha(.58).setScale(.35);
+          this.tweens.add({targets:ring,scale:(st.reach+24)/28,alpha:0,duration:300,onComplete:()=>ring.destroy()});
+          this.enemies.getChildren().forEach(e=>{if(e.active&&!e.getData('dead')&&Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y)<=st.reach+24)this.damageEnemy(e,this.attackPower*st.damageMult*.52,'clawFinisher');});
+        });
+      }
+      noise(.055,.025,1100);
+    }
+
+    rebuildLeashOrbiters(level=this.skillLevels?.hellConductor||0) {
+      (this.leashOrbiters||[]).forEach(o=>{if(o?.obj?.active)o.obj.destroy();});this.leashOrbiters=[];
+      if(!level)return;
+      const st=treasureSkillStats('hellConductor',level);
+      for(let i=0;i<st.count;i++){
+        const obj=this.add.image(this.player.x,this.player.y,'leashOrbit').setOrigin(0,.5).setDepth(13).setAlpha(.82);
+        this.leashOrbiters.push({obj,index:i,hitReady:new Map()});
+      }
+    }
+
+    distancePointToSegment(px,py,x1,y1,x2,y2) {
+      const vx=x2-x1,vy=y2-y1,wx=px-x1,wy=py-y1,den=vx*vx+vy*vy||1;
+      const t=Phaser.Math.Clamp((wx*vx+wy*vy)/den,0,1),x=x1+vx*t,y=y1+vy*t;
+      return Phaser.Math.Distance.Between(px,py,x,y);
+    }
+
+    updateLeashOrbiters(level) {
+      if(!level)return;
+      const st=treasureSkillStats('hellConductor',level);
+      if((this.leashOrbiters||[]).length!==st.count)this.rebuildLeashOrbiters(level);
+      this.leashOrbiters.forEach((o,i)=>{
+        if(!o.obj?.active)return;
+        const radius=(i===1&&st.outerRadius)?st.outerRadius:st.radius;
+        const a=this.runTimeMs*st.spin+(Math.PI*2*i/Math.max(1,st.count));
+        o.obj.setPosition(this.player.x,this.player.y).setRotation(a).setScale(radius/74,1);
+        const x2=this.player.x+Math.cos(a)*radius,y2=this.player.y+Math.sin(a)*radius;
+        this.enemies.getChildren().forEach(e=>{
+          if(!e.active||e.getData('dead'))return;
+          const key=this.entityNetId(e,'e'),ready=o.hitReady.get(key)||0;if(this.runTimeMs<ready)return;
+          if(this.distancePointToSegment(e.x,e.y,this.player.x,this.player.y,x2,y2)<=13){
+            o.hitReady.set(key,this.runTimeMs+330);this.damageEnemy(e,this.attackPower*st.damageMult,'leashOrbit');
+            if(st.knock&&e.enemyRole!=='raidBoss'){const pa=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(pa)*st.knock;e.y+=Math.sin(pa)*st.knock;}
+          }
+        });
+      });
+      if(st.bigSwingInterval){
+        this.skillTimers.hellConductor+=0; // timer is advanced in updateSkills
+      }
+    }
+
+    castLeashBigSwing(level) {
+      const st=treasureSkillStats('hellConductor',level),radius=Math.max(st.radius,st.outerRadius)+26;
+      const ring=this.add.image(this.player.x,this.player.y,'shockwave').setDepth(16).setScale(.45).setAlpha(.6);
+      this.tweens.add({targets:ring,scale:radius/28,alpha:0,duration:380,onComplete:()=>ring.destroy()});
+      this.enemies.getChildren().forEach(e=>{if(e.active&&!e.getData('dead')&&Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y)<=radius){this.damageEnemy(e,this.attackPower*st.damageMult*1.35,'leashSwing');if(e.enemyRole!=='raidBoss'){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(a)*18;e.y+=Math.sin(a)*18;}}});
+    }
+
+    spawnPawMine(x,y,level,side=0) {
+      const st=treasureSkillStats('bulletBarrage',level);
+      while((this.pawMines||[]).length>=st.maxMines){const old=this.pawMines.shift();if(old?.obj?.active)old.obj.destroy();}
+      const obj=this.add.image(x,y,'pawStamp').setDepth(5).setAlpha(.72).setRotation(side*.14);
+      this.pawMines.push({obj,x,y,level,ownerId:this.currentBuildId||this.localId||'solo',attackPower:this.attackPower,spawnAt:this.runTimeMs,expire:this.runTimeMs+st.lifeMs,triggered:false});
+    }
+
+    detonatePawMine(mine, chainDepth=0) {
+      if(this.coopMode&&this.networkRole==='host'&&mine?.ownerId&&this.currentBuildId!==mine.ownerId){const b=this.getBuild(mine.ownerId);if(b)return this.withBuild(b,()=>this.detonatePawMine(mine,chainDepth));}
+      if(!mine||mine.triggered)return;mine.triggered=true;
+      const st=treasureSkillStats('bulletBarrage',mine.level);
+      const blast=this.add.image(mine.x,mine.y,'pawBlast').setDepth(15).setScale(.25).setAlpha(.7);
+      this.tweens.add({targets:blast,scale:st.radius/27,alpha:0,duration:280,onComplete:()=>blast.destroy()});
+      this.enemies.getChildren().forEach(e=>{if(e.active&&!e.getData('dead')&&Phaser.Math.Distance.Between(mine.x,mine.y,e.x,e.y)<=st.radius)this.damageEnemy(e,(mine.attackPower||this.attackPower)*st.damageMult,'pawStamp');});
+      if(mine.obj?.active)mine.obj.destroy();
+      if(st.chain&&chainDepth<2){
+        const next=(this.pawMines||[]).find(m=>!m.triggered&&Phaser.Math.Distance.Between(mine.x,mine.y,m.x,m.y)<=st.radius*1.65);
+        if(next)this.time.delayedCall(90,()=>this.detonatePawMine(next,chainDepth+1));
+      }
+    }
+
+    updatePawMines(level,moving) {
+      if(!level)return;
+      const st=treasureSkillStats('bulletBarrage',level);
+      const px=this.player.x,py=this.player.y;
+      if(this.pawLastX==null){this.pawLastX=px;this.pawLastY=py;}
+      const moved=Phaser.Math.Distance.Between(px,py,this.pawLastX,this.pawLastY);this.pawLastX=px;this.pawLastY=py;
+      if(moving)this.pawDistanceAcc=(this.pawDistanceAcc||0)+moved;
+      while(this.pawDistanceAcc>=st.spacing){
+        this.pawDistanceAcc-=st.spacing;
+        const perp=(this.facingAngle||0)+Math.PI/2;
+        for(let i=0;i<st.spawnCount;i++){const offset=st.spawnCount===1?0:(i?10:-10);this.spawnPawMine(px+Math.cos(perp)*offset,py+Math.sin(perp)*offset,level,i?1:-1);}
+      }
+      this.pawMines=(this.pawMines||[]).filter(m=>{
+        if(m.triggered)return false;
+        if(this.runTimeMs>=m.expire){this.detonatePawMine(m);return false;}
+        const touched=this.enemies.getChildren().some(e=>e.active&&!e.getData('dead')&&Phaser.Math.Distance.Between(m.x,m.y,e.x,e.y)<=14);
+        if(touched){this.detonatePawMine(m);return false;}return !!m.obj?.active;
+      });
+      if(st.rapidBurst&&(this.pawMines||[]).length>=10&&this.runTimeMs>=(this.pawStampBurstReadyAt||0)){
+        this.pawStampBurstReadyAt=this.runTimeMs+4200;
+        (this.pawMines||[]).filter(m=>!m.triggered).slice(0,6).forEach((m,i)=>this.time.delayedCall(i*85,()=>this.detonatePawMine(m)));
+      }
+    }
+
+    playSkillUpgradeFx(id, level) {
+      const key=id.includes('magicMissile')?'autoFeeder':id.includes('shrinkRay')?'debuffPaw':id.includes('juiceBox')?'snackNibble':id.includes('veil')?'collarShield':id.includes('sword')?'clawSlash':id.includes('hellConductor')?'leashOrbit':id.includes('bulletBarrage')?'pawStamp':id.includes('poopOrbit')?'poopOrbit':id.includes('discThrow')?'disc':'shockwave';
+      const fx=this.add.image(this.player.x,this.player.y-8,key).setDepth(40).setAlpha(.9).setScale(.65);
+      this.tweens.add({targets:fx,y:fx.y-22,scale:1.15,alpha:0,duration:520,onComplete:()=>fx.destroy()});
+      const txt=this.add.text(this.player.x,this.player.y-42,`Lv.${level}`,{fontFamily:'monospace',fontSize:'10px',fontStyle:'bold',color:'#ffe6a0',stroke:'#352b28',strokeThickness:3}).setOrigin(.5).setDepth(41);
+      this.tweens.add({targets:txt,y:txt.y-12,alpha:0,duration:560,onComplete:()=>txt.destroy()});
+    }
+
     onProjectileHit(projectile, enemy) {
       if(this.coopMode&&this.networkRole==='host'&&projectile?.ownerId&&this.currentBuildId!==projectile.ownerId){const b=this.getBuild(projectile.ownerId);if(b)return this.withBuild(b,()=>this.onProjectileHit(projectile,enemy));}
       if (!projectile.active || !enemy.active || enemy.getData('dead')) return;
@@ -2001,52 +2471,27 @@
       this.damageEnemy(enemy, projectile.damage || this.attackPower, projectile.kind || 'basic');
 
       if (projectile.kind === 'disc') {
-        if (projectile.pierceLeft > 0) {
-          projectile.pierceLeft -= 1;
-          return;
-        }
-        projectile.destroy();
-        return;
+        if (projectile.pierceLeft > 0) { projectile.pierceLeft -= 1; return; }
+        if(projectile.boomerang&&!projectile.returning){projectile.returning=true;projectile.hitSet=new Set();return;}
+        projectile.destroy(); return;
+      }
+      if(projectile.kind==='feederPellet'){
+        if(projectile.pierceLeft>0){projectile.pierceLeft-=1;return;}
+        projectile.destroy();return;
       }
 
       if (projectile.kind === 'basic') {
-        const shrinkLv=this.skillLevels.shrinkRay||0;
-        if (shrinkLv && enemy.enemyRole !== 'raidBoss') {
-          const st=treasureSkillStats('shrinkRay',shrinkLv);
-          const nextScale = Math.max(enemy.baseDisplayScale * st.minScale, enemy.scaleX * st.stepScale);
-          enemy.setScale(nextScale);
-          enemy.contactDamageMult = st.contactDamageMult;
-          enemy.shrinkUntil = this.runTimeMs + st.duration;
-        }
-        const juiceLv=this.skillLevels.juiceBox||0;
-        if (juiceLv) {
-          const st=treasureSkillStats('juiceBox',juiceLv);
-          if(this.runTimeMs>(this.juiceComboUntil||0))this.juiceComboHits=0;
-          const repeat=(this.juiceComboHits||0)>0;
-          this.heal(this.maxHp * st.healPct * (repeat?st.repeatFactor:1));
-          this.juiceComboHits=(this.juiceComboHits||0)+1;
-          this.juiceComboUntil=this.runTimeMs+st.comboWindow;
-        }
+        const shrinkLv=this.skillLevels.shrinkRay||0;if(shrinkLv)this.applyShrinkOnBasicHit(enemy,shrinkLv);
+        const snackLv=this.skillLevels.juiceBox||0;if(snackLv)this.chargeSnackOnHit(projectile,snackLv);
         const vocalLv=this.characterAugmentLevels?.vocalBurst||0;
-        if(this.characterKey==='jjigae'&&vocalLv>0){
-          const chance=Math.min(0.35,0.15+(vocalLv-1)*0.05);
-          if(Math.random()<chance)this.explodeAt(enemy.x,enemy.y,projectile.damage*(0.34+vocalLv*0.04),52+vocalLv*5,enemy);
-        }
+        if(this.characterKey==='jjigae'&&vocalLv>0){const chance=Math.min(0.35,0.15+(vocalLv-1)*0.05);if(Math.random()<chance)this.explodeAt(enemy.x,enemy.y,projectile.damage*(0.34+vocalLv*0.04),52+vocalLv*5,enemy);}
         const stickyLv=this.characterAugmentLevels?.stickySnot||0;
-        if(this.characterKey==='mandu'&&stickyLv>0){
-          enemy.slowUntil=Math.max(enemy.slowUntil||0,this.runTimeMs+1200+stickyLv*180);
-          enemy.slowMult=Math.min(enemy.slowMult||1,Math.max(0.68,0.86-stickyLv*0.04));
-        }
+        if(this.characterKey==='mandu'&&stickyLv>0){enemy.slowUntil=Math.max(enemy.slowUntil||0,this.runTimeMs+1200+stickyLv*180);enemy.slowMult=Math.min(enemy.slowMult||1,Math.max(0.68,0.86-stickyLv*0.04));}
         if (this.basicExplosion > 0) this.explodeAt(enemy.x, enemy.y, this.attackPower * (0.55 + this.basicExplosion * 0.10), 78 + this.basicExplosion * 8, enemy);
-
-        if (projectile.pierceLeft > 0) {
-          projectile.pierceLeft -= 1;
-          return;
-        }
+        if (projectile.pierceLeft > 0) { projectile.pierceLeft -= 1; return; }
         if (this.ricochetProjectile(projectile, enemy)) return;
       }
-
-      if (projectile.kind !== 'magicMissilePierce') projectile.destroy();
+      projectile.destroy();
     }
 
     onSkillHit(hitbox, enemy) {
@@ -2101,6 +2546,7 @@
       this.destroyEnemyDecorations(enemy);
       this.cameras.main.shake(role === 'raidBoss' ? 520 : role === 'boss' ? 280 : role === 'elite' ? 120 : 55, role === 'raidBoss' ? 0.015 : role === 'boss' ? 0.007 : role === 'elite' ? 0.003 : 0.0015);
       if (role === 'raidBoss') {
+        this.clearRaidHazards();
         this.raidBossActive = false;
         this.raidBossTransition = false;
         this.lastTrueBossEndedAt = this.runTimeMs;
@@ -2290,7 +2736,7 @@
       picks.forEach(a => {
         const b = document.createElement('button');
         const current = this.majorLevels[a.id] || 0;
-        decorateChoiceButton(b,{...a,level:current},'major');
+        decorateChoiceButton(b,{...a,level:current,desc:majorAugmentDescription(a.id,current+1),upgradeSummary:majorAugmentUpgradeSummary(a.id,current+1)},'major');
         b.onclick = () => {
           this.applyMajorAugment(a.id);
           screen.classList.remove('show');
@@ -2349,111 +2795,92 @@
     applyMajorAugment(id) {
       const data = MAJOR_AUGMENTS.find(a => a.id === id);
       this.majorLevels[id] = (this.majorLevels[id] || 0) + 1;
+      const lv=this.majorLevels[id];
       if (id === 'poopOrbit') this.rebuildPoopOrbiters();
-      if (data) this.showBanner(`${data.title} Lv.${this.majorLevels[id]}`, `Lv.${this.level} 10레벨 증강`);
+      this.playSkillUpgradeFx(`major:${id}`,lv);
+      if (data) this.showBanner(`${data.title} Lv.${lv}`, majorAugmentUpgradeSummary(id,lv));
       this.updateHud();
     }
 
     rebuildPoopOrbiters() {
       (this.poopOrbiters || []).forEach(o => { if (o?.active) o.destroy(); });
       this.poopOrbiters = [];
-      const count = this.majorLevels.poopOrbit || 0;
-      for (let i = 0; i < count; i++) {
-        const o = this.add.image(this.player.x, this.player.y, 'poopOrbit').setDepth(14).setScale(1.42);
-        this.poopOrbiters.push(o);
+      const level=this.majorLevels.poopOrbit||0,count=Math.min(5,level);
+      for(let i=0;i<count;i++){
+        const scale=1.34+Math.min(5,level)*0.055;
+        const o=this.add.image(this.player.x,this.player.y,'poopOrbit').setDepth(14).setScale(scale);
+        o.orbitBand=i%2;this.poopOrbiters.push(o);
       }
     }
 
     castDisc(level) {
-      const dirs = [this.facingAngle || 0, -Math.PI / 2, Math.PI / 2];
-      const angle = dirs[this.discDirectionIndex % dirs.length];
-      this.discDirectionIndex += 1;
-      const p = this.projectiles.create(this.player.x, this.player.y, 'disc').setDepth(14);
-      p.ownerId = this.currentBuildId || this.localId || 'solo';
-      p.kind = 'disc';
-      p.damage = this.attackPower * (1.95 + Math.min(2, level - 1) * 0.60);
-      p.pierceLeft = Math.max(0, level - 3);
-      p.hitSet = new Set();
-      p.spawnAt = this.runTimeMs; p.lifeMs = 2600;
-      p.setRotation(angle);
-      this.physics.velocityFromRotation(angle, 425 + Math.min(120, level * 14), p.body.velocity);
-      noise(0.045, 0.025, 900); tone(260, 0.05, 'triangle', 0.018, 180);
+      const dirs=[this.facingAngle||0,-Math.PI/2,Math.PI/2],angle=dirs[this.discDirectionIndex%dirs.length];this.discDirectionIndex+=1;
+      const p=this.projectiles.create(this.player.x,this.player.y,'disc').setDepth(14).setScale(0.88+Math.min(5,level)*0.075);
+      p.ownerId=this.currentBuildId||this.localId||'solo';p.kind='disc';p.damage=this.attackPower*(1.95+Math.min(4,level-1)*0.46);
+      p.pierceLeft=Math.max(0,level-3);p.hitSet=new Set();p.spawnAt=this.runTimeMs;p.lifeMs=level>=5?3300:2600;p.boomerang=level>=5;p.returning=false;p.outboundUntil=this.runTimeMs+720;
+      p.setRotation(angle);this.physics.velocityFromRotation(angle,425+Math.min(120,level*14),p.body.velocity);
+      noise(.045,.025,900);tone(260,.05,'triangle',.018,180);
     }
 
     castBarkRoar(level) {
-      const radius = 170 + (level - 1) * 40;
-      const damage = this.attackPower * (0.92 + level * 0.12);
-      const ring = this.add.image(this.player.x, this.player.y, 'shockwave').setDepth(16).setScale(0.35).setAlpha(0.9);
-      this.tweens.add({ targets: ring, scale: radius / 28, alpha: 0, duration: 420, onComplete: () => ring.destroy() });
-      this.enemies.getChildren().forEach(e => {
-        if (!e.active || e.getData('dead')) return;
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
-        if (d > radius) return;
-        this.damageEnemy(e, damage, 'barkRoar');
-        if (e.enemyRole !== 'raidBoss') {
-          const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
-          const push = e.enemyRole === 'boss' ? 5 : e.enemyRole === 'elite' ? 9 : 14;
-          e.x += Math.cos(a) * push; e.y += Math.sin(a) * push;
-        }
-      });
-      noise(0.12, 0.055, 420); tone(115, 0.15, 'sawtooth', 0.035, 75);
+      const pulse=(scaleMul=1,damageMul=1,alpha=.9)=>{
+        const radius=(170+(level-1)*40)*scaleMul,damage=this.attackPower*(0.92+level*.12)*damageMul;
+        const ring=this.add.image(this.player.x,this.player.y,'shockwave').setDepth(16).setScale(.35).setAlpha(alpha);
+        ring.setDisplaySize(Math.max(56,12+level*9),Math.max(56,12+level*9));
+        this.tweens.add({targets:ring,scale:radius/28,alpha:0,duration:420,onComplete:()=>ring.destroy()});
+        this.enemies.getChildren().forEach(e=>{if(!e.active||e.getData('dead'))return;const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y);if(d>radius)return;this.damageEnemy(e,damage,'barkRoar');if(e.enemyRole!=='raidBoss'){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);const push=e.enemyRole==='boss'?5:e.enemyRole==='elite'?9:14;e.x+=Math.cos(a)*push;e.y+=Math.sin(a)*push;}});
+      };
+      const ownerId=this.currentBuildId||this.localId||'solo',later=(delay,fn)=>this.time.delayedCall(delay,()=>{if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,fn);else fn();});
+      pulse(1,1,.9);
+      if(level>=3)later(150,()=>pulse(.78,.46,.58));
+      if(level>=5)later(310,()=>pulse(1.10,.42,.48));
+      noise(.12,.055,420);tone(115,.15,'sawtooth',.035,75);
     }
 
-    spawnGasCloud(level) {
-      const radius = 44 + Math.min(30, level * 5);
-      const obj = this.add.circle(this.player.x, this.player.y + 8, radius, 0xe7d84d, 0.10).setStrokeStyle(2, 0xbda934, 0.22).setDepth(3);
-      this.gasClouds.push({ obj, x:this.player.x, y:this.player.y + 8, radius, level, expire:this.runTimeMs + 4500 + level * 300, nextTick:this.runTimeMs });
-      this.tweens.add({ targets: obj, alpha: 0.04, scale: 1.18, duration: 3200 + level * 220 });
+    spawnGasCloud(level, offsetX=0, offsetY=0, small=false) {
+      const radius=(44+Math.min(34,level*6))*(small?.62:1),x=this.player.x+offsetX,y=this.player.y+8+offsetY;
+      const obj=this.add.circle(x,y,radius,0xe7d84d,small?.065:.10).setStrokeStyle(2,0xbda934,small?.14:.22).setDepth(3);
+      this.gasClouds.push({obj,x,y,radius,level,expire:this.runTimeMs+4500+level*380,nextTick:this.runTimeMs,small});
+      while(this.gasClouds.length>18){const old=this.gasClouds.shift();if(old?.obj?.active)old.obj.destroy();}
+      this.tweens.add({targets:obj,alpha:small?.025:.04,scale:1.18,duration:3200+level*220});
+      if(level>=4&&!small){this.gasSpawnSeq=(this.gasSpawnSeq||0)+1;if(this.gasSpawnSeq%(level>=5?2:3)===0){const a=(this.facingAngle||0)+Math.PI/2*(this.gasSpawnSeq%2?1:-1);this.spawnGasCloud(level,Math.cos(a)*36,Math.sin(a)*36,true);}}
     }
 
-    castYawnWave(level) {
-      const range = 230 + (level - 1) * 26;
-      const halfAngle = 0.57 + Math.min(0.26, (level - 1) * 0.040);
-      const damage = this.attackPower * (0.50 + level * 0.055);
-      const spread = Math.tan(halfAngle) * range;
-      const tri = this.add.triangle(this.player.x, this.player.y, 0, 0, range, -spread, range, spread, 0xaee9ff, 0.12).setOrigin(0, 0.5).setRotation(this.facingAngle || 0).setDepth(6);
-      this.tweens.add({ targets: tri, alpha: 0, scaleX: 1.08, duration: 420, onComplete: () => tri.destroy() });
-      this.enemies.getChildren().forEach(e => {
-        if (!e.active || e.getData('dead')) return;
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
-        if (d > range) return;
-        const a = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
-        if (Math.abs(Phaser.Math.Angle.Wrap(a - (this.facingAngle || 0))) > halfAngle) return;
-        this.damageEnemy(e, damage, 'yawnWave');
-        e.slowUntil = this.runTimeMs + 3000 + level * 150;
-        e.slowMult = Math.max(0.42, 0.63 - level * 0.028);
-      });
-      noise(0.10, 0.025, 350); tone(165, 0.18, 'sine', 0.025, 95);
+    castYawnWave(level, echo=false) {
+      const range=230+(level-1)*26+(echo?18:0),halfAngle=.57+Math.min(.30,(level-1)*.045),damage=this.attackPower*(.50+level*.055)*(echo?.55:1),spread=Math.tan(halfAngle)*range;
+      const tri=this.add.triangle(this.player.x,this.player.y,0,0,range,-spread,range,spread,0xaee9ff,echo?.075:.12).setOrigin(0,.5).setRotation(this.facingAngle||0).setDepth(6);
+      this.tweens.add({targets:tri,alpha:0,scaleX:1.08,duration:420,onComplete:()=>tri.destroy()});
+      this.enemies.getChildren().forEach(e=>{if(!e.active||e.getData('dead'))return;const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y);if(d>range)return;const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);if(Math.abs(Phaser.Math.Angle.Wrap(a-(this.facingAngle||0)))>halfAngle)return;this.damageEnemy(e,damage,'yawnWave');e.slowUntil=this.runTimeMs+3000+level*170;e.slowMult=Math.max(.40,.63-level*.03);});
+      if(level>=5&&!echo){const ownerId=this.currentBuildId||this.localId||'solo';this.time.delayedCall(260,()=>{if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,()=>this.castYawnWave(level,true));else this.castYawnWave(level,true);});}
+      if(!echo){noise(.10,.025,350);tone(165,.18,'sine',.025,95);}
     }
 
-    spawnTerritoryZone(level) {
-      const radius = 80 + Math.min(36, level * 6);
-      const obj = this.add.circle(this.player.x, this.player.y + 7, radius, 0xe8ce48, 0.13).setStrokeStyle(3, 0xd4aa38, 0.42).setDepth(2);
-      this.territoryZones.push({ obj, x:this.player.x, y:this.player.y + 7, radius, level, expire:this.runTimeMs + 2700 + level * 320, nextTick:this.runTimeMs });
-      this.tweens.add({ targets: obj, alpha: { from:0.18, to:0.08 }, duration:700, yoyo:true, repeat:-1 });
+    spawnTerritoryZone(level, x=null, y=null, expanded=false) {
+      const px=x??this.player.x,py=y??(this.player.y+7),radius=(80+Math.min(42,level*7))*(expanded?1.23:1);
+      const obj=this.add.circle(px,py,radius,0xe8ce48,expanded?.075:.13).setStrokeStyle(3,0xd4aa38,expanded?.28:.42).setDepth(2);
+      this.territoryZones.push({obj,x:px,y:py,radius,level,expire:this.runTimeMs+2700+level*320,nextTick:this.runTimeMs});
+      while(this.territoryZones.length>7){const old=this.territoryZones.shift();if(old?.obj?.active)old.obj.destroy();}
+      this.tweens.add({targets:obj,alpha:{from:expanded?.11:.18,to:expanded?.05:.08},duration:700,yoyo:true,repeat:-1});
+      if(!expanded){
+        const ownerId=this.currentBuildId||this.localId||'solo',later=(delay,fn)=>this.time.delayedCall(delay,()=>{if(this.isGameOver)return;if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,fn);else fn();});
+        if(level>=3){const a=this.facingAngle||0;later(90,()=>this.spawnTerritoryZone(level,px+Math.cos(a)*92,py+Math.sin(a)*92,true));if(level>=5)later(150,()=>this.spawnTerritoryZone(level,px+Math.cos(a+2.25)*84,py+Math.sin(a+2.25)*84,true));}
+        if(level>=4)later(900,()=>this.spawnTerritoryZone(level,px,py,true));
+      }
     }
 
     dropSqueakyToy(level) {
-      const view = this.cameras.main.worldView;
-      const candidates = this.enemies.getChildren().filter(e => e.active && !e.getData('dead') && view.contains(e.x, e.y));
-      const target = candidates.length ? Phaser.Utils.Array.GetRandom(candidates) : this.nearestEnemy();
-      if (!target) return;
-      const ownerId=this.currentBuildId||this.localId||'solo';
-      const attackAtCast=this.attackPower;
-      const toy = this.add.image(target.x, target.y - 105, 'squeakyToy').setDepth(30).setScale(1.05);
-      const tx = target.x, ty = target.y;
-      this.tweens.add({ targets: toy, y:ty, angle:Phaser.Math.Between(-35,35), duration:430, ease:'Quad.easeIn', onComplete:() => {
-        const hit=()=>{
-          if (target.active && !target.getData('dead')) {
-            this.damageEnemy(target, attackAtCast * (2.15 + level * 0.32), 'squeakyToy');
-            target.stunUntil = this.runTimeMs + 320 + level * 35;
-            this.explodeAt(tx, ty, attackAtCast * (0.36 + level * 0.05), 36 + level * 2, target);
-          }
-        };
-        if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,hit);else hit();
-        noise(0.07,0.04,650); tone(420,0.06,'square',0.025,250);
-        toy.destroy();
-      }});
+      const view=this.cameras.main.worldView,candidates=this.enemies.getChildren().filter(e=>e.active&&!e.getData('dead')&&view.contains(e.x,e.y)),target=candidates.length?Phaser.Utils.Array.GetRandom(candidates):this.nearestEnemy();if(!target)return;
+      const ownerId=this.currentBuildId||this.localId||'solo',attackAtCast=this.attackPower;
+      const dropAt=(t,second=false)=>{
+        if(!t?.active||t.getData('dead'))return;
+        const tx=t.x,ty=t.y,toy=this.add.image(tx,ty-105,'squeakyToy').setDepth(30).setScale(1.02+Math.min(5,level)*.045);
+        this.tweens.add({targets:toy,y:ty,angle:Phaser.Math.Between(-35,35),duration:second?300:430,ease:'Quad.easeIn',onComplete:()=>{
+          const hit=()=>{if(t.active&&!t.getData('dead')){this.damageEnemy(t,attackAtCast*(2.15+level*.32)*(second?.62:1),'squeakyToy');t.stunUntil=this.runTimeMs+320+level*35;this.explodeAt(tx,ty,attackAtCast*(.36+level*.05)*(second?.65:1),36+level*4,t);if(level>=5&&!second){for(let i=0;i<3;i++){const a=i*Math.PI*2/3;const p=this.projectiles.create(tx,ty,'squeakyToy').setDepth(15).setScale(.45);p.ownerId=ownerId;p.kind='toyFragment';p.damage=attackAtCast*.32;p.hitSet=new Set();p.spawnAt=this.runTimeMs;p.lifeMs=900;this.physics.velocityFromRotation(a,250,p.body.velocity);}}}};
+          if(this.coopMode&&this.networkRole==='host'&&this.getBuild(ownerId))this.withBuild(ownerId,hit);else hit();
+          toy.destroy();
+          if(level>=3&&!second){const next=this.nearestEnemy(tx,ty,520);if(next&&next!==t)this.time.delayedCall(120,()=>dropAt(next,true));}
+        }});
+      };dropAt(target,false);noise(.07,.04,650);tone(420,.06,'square',.025,250);
     }
 
     updatePersistentMajorZones() {
@@ -2487,56 +2914,20 @@
     }
 
     updateMajorAugments(delta, moving) {
-      const lv = this.majorLevels || {};
-      if (lv.poopOrbit) {
-        if (this.poopOrbiters.length !== lv.poopOrbit) this.rebuildPoopOrbiters();
-        const count = this.poopOrbiters.length;
-        const radius = 82 + Math.min(32, lv.poopOrbit * 5);
-        this.poopOrbiters.forEach((o,i) => {
-          const a = this.runTimeMs * 0.0032 + (Math.PI * 2 * i) / count;
-          o.setPosition(this.player.x + Math.cos(a) * radius, this.player.y + Math.sin(a) * radius);
-          this.enemies.getChildren().forEach(e => {
-            const poopOwner=this.currentBuildId||'solo';
-            e.poopHitReadyBy=e.poopHitReadyBy||{};
-            if (!e.active || e.getData('dead') || this.runTimeMs < (e.poopHitReadyBy[poopOwner] || 0)) return;
-            if (Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y) <= 32) {
-              e.poopHitReadyBy[poopOwner] = this.runTimeMs + 380;
-              this.damageEnemy(e, this.attackPower * (0.40 + lv.poopOrbit * 0.060), 'poopOrbit');
-              if (e.enemyRole !== 'raidBoss') {
-                const pa = Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
-                e.x += Math.cos(pa) * 14; e.y += Math.sin(pa) * 14;
-              }
-            }
-          });
+      const lv=this.majorLevels||{};
+      if(lv.poopOrbit){
+        const count=Math.min(5,lv.poopOrbit);if((this.poopOrbiters||[]).length!==count)this.rebuildPoopOrbiters();
+        this.poopOrbiters.forEach((o,i)=>{const band=o.orbitBand||0,radius=78+Math.min(36,lv.poopOrbit*5)+band*18,a=this.runTimeMs*(.0031+band*.00045)+(Math.PI*2*i/Math.max(1,count));o.setPosition(this.player.x+Math.cos(a)*radius,this.player.y+Math.sin(a)*radius);
+          this.enemies.getChildren().forEach(e=>{const owner=this.currentBuildId||'solo';e.poopHitReadyBy=e.poopHitReadyBy||{};if(!e.active||e.getData('dead')||this.runTimeMs<(e.poopHitReadyBy[owner]||0))return;if(Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y)<=31){e.poopHitReadyBy[owner]=this.runTimeMs+380;this.damageEnemy(e,this.attackPower*(.40+lv.poopOrbit*.060),'poopOrbit');if(e.enemyRole!=='raidBoss'){const pa=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(pa)*14;e.y+=Math.sin(pa)*14;}}});
         });
+        if(lv.poopOrbit>=5){this.majorTimers.poopOrbit+=delta;if(this.majorTimers.poopOrbit>=3200){this.majorTimers.poopOrbit=0;const t=this.nearestEnemy();if(t){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,t.x,t.y),p=this.projectiles.create(this.player.x,this.player.y,'poopOrbit').setDepth(14).setScale(.8);p.ownerId=this.currentBuildId||'solo';p.kind='poopToss';p.damage=this.attackPower*.72;p.hitSet=new Set();p.spawnAt=this.runTimeMs;p.lifeMs=1300;this.physics.velocityFromRotation(a,360,p.body.velocity);}}}
       }
-      if (lv.discThrow) {
-        this.majorTimers.discThrow += delta;
-        const interval = Math.max(1550, 2800 - (lv.discThrow - 1) * 200);
-        if (this.majorTimers.discThrow >= interval) { this.majorTimers.discThrow = 0; this.castDisc(lv.discThrow); }
-      }
-      if (lv.barkRoar) {
-        this.majorTimers.barkRoar += delta;
-        if (this.majorTimers.barkRoar >= 5000) { this.majorTimers.barkRoar = 0; this.castBarkRoar(lv.barkRoar); }
-      }
-      if (lv.yellowGas && moving) {
-        this.majorTimers.yellowGas += delta;
-        const interval = Math.max(450, 780 - lv.yellowGas * 45);
-        if (this.majorTimers.yellowGas >= interval) { this.majorTimers.yellowGas = 0; this.spawnGasCloud(lv.yellowGas); }
-      }
-      if (lv.yawnWave) {
-        this.majorTimers.yawnWave += delta;
-        if (this.majorTimers.yawnWave >= 4600) { this.majorTimers.yawnWave = 0; this.castYawnWave(lv.yawnWave); }
-      }
-      if (lv.territoryMark) {
-        this.majorTimers.territoryMark += delta;
-        if (this.majorTimers.territoryMark >= 5300) { this.majorTimers.territoryMark = 0; this.spawnTerritoryZone(lv.territoryMark); }
-      }
-      if (lv.squeakyToy) {
-        this.majorTimers.squeakyToy += delta;
-        const interval = Math.max(2200, 4100 - (lv.squeakyToy - 1) * 200);
-        if (this.majorTimers.squeakyToy >= interval) { this.majorTimers.squeakyToy = 0; this.dropSqueakyToy(lv.squeakyToy); }
-      }
+      if(lv.discThrow){this.majorTimers.discThrow+=delta;const interval=Math.max(1550,2800-(lv.discThrow-1)*200);if(this.majorTimers.discThrow>=interval){this.majorTimers.discThrow=0;this.castDisc(lv.discThrow);}}
+      if(lv.barkRoar){this.majorTimers.barkRoar+=delta;if(this.majorTimers.barkRoar>=5000){this.majorTimers.barkRoar=0;this.castBarkRoar(lv.barkRoar);}}
+      if(lv.yellowGas&&moving){this.majorTimers.yellowGas+=delta;const interval=Math.max(450,780-lv.yellowGas*45);if(this.majorTimers.yellowGas>=interval){this.majorTimers.yellowGas=0;this.spawnGasCloud(lv.yellowGas);}}
+      if(lv.yawnWave){this.majorTimers.yawnWave+=delta;if(this.majorTimers.yawnWave>=4600){this.majorTimers.yawnWave=0;this.castYawnWave(lv.yawnWave);}}
+      if(lv.territoryMark){this.majorTimers.territoryMark+=delta;if(this.majorTimers.territoryMark>=5300){this.majorTimers.territoryMark=0;this.spawnTerritoryZone(lv.territoryMark);}}
+      if(lv.squeakyToy){this.majorTimers.squeakyToy+=delta;const interval=Math.max(2200,4100-(lv.squeakyToy-1)*200);if(this.majorTimers.squeakyToy>=interval){this.majorTimers.squeakyToy=0;this.dropSqueakyToy(lv.squeakyToy);}}
       this.updatePersistentMajorZones();
     }
 
@@ -2551,7 +2942,7 @@
       picks.forEach(s => {
         const level = this.skillLevels[s.id] || 0;
         const b = document.createElement('button');
-        decorateChoiceButton(b,{...s,desc:treasureSkillDescription(s.id,level+1),level},'chest');
+        decorateChoiceButton(b,{...s,desc:treasureSkillDescription(s.id,level+1),level,upgradeSummary:treasureSkillUpgradeSummary(s.id,level+1)},'chest');
         b.onclick = () => {
           this.acquireSkill(s.id);
           screen.classList.remove('show');
@@ -2565,8 +2956,16 @@
 
     acquireSkill(id) {
       this.skillLevels[id] = (this.skillLevels[id] || 0) + 1;
-      if (id === 'veil' && this.shieldCharges <= 0) this.shieldCharges = 1;
-      this.showBanner(SKILLS.find(s => s.id === id)?.title || '스킬 획득!', `Lv.${this.skillLevels[id]}`);
+      const level=this.skillLevels[id];
+      if (id === 'veil') {
+        const st=treasureSkillStats('veil',level);
+        this.shieldCharges=Math.min(st.maxCharges,Math.max(1,this.shieldCharges));
+      }
+      if(id==='magicMissile'){this.skillTimers.magicMissile=0;this.spawnAutoFeeder(level);}
+      if(id==='hellConductor')this.rebuildLeashOrbiters(level);
+      if(id==='bulletBarrage'){this.pawLastX=this.player?.x??null;this.pawLastY=this.player?.y??null;this.pawDistanceAcc=0;}
+      this.playSkillUpgradeFx(id,level);
+      this.showBanner(SKILLS.find(s => s.id === id)?.title || '스킬 획득!', `Lv.${level} · ${treasureSkillUpgradeSummary(id,level)}`);
       this.updateHud();
     }
 
@@ -2586,7 +2985,10 @@
       if (this.isGameOver || this.playerDown || this.runTimeMs < this.playerInvulnUntil) return false;
       this.playerInvulnUntil = this.runTimeMs + invulnMs;
       if (this.shieldCharges > 0) {
-        this.shieldCharges -= 1; this.showBanner('장막 방어!', '공격 1회 무효');
+        const lv=this.skillLevels?.veil||1;
+        this.shieldCharges -= 1; this.showBanner('넥카라 철벽!', '공격 1회 무효');
+        this.onCollarBreak(lv);
+        this.updateShieldVisual();
         if(!this.coopMode||this.currentBuildId===this.localId)this.cameras.main.flash(90,130,210,255); this.updateHud(); return false;
       }
       const dmg = amount * (this.playerDamageMult || 1); this.hp -= dmg;
@@ -2606,8 +3008,11 @@
       this.reviveNeedMs=Math.min(6750,4800+Math.max(0,this.deathCount-1)*650);
       this.player.setAlpha(0.38);
       if(this.player.body){this.player.body.setVelocity(0,0);this.player.body.enable=false;}
-      (this.poopOrbiters||[]).forEach(o=>{if(o?.active)o.destroy();});
-      this.poopOrbiters=[];
+      (this.poopOrbiters||[]).forEach(o=>{if(o?.active)o.destroy();});this.poopOrbiters=[];
+      (this.feeders||[]).forEach(f=>f?.obj?.destroy?.());this.feeders=[];
+      (this.leashOrbiters||[]).forEach(o=>o?.obj?.destroy?.());this.leashOrbiters=[];
+      (this.pawMines||[]).forEach(m=>m?.obj?.destroy?.());this.pawMines=[];this.pawDistanceAcc=0;this.pawLastX=null;this.pawLastY=null;
+      this.snackGaugeBack?.setVisible?.(false);this.snackGaugeFill?.setVisible?.(false);
       if(this.shieldVisual?.active)this.shieldVisual.setVisible(false);
       const b=this.getBuild(this.currentBuildId);
       if(b){b.down=true;b.hp=0;b.deathCount=this.deathCount;b.reviveProgress=0;b.reviveNeedMs=this.reviveNeedMs;}
@@ -2644,7 +3049,7 @@
       build.down=false;build.hp=Math.max(1,build.maxHp*0.50);build.reviveProgress=0;build.playerInvulnUntil=this.runTimeMs+2000;
       build.sprite.setAlpha(1);if(build.sprite.body){build.sprite.body.enable=true;build.sprite.body.setVelocity(0,0);}
       build.shadow?.setAlpha(0.20);this.clearReviveUi(build);this.updateBuildPresentation(build);this.playHealFx(build.sprite);
-      if((build.majorLevels?.poopOrbit||0)>0)this.withBuild(build,()=>this.rebuildPoopOrbiters());
+      this.withBuild(build,()=>{if((this.majorLevels?.poopOrbit||0)>0)this.rebuildPoopOrbiters();if((this.skillLevels?.hellConductor||0)>0)this.rebuildLeashOrbiters(this.skillLevels.hellConductor);const reviveSprite=this.player||build.sprite;this.pawLastX=reviveSprite?.x??null;this.pawLastY=reviveSprite?.y??null;});
       this.tweens.add({targets:build.sprite,alpha:{from:0.45,to:1},duration:170,yoyo:true,repeat:5,onComplete:()=>{if(build.sprite?.active)build.sprite.setAlpha(1);}});
       this.showBanner(`${build.charData?.name||'동료'} 부활!`,build.deathCount>1?`HP 50% · 2초 무적 · 다음 구조 ${Math.round((build.reviveNeedMs||4800)/100)/10}초`:'HP 50% · 2초 무적');
     }
@@ -2676,21 +3081,20 @@
       const hit=this.applyPlayerDamage(bullet.damage||10,bullet.x,bullet.y,bullet.strong?250:180);if(hit||this.shieldCharges>=0)bullet.destroy();
     }
 
-    spawnEnemyBullet(x, y, angle, speed, damage, kind = 'enemy', lifeMs = 4200) {
-      const texture = kind === 'raid' ? 'raidBullet' : kind === 'boss' ? 'bossBullet' : 'enemyBullet';
-      const b = this.enemyProjectiles.create(x, y, texture).setDepth(kind === 'raid' ? 29 : kind === 'boss' ? 28 : 27);
-      b.damage = damage;
-      b.kind = kind;
-      b.strong = kind === 'boss' || kind === 'raid';
-      b.spawnAt = this.runTimeMs;
-      b.lifeMs = lifeMs;
-      b.setRotation(angle);
-      this.physics.velocityFromRotation(angle, speed, b.body.velocity);
+    spawnEnemyBullet(x,y,angle,speed,damage,kind='enemy',lifeMs=4200,visualType=null) {
+      let texture=kind==='raid'?'raidBullet':kind==='boss'?'bossBullet':'enemyBullet';
+      if(kind==='raid'&&visualType){
+        texture=visualType==='grape'?'raidGrapeBullet':visualType==='grapeCluster'?'raidGrapeCluster':visualType==='choco'?'raidChocoBullet':visualType==='chocoBig'?'raidChocoBig':visualType==='onionRing'?'raidOnionRing':visualType==='onionPeel'?'raidOnionPeel':texture;
+      }
+      const b=this.enemyProjectiles.create(x,y,texture).setDepth(kind==='raid'?29:kind==='boss'?28:27);
+      b.damage=damage;b.kind=kind;b.visualType=visualType;b.strong=kind==='boss'||kind==='raid';b.spawnAt=this.runTimeMs;b.lifeMs=lifeMs;b.setRotation(angle);
+      this.physics.velocityFromRotation(angle,speed,b.body.velocity);
       const hit=ENEMY_BULLET_HITBOX[kind]||ENEMY_BULLET_HITBOX.enemy;
-      const center=kind==='raid'?9:kind==='boss'?8:6;
-      b.hitRadius=hit.hitRadius;
-      b.visualRadius=hit.visualRadius;
-      b.body.setCircle(hit.hitRadius,center-hit.hitRadius,center-hit.hitRadius);
+      b.hitRadius=hit.hitRadius;b.visualRadius=hit.visualRadius;
+      const cx=(b.width||18)/2,cy=(b.height||18)/2;b.body.setCircle(hit.hitRadius,cx-hit.hitRadius,cy-hit.hitRadius);
+      if(visualType==='choco'||visualType==='chocoBig')b.spinRate=0.055;
+      if(visualType==='onionPeel'||visualType==='onionRing')b.spinRate=0.075;
+      if(visualType==='grapeCluster')b.spinRate=0.025;
       return b;
     }
 
@@ -2753,27 +3157,53 @@
       });
     }
 
-    spawnRaidRing(enemy,{count=16,speed=180,damage=12,offset=0,gapCenter=null,gapWidth=0,lifeMs=5400,speedPattern=null}={}) {
+    raidBulletVisual(enemy, override=null) {
+      if(override)return override;
+      const kind=this.raidBossKind(enemy);return kind==='grape'?'grape':kind==='choco'?'choco':'onionPeel';
+    }
+
+    spawnRaidRing(enemy,{count=16,speed=180,damage=12,offset=0,gapCenter=null,gapWidth=0,lifeMs=5400,speedPattern=null,visualType=null}={}) {
       if(!enemy?.active)return;
+      const visual=this.raidBulletVisual(enemy,visualType);
       for(let i=0;i<count;i++){
         const a=offset+(Math.PI*2*i)/count;
-        if(Number.isFinite(gapCenter)&&gapWidth>0){
-          const diff=Math.abs(Phaser.Math.Angle.Wrap(a-gapCenter));
-          if(diff<gapWidth*0.5)continue;
-        }
+        if(Number.isFinite(gapCenter)&&gapWidth>0&&Math.abs(Phaser.Math.Angle.Wrap(a-gapCenter))<gapWidth*.5)continue;
         const sp=Array.isArray(speedPattern)&&speedPattern.length?speedPattern[i%speedPattern.length]:speed;
-        this.spawnEnemyBullet(enemy.x,enemy.y,a,sp,damage,'raid',lifeMs);
+        this.spawnEnemyBullet(enemy.x,enemy.y,a,sp,damage,'raid',lifeMs,visual);
       }
     }
 
-    fireRaidFanAt(enemy,target,{count=5,spread=0.09,speed=260,damage=12,predictMs=0,angleOffset=0}={}) {
+    fireRaidFanAt(enemy,target,{count=5,spread=.09,speed=260,damage=12,predictMs=0,angleOffset=0,visualType=null}={}) {
       if(!enemy?.active||!target?.active)return;
       const base=(predictMs>0?this.predictedAimAngle(enemy,target,predictMs):Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y))+angleOffset;
-      for(let i=0;i<count;i++){
-        const a=base+(i-(count-1)/2)*spread;
-        this.spawnEnemyBullet(enemy.x,enemy.y,a,speed,damage,'raid',4500);
-      }
+      const visual=this.raidBulletVisual(enemy,visualType);
+      for(let i=0;i<count;i++){const a=base+(i-(count-1)/2)*spread;this.spawnEnemyBullet(enemy.x,enemy.y,a,speed,damage,'raid',4500,visual);}
     }
+
+    spawnRaidSplittingBullet(enemy,target,type,damage,speed=180) {
+      if(!enemy?.active||!target?.active)return;
+      const visual=type==='grape'?'grapeCluster':'chocoBig',angle=this.predictedAimAngle(enemy,target,380,.62);
+      const b=this.spawnEnemyBullet(enemy.x,enemy.y,angle,speed,damage,'raid',4800,visual);
+      if(!b)return;b.splitType=type;b.splitAt=this.runTimeMs+(type==='grape'?820:720);b.splitDone=false;
+    }
+
+    spawnChocoPuddle(x,y,damage) {
+      const obj=this.add.image(x,y,'chocoPuddle').setDepth(5).setAlpha(.66);
+      const h={obj,x,y,radius:22,damage,expire:this.runTimeMs+2600,nextHit:new Map()};
+      this.raidHazards=this.raidHazards||[];this.raidHazards.push(h);
+      while(this.raidHazards.length>6){const old=this.raidHazards.shift();if(old?.obj?.active)old.obj.destroy();}
+      this.tweens.add({targets:obj,alpha:.45,scale:1.08,duration:650,yoyo:true,repeat:2});
+    }
+
+    updateRaidHazards() {
+      this.raidHazards=(this.raidHazards||[]).filter(h=>{
+        if(!h.obj?.active||this.runTimeMs>=h.expire){if(h.obj?.active)h.obj.destroy();return false;}
+        const builds=this.coopMode&&this.builds?[...this.builds.values()].filter(b=>!b.down):[{id:'solo',sprite:this.player}];
+        builds.forEach(b=>{const sp=b.sprite;if(!sp?.active||Phaser.Math.Distance.Between(h.x,h.y,sp.x,sp.y)>h.radius)return;const ready=h.nextHit.get(b.id)||0;if(this.runTimeMs<ready)return;h.nextHit.set(b.id,this.runTimeMs+720);if(this.coopMode)this.withBuild(b,()=>this.applyPlayerDamage(h.damage,h.x,h.y,220));else this.applyPlayerDamage(h.damage,h.x,h.y,220);});
+        return true;
+      });
+    }
+    clearRaidHazards(){(this.raidHazards||[]).forEach(h=>{if(h?.obj?.active)h.obj.destroy();});this.raidHazards=[];}
 
     selectRaidPattern(enemy) {
       const kind=this.raidBossKind(enemy),phase=enemy.raidPhase2?2:1;
@@ -2799,118 +3229,64 @@
     }
 
     executeRaidPattern(enemy,def) {
-      const targets=this.activeRaidTargets();
-      const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||targets[0]||this.player;
-      const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):0;
-      const bossDmg=11+this.raidBossCount*1.45;
-      this.raidShotPhase+=enemy.raidPhase2?0.41:0.29;
-      const coop=this.coopMode;
+      const targets=this.activeRaidTargets(),target=this.nearestActivePlayerTo(enemy.x,enemy.y)||targets[0]||this.player;
+      const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):0,bossDmg=11+this.raidBossCount*1.45,coop=this.coopMode;
+      this.raidShotPhase+=enemy.raidPhase2?.41:.29;
       const fireTargets=(fn)=>{(targets.length?targets:[target]).filter(Boolean).forEach(fn);};
-
       switch(def?.execute){
-        // ===== 거대 포도 =====
-        case 'grapeSpiralRing': {
-          const gap=base+(Math.sin(this.raidShotPhase)>=0?0.62:-0.62);
-          this.spawnRaidRing(enemy,{count:coop?22:18,speed:185,damage:bossDmg,offset:this.raidShotPhase,gapCenter:gap,gapWidth:0.50});
-          break;
-        }
-        case 'grapePredictFan': {
-          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?5:5,spread:0.085,speed:268,damage:bossDmg+1.5,predictMs:520}));
-          break;
-        }
-        case 'grapeStaggeredRings': {
-          const gap1=base-0.55,gap2=base+0.62;
-          this.spawnRaidRing(enemy,{count:coop?18:14,speed:138,damage:bossDmg-1,offset:this.raidShotPhase,gapCenter:gap1,gapWidth:0.58,lifeMs:5800});
-          this.scheduleRaidAction(enemy,720,()=>this.spawnRaidRing(enemy,{count:coop?16:12,speed:232,damage:bossDmg+0.5,offset:this.raidShotPhase+0.27,gapCenter:gap2,gapWidth:0.52,lifeMs:4800}));
-          break;
-        }
-        case 'grapeRingPredict': {
-          this.spawnRaidRing(enemy,{count:coop?20:16,speed:150,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.48,gapWidth:0.48,lifeMs:5800});
-          this.scheduleRaidAction(enemy,650,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?5:5,spread:0.08,speed:286,damage:bossDmg+1.8,predictMs:470})));
-          break;
-        }
-        case 'grapeDashBurst': {
-          if(!this.beginRaidRushTelegraph(enemy,target,true))fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.08,speed:282,damage:bossDmg+1.5,predictMs:420}));
-          break;
-        }
-        case 'grapeShiftedGap': {
-          this.spawnRaidRing(enemy,{count:coop?20:16,speed:172,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.72,gapWidth:0.46});
-          this.scheduleRaidAction(enemy,620,()=>{
-            const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target;
-            const b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;
-            this.spawnRaidRing(enemy,{count:coop?18:14,speed:238,damage:bossDmg+1,offset:-this.raidShotPhase*0.7,gapCenter:b+0.72,gapWidth:0.46,lifeMs:4700});
-          });
-          break;
-        }
+        // 포도: 읽을 수 있는 포도알 원형탄 + 예측 + 직선 돌진.
+        case 'grapeSpiralRing':
+          this.spawnRaidRing(enemy,{count:coop?22:18,speed:185,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base+(Math.sin(this.raidShotPhase)>=0?.62:-.62),gapWidth:.50,visualType:'grape'});break;
+        case 'grapePredictFan':
+          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.085,speed:268,damage:bossDmg+1.5,predictMs:520,visualType:'grape'}));break;
+        case 'grapeStaggeredRings':
+          this.spawnRaidRing(enemy,{count:coop?18:14,speed:138,damage:bossDmg-1,offset:this.raidShotPhase,gapCenter:base-.55,gapWidth:.58,lifeMs:5800,visualType:'grape'});
+          this.scheduleRaidAction(enemy,720,()=>this.spawnRaidRing(enemy,{count:coop?16:12,speed:232,damage:bossDmg+.5,offset:this.raidShotPhase+.27,gapCenter:base+.62,gapWidth:.52,lifeMs:4800,visualType:'grape'}));break;
+        case 'grapeRingPredict':
+          this.spawnRaidRing(enemy,{count:coop?20:16,speed:150,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.48,gapWidth:.48,lifeMs:5800,visualType:'grape'});
+          this.scheduleRaidAction(enemy,650,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.08,speed:286,damage:bossDmg+1.8,predictMs:470,visualType:'grape'})));break;
+        case 'grapeDashBurst':
+          if(!this.beginRaidRushTelegraph(enemy,target,true))fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.08,speed:278,damage:bossDmg+1.5,predictMs:420,visualType:'grape'}));break;
+        case 'grapeShiftedGap':
+          this.spawnRaidRing(enemy,{count:coop?20:16,speed:172,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.72,gapWidth:.46,visualType:'grape'});
+          this.scheduleRaidAction(enemy,620,()=>{const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target,b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;this.spawnRaidRing(enemy,{count:coop?18:14,speed:238,damage:bossDmg+1,offset:-this.raidShotPhase*.7,gapCenter:b+.72,gapWidth:.46,lifeMs:4700,visualType:'grape'});});break;
+        case 'grapeClusterSplit':
+          fireTargets(t=>this.spawnRaidSplittingBullet(enemy,t,'grape',bossDmg+1.5,174));break;
 
-        // ===== 거대 초콜릿 =====
-        case 'chocoFan': {
-          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?7:9,spread:coop?0.10:0.115,speed:248,damage:bossDmg+2,predictMs:170}));
-          break;
+        // 초콜릿: 각진 탄 + 분열 + 잠깐의 바닥 제한. 포도보다 판단 요소가 하나 더 많다.
+        case 'chocoBarSplit':
+          fireTargets(t=>this.spawnRaidSplittingBullet(enemy,t,'choco',bossDmg+2.3,188));break;
+        case 'chocoFan':
+          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?7:6,spread:.115,speed:255,damage:bossDmg+1.8,predictMs:200,visualType:'choco'}));break;
+        case 'chocoMelt': {
+          fireTargets(t=>{const a=this.predictedAimAngle(enemy,t,620,.55),d=Phaser.Math.Clamp(Phaser.Math.Distance.Between(enemy.x,enemy.y,t.x,t.y)*.48,90,240);this.spawnChocoPuddle(t.x+Math.cos(a)*28,t.y+Math.sin(a)*28,bossDmg*.55);this.spawnChocoPuddle(t.x-Math.sin(a)*40,t.y+Math.cos(a)*40,bossDmg*.48);});break;
         }
-        case 'chocoSideClamp': {
-          const lobes=coop?4:3;
-          for(const side of [-1,1])for(let i=0;i<lobes;i++){
-            const a=base+side*(0.52+i*0.10);
-            this.spawnEnemyBullet(enemy.x,enemy.y,a,205,bossDmg+0.5,'raid',5000);
-          }
-          break;
+        case 'chocoCrossBreak':
+          fireTargets(t=>this.spawnRaidSplittingBullet(enemy,t,'choco',bossDmg+2.6,202));
+          this.scheduleRaidAction(enemy,520,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.095,speed:286,damage:bossDmg+1.8,predictMs:430,visualType:'choco'})));break;
+        case 'chocoBounce': {
+          fireTargets(t=>{const b0=this.predictedAimAngle(enemy,t,260,.55);for(let i=-2;i<=2;i++){const b=this.spawnEnemyBullet(enemy.x,enemy.y,b0+i*.13,238,bossDmg+1.6,'raid',6000,'choco');if(b){b.bounceOnce=true;b.bounceCount=0;b.bounceAt=this.runTimeMs+700+Math.abs(i)*55;b.bounceTurn=(i%2===0?1:-1)*(0.62+Math.abs(i)*0.08);}}});break;
         }
-        case 'chocoDelayedLock': {
-          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.075,speed:240,damage:bossDmg+1,predictMs:280}));
-          this.scheduleRaidAction(enemy,540,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.072,speed:292,damage:bossDmg+1.8,predictMs:500})));
-          break;
-        }
-        case 'chocoSweep': {
-          [-0.20,0,0.20].forEach((off,idx)=>this.scheduleRaidAction(enemy,idx*230,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.075,speed:266+idx*9,damage:bossDmg+1.5,predictMs:320,angleOffset:off}))));
-          break;
-        }
-        case 'chocoCrossfire': {
-          const lobes=coop?4:3;
-          for(const side of [-1,1])for(let i=0;i<lobes;i++)this.spawnEnemyBullet(enemy.x,enemy.y,base+side*(0.48+i*0.11),218,bossDmg+1,'raid',5000);
-          this.scheduleRaidAction(enemy,600,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?5:7,spread:0.08,speed:298,damage:bossDmg+2,predictMs:480})));
-          break;
-        }
-        case 'chocoBurstPair': {
-          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?6:7,spread:0.095,speed:254,damage:bossDmg+1.4,predictMs:220}));
-          this.scheduleRaidAction(enemy,470,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:0.07,speed:305,damage:bossDmg+2.2,predictMs:500})));
-          break;
-        }
+        case 'chocoMeltClamp':
+          fireTargets(t=>{this.spawnChocoPuddle(t.x+42,t.y,bossDmg*.58);this.spawnChocoPuddle(t.x-42,t.y,bossDmg*.58);this.fireRaidFanAt(enemy,t,{count:5,spread:.09,speed:276,damage:bossDmg+1.9,predictMs:360,visualType:'choco'});});break;
 
-        // ===== 거대 양파 =====
-        case 'onionSpiral': {
-          this.spawnRaidRing(enemy,{count:coop?16:12,damage:bossDmg,offset:this.raidShotPhase,speedPattern:[150,215],lifeMs:5600});
-          break;
-        }
-        case 'onionReverse': {
-          this.spawnRaidRing(enemy,{count:coop?18:14,speed:188,damage:bossDmg+0.5,offset:-this.raidShotPhase*0.9,gapCenter:base+0.52,gapWidth:0.38});
-          break;
-        }
-        case 'onionPulse': {
-          this.spawnRaidRing(enemy,{count:coop?14:10,speed:132,damage:bossDmg-0.5,offset:this.raidShotPhase,lifeMs:6000});
-          this.scheduleRaidAction(enemy,760,()=>this.spawnRaidRing(enemy,{count:coop?14:10,speed:246,damage:bossDmg+1.3,offset:this.raidShotPhase+Math.PI/(coop?14:10),lifeMs:4700}));
-          break;
-        }
-        case 'onionTriSpeed': {
-          this.spawnRaidRing(enemy,{count:coop?20:15,damage:bossDmg+0.6,offset:this.raidShotPhase,gapCenter:base-0.45,gapWidth:0.34,speedPattern:[128,192,252],lifeMs:5800});
-          break;
-        }
-        case 'onionReverseDouble': {
-          this.spawnRaidRing(enemy,{count:coop?16:12,speed:148,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.55,gapWidth:0.40,lifeMs:6100});
-          this.scheduleRaidAction(enemy,660,()=>this.spawnRaidRing(enemy,{count:coop?16:12,speed:238,damage:bossDmg+1.5,offset:-this.raidShotPhase*0.85,gapCenter:base+0.58,gapWidth:0.40,lifeMs:5000}));
-          break;
-        }
-        case 'onionGapShift': {
-          this.spawnRaidRing(enemy,{count:coop?18:14,speed:170,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-0.78,gapWidth:0.52});
-          this.scheduleRaidAction(enemy,600,()=>{
-            const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target;
-            const b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;
-            this.spawnRaidRing(enemy,{count:coop?18:14,speed:228,damage:bossDmg+1.2,offset:this.raidShotPhase+0.22,gapCenter:b+0.78,gapWidth:0.52});
-          });
-          break;
-        }
-        default:
-          this.spawnRaidRing(enemy,{count:12,speed:180,damage:bossDmg,offset:this.raidShotPhase});
+        // 양파: 겹 + 정/역회전 + 시간차 층.
+        case 'onionPeelSpiral':
+          this.spawnRaidRing(enemy,{count:coop?18:14,damage:bossDmg,offset:this.raidShotPhase,speedPattern:[145,205],lifeMs:5700,visualType:'onionPeel'});break;
+        case 'onionRingGap':
+          this.spawnRaidRing(enemy,{count:coop?18:14,speed:188,damage:bossDmg+.5,offset:-this.raidShotPhase*.9,gapCenter:base+.52,gapWidth:.46,visualType:'onionRing'});break;
+        case 'onionLayered':
+          this.spawnRaidRing(enemy,{count:coop?15:11,speed:135,damage:bossDmg-.3,offset:this.raidShotPhase,gapCenter:base-.58,gapWidth:.50,lifeMs:6000,visualType:'onionPeel'});
+          this.scheduleRaidAction(enemy,760,()=>this.spawnRaidRing(enemy,{count:coop?15:11,speed:246,damage:bossDmg+1.3,offset:this.raidShotPhase+.24,gapCenter:base+.61,gapWidth:.48,lifeMs:4700,visualType:'onionRing'}));break;
+        case 'onionTriSpiral':
+          this.spawnRaidRing(enemy,{count:coop?21:16,damage:bossDmg+.6,offset:this.raidShotPhase,gapCenter:base-.45,gapWidth:.38,speedPattern:[128,192,252],lifeMs:5800,visualType:'onionPeel'});break;
+        case 'onionCounterSpiral':
+          this.spawnRaidRing(enemy,{count:coop?17:13,speed:148,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.55,gapWidth:.44,lifeMs:6100,visualType:'onionPeel'});
+          this.scheduleRaidAction(enemy,680,()=>this.spawnRaidRing(enemy,{count:coop?17:13,speed:238,damage:bossDmg+1.5,offset:-this.raidShotPhase*.85,gapCenter:base+.58,gapWidth:.44,lifeMs:5000,visualType:'onionRing'}));break;
+        case 'onionRingPulse':
+          this.spawnRaidRing(enemy,{count:coop?19:15,speed:168,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.80,gapWidth:.56,visualType:'onionRing'});
+          this.scheduleRaidAction(enemy,650,()=>{const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target,b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;this.spawnRaidRing(enemy,{count:coop?19:15,speed:226,damage:bossDmg+1.2,offset:-this.raidShotPhase*.78,gapCenter:b+.80,gapWidth:.56,visualType:'onionPeel'});});break;
+        default:this.spawnRaidRing(enemy,{count:12,speed:180,damage:bossDmg,offset:this.raidShotPhase});
       }
     }
 
@@ -2952,6 +3328,14 @@
       this.spawnRaidRushDust(enemy.x,enemy.y,enemy.rushAngle||0,5);
     }
 
+    spawnRaidDizzyStars(enemy){
+      if(!enemy?.active)return;
+      for(let i=0;i<3;i++){
+        const a=-Math.PI*.8+i*Math.PI*.8,star=this.add.text(enemy.x+Math.cos(a)*28,enemy.y-30+Math.sin(a)*8,'✦',{fontFamily:'monospace',fontSize:'11px',fontStyle:'bold',color:'#ffe79a',stroke:'#432b20',strokeThickness:3}).setOrigin(.5).setDepth(31);
+        this.tweens.add({targets:star,angle:90+i*35,x:star.x+Math.cos(a+.7)*12,y:star.y-8,alpha:0,duration:GRAPE_RUSH.recoveryMs,onComplete:()=>star.destroy()});
+      }
+    }
+
     beginRaidRushTelegraph(enemy,target=null,forced=false) {
       if(!enemy?.active||enemy.getData('dead'))return false;
       if((enemy.rushTelegraphUntil||0)>this.runTimeMs||(enemy.rushUntil||0)>this.runTimeMs||(enemy.rushRecoveryUntil||0)>this.runTimeMs)return false;
@@ -2977,7 +3361,7 @@
         const telegraphMs=enemy.raidPhase2?GRAPE_RUSH.phase2TelegraphMs:GRAPE_RUSH.telegraphMs;
         enemy.rushTelegraphUntil=this.runTimeMs+telegraphMs;
         const lineLen=Phaser.Math.Clamp(Math.min(enemy.rushDistance,360),120,360);
-        enemy.raidTelegraph=this.add.image(enemy.x+Math.cos(enemy.rushAngle)*lineLen*0.5,enemy.y+Math.sin(enemy.rushAngle)*lineLen*0.5,'rushLine').setDepth(6).setRotation(enemy.rushAngle).setScale(lineLen/128,1).setAlpha(0.42);
+        enemy.raidTelegraph=this.add.image(enemy.x+Math.cos(enemy.rushAngle)*lineLen*0.5,enemy.y+Math.sin(enemy.rushAngle)*lineLen*0.5,'rushLine').setDepth(6).setRotation(enemy.rushAngle).setScale(lineLen/128,1).setAlpha(0.34);
       }else{
         // 다른 TRUE BOSS의 기존 이동 수치/조준 성격은 유지하되 화살촉 연출만 제거한다.
         enemy.rushAngle=this.predictedAimAngle(enemy,t,forced?260:120,0.45);
@@ -2995,6 +3379,7 @@
       this.destroyRaidRushTelegraph(enemy);
       enemy.clearTint?.();
       this.spawnRaidRushImpact(enemy);
+      if(this.raidBossKind(enemy)==='grape')this.spawnRaidDizzyStars(enemy);
       const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
       const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):enemy.rushAngle||0;
       this.spawnRaidRing(enemy,{count:this.coopMode?12:10,speed:178,damage:10+this.raidBossCount*1.35,offset:(enemy.rushAngle||0)+0.18,gapCenter:base,gapWidth:0.55,lifeMs:4800});
@@ -3017,12 +3402,14 @@
         if(this.runTimeMs<enemy.rushRecoveryUntil){
           enemy.body.setVelocity(0,0);
           if(kind==='grape'){
-            const left=enemy.rushRecoveryUntil-this.runTimeMs;
-            enemy.setAngle(Math.sin(left*0.045)*2.4*(left/GRAPE_RUSH.recoveryMs));
+            const left=enemy.rushRecoveryUntil-this.runTimeMs,p=1-left/GRAPE_RUSH.recoveryMs;
+            enemy.setAngle(Math.sin(left*0.045)*3.0*(left/GRAPE_RUSH.recoveryMs));
+            const base=enemy.baseDisplayScale||enemy.scaleX||1,squash=1-Math.sin(Math.PI*Math.min(1,p))*0.055;
+            enemy.setScale(base*(2-squash),base*squash);
           }
           return true;
         }
-        enemy.rushRecoveryUntil=0;enemy.setAngle(0);enemy.clearTint?.();
+        enemy.rushRecoveryUntil=0;enemy.setAngle(0);enemy.setScale(enemy.baseDisplayScale||1);enemy.clearTint?.();
       }
       if((enemy.rushTelegraphUntil||0)>0){
         if(this.runTimeMs<enemy.rushTelegraphUntil){
@@ -3076,6 +3463,7 @@
     }
 
     updateEnemyAI() {
+      this.updateRaidHazards();
       const activeEnemies=this.enemies.getChildren().filter(e=>e.active&&!e.getData('dead'));
       const supportElites=activeEnemies.filter(e=>e.enemyRole==='elite'&&e.eliteMutation==='support');
       const minutes=this.runTimeMs/60000;
@@ -3106,8 +3494,9 @@
             if (d > 360) speed *= 1.55;
             if (d < 190) speed *= 0.55;
             e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
-            if(this.raidBossKind(e)==='grape')e.setAngle(Math.sin(this.runTimeMs*0.0042)*1.15);
-            else e.setAngle(0);
+            const rk=this.raidBossKind(e),baseScale=e.baseDisplayScale||e.scaleX||1,bob=Math.sin(this.runTimeMs*(rk==='grape'?.0042:.0035));
+            if(rk==='grape'){e.setAngle(bob*1.15);e.setScale(baseScale*(1+bob*.012),baseScale*(1-bob*.010));}
+            else{e.setAngle(bob*.65);e.setScale(baseScale*(1+bob*.007),baseScale*(1-bob*.006));}
           }
         } else {
           e.body.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
@@ -3155,76 +3544,84 @@
     }
 
     updateProjectiles() {
-      this.projectiles.getChildren().forEach(p => {
-        if (!p.active) return;
-        if (p.kind === 'magicMissile') {
-          const target = this.nearestEnemy(p.x, p.y, 900);
-          if (target) {
-            const a = Phaser.Math.Angle.Between(p.x, p.y, target.x, target.y);
-            const speed = 260 + (p.skillLevel || 1) * 18;
-            p.body.velocity.x = Phaser.Math.Linear(p.body.velocity.x, Math.cos(a) * speed, 0.08);
-            p.body.velocity.y = Phaser.Math.Linear(p.body.velocity.y, Math.sin(a) * speed, 0.08);
-            p.rotation = Math.atan2(p.body.velocity.y, p.body.velocity.x);
+      this.projectiles.getChildren().forEach(p=>{
+        if(!p.active)return;
+        if(p.kind==='disc'&&p.boomerang){
+          if(!p.returning&&this.runTimeMs>=(p.outboundUntil||0)){p.returning=true;p.hitSet=new Set();}
+          if(p.returning){
+            const build=this.coopMode?this.getBuild(p.ownerId):null,sp=build?.sprite||this.player;
+            if(sp?.active){
+              const a=Phaser.Math.Angle.Between(p.x,p.y,sp.x,sp.y),speed=485;
+              p.body.velocity.x=Phaser.Math.Linear(p.body.velocity.x,Math.cos(a)*speed,.16);
+              p.body.velocity.y=Phaser.Math.Linear(p.body.velocity.y,Math.sin(a)*speed,.16);
+              p.rotation=Math.atan2(p.body.velocity.y,p.body.velocity.x);
+              if(Phaser.Math.Distance.Between(p.x,p.y,sp.x,sp.y)<20){p.destroy();return;}
+            }
           }
         }
-        if (this.runTimeMs - (p.spawnAt || 0) > (p.lifeMs || 1800)) p.destroy();
+        if(p.spinRate)p.rotation+=(p.spinRate||0);
+        if(this.runTimeMs-(p.spawnAt||0)>(p.lifeMs||1800))p.destroy();
       });
-      this.enemyProjectiles.getChildren().forEach(p => {
-        if (!p.active) return;
-        if (this.runTimeMs - (p.spawnAt || 0) > (p.lifeMs || 4200)) p.destroy();
+      this.enemyProjectiles.getChildren().forEach(p=>{
+        if(!p.active)return;
+        if(p.spinRate)p.rotation+=(p.spinRate||0);
+        if(p.splitAt&&!p.splitDone&&this.runTimeMs>=p.splitAt){
+          p.splitDone=true;
+          const type=p.splitType,base=Math.atan2(p.body.velocity.y,p.body.velocity.x);
+          if(type==='grape'){
+            for(let i=0;i<6;i++){const a=base+Math.PI*2*i/6+.22;this.spawnEnemyBullet(p.x,p.y,a,215,p.damage*.72,'raid',4200,'grape');}
+          }else if(type==='choco'){
+            for(let i=0;i<4;i++){const a=base+(i-1.5)*.52;this.spawnEnemyBullet(p.x,p.y,a,250,p.damage*.68,'raid',4300,'choco');}
+          }
+          p.destroy();return;
+        }
+        if(p.bounceOnce&&p.body){
+          let bounce=false;
+          if(Number.isFinite(p.bounceAt)&&this.runTimeMs>=p.bounceAt&&!(p.bounceCount>0)){
+            const speed=Math.max(1,Math.hypot(p.body.velocity.x,p.body.velocity.y));
+            const a=Math.atan2(p.body.velocity.y,p.body.velocity.x)+(p.bounceTurn||0.72);
+            p.body.velocity.x=Math.cos(a)*speed;p.body.velocity.y=Math.sin(a)*speed;bounce=true;
+          }else{
+            const margin=9;
+            if(p.x<=margin&&p.body.velocity.x<0){p.body.velocity.x=Math.abs(p.body.velocity.x);bounce=true;}
+            else if(p.x>=this.worldSize-margin&&p.body.velocity.x>0){p.body.velocity.x=-Math.abs(p.body.velocity.x);bounce=true;}
+            if(p.y<=margin&&p.body.velocity.y<0){p.body.velocity.y=Math.abs(p.body.velocity.y);bounce=true;}
+            else if(p.y>=this.worldSize-margin&&p.body.velocity.y>0){p.body.velocity.y=-Math.abs(p.body.velocity.y);bounce=true;}
+          }
+          if(bounce){p.bounceCount=(p.bounceCount||0)+1;p.rotation=Math.atan2(p.body.velocity.y,p.body.velocity.x);p.setTint?.(0xffc58b);this.time?.delayedCall?.(90,()=>p.active&&p.clearTint?.());if(p.bounceCount>=1)p.bounceOnce=false;}
+        }
+        if(this.runTimeMs-(p.spawnAt||0)>(p.lifeMs||4200))p.destroy();
       });
     }
 
-    updateSkills(delta) {
-      const lv = this.skillLevels;
-      if (lv.magicMissile) {
-        this.skillTimers.magicMissile += delta;
+    updateSkills(delta, moving=false) {
+      const lv=this.skillLevels||{};
+      if(lv.magicMissile){
+        this.skillTimers.magicMissile+=delta;
         const st=treasureSkillStats('magicMissile',lv.magicMissile);
-        if (this.skillTimers.magicMissile >= st.interval) {
-          this.skillTimers.magicMissile = 0;
-          this.castMagicMissiles(lv.magicMissile);
-        }
+        if(this.skillTimers.magicMissile>=st.summonInterval){this.skillTimers.magicMissile=0;this.spawnAutoFeeder(lv.magicMissile);}
+        this.updateAutoFeeders();
       }
-      if (lv.veil) {
-        this.skillTimers.veil += delta;
+      if(lv.veil){
+        this.skillTimers.veil+=delta;
         const st=treasureSkillStats('veil',lv.veil);
-        if (this.skillTimers.veil >= st.interval) {
-          this.skillTimers.veil = 0;
-          this.shieldCharges = Math.min(st.maxCharges, this.shieldCharges + 1);
-          this.updateHud();
-        }
+        if(this.skillTimers.veil>=st.interval){this.skillTimers.veil=0;this.shieldCharges=Math.min(st.maxCharges,this.shieldCharges+1);}
       }
-      if (lv.sword) {
-        this.skillTimers.sword += delta;
-        const st=treasureSkillStats('sword',lv.sword);
-        if (this.skillTimers.sword >= st.interval) {
-          this.skillTimers.sword = 0;
-          this.castSword(lv.sword);
-        }
+      if(lv.sword){
+        this.skillTimers.sword+=delta;const st=treasureSkillStats('sword',lv.sword);
+        if(this.skillTimers.sword>=st.interval){this.skillTimers.sword=0;this.castClawSwipe(lv.sword);}
       }
-      if (lv.hellConductor) {
-        this.skillTimers.hellConductor += delta;
-        const st=treasureSkillStats('hellConductor',lv.hellConductor);
-        if (this.skillTimers.hellConductor >= st.interval) {
-          this.skillTimers.hellConductor = 0;
-          this.castFireRing(lv.hellConductor);
-        }
+      if(lv.hellConductor){
+        this.skillTimers.hellConductor+=delta;const st=treasureSkillStats('hellConductor',lv.hellConductor);
+        this.updateLeashOrbiters(lv.hellConductor);
+        if(st.bigSwingInterval&&this.skillTimers.hellConductor>=st.bigSwingInterval){this.skillTimers.hellConductor=0;this.castLeashBigSwing(lv.hellConductor);}
       }
-      if (lv.bulletBarrage) {
-        this.skillTimers.bulletBarrage += delta;
-        const st=treasureSkillStats('bulletBarrage',lv.bulletBarrage);
-        if (this.skillTimers.bulletBarrage >= st.interval) {
-          this.skillTimers.bulletBarrage = 0;
-          this.castBulletBarrage(lv.bulletBarrage);
-        }
-      }
+      if(lv.bulletBarrage)this.updatePawMines(lv.bulletBarrage,moving);
+      if(lv.juiceBox)this.ensureSnackGaugeVisual();
       if (this.shockwaveLevel > 0) {
         this.shockwaveTimer += delta;
         const interval = Math.max(4200, 8000 - (this.shockwaveLevel - 1) * 650);
-        if (this.shockwaveTimer >= interval) {
-          this.shockwaveTimer = 0;
-          this.castAugmentShockwave();
-        }
+        if (this.shockwaveTimer >= interval) {this.shockwaveTimer=0;this.castAugmentShockwave();}
       }
     }
 
@@ -3296,12 +3693,17 @@
     updateShieldVisual() {
       if (this.shieldCharges > 0) {
         if (!this.shieldVisual || !this.shieldVisual.active) {
-          this.shieldVisual = this.add.circle(this.player.x, this.player.y, 28, 0x83d7f0, 0.12).setStrokeStyle(2, 0xa9efff, 0.8).setDepth(11);
-          this.tweens.add({ targets: this.shieldVisual, alpha: { from: 0.35, to: 0.12 }, duration: 650, yoyo: true, repeat: -1 });
+          this.shieldVisual=this.add.image(this.player.x,this.player.y,'collarShield').setDepth(11).setAlpha(.55).setScale(.88);
+          this.tweens.add({targets:this.shieldVisual,alpha:{from:.68,to:.40},duration:720,yoyo:true,repeat:-1});
         }
-        this.shieldVisual.setVisible(true).setPosition(this.player.x, this.player.y);
-      } else if (this.shieldVisual) {
-        this.shieldVisual.destroy(); this.shieldVisual = null;
+        this.shieldVisual.setVisible(true).setPosition(this.player.x,this.player.y);
+        if(this.shieldCharges>1){
+          if(!this.shieldChargeText?.active)this.shieldChargeText=this.add.text(this.player.x+24,this.player.y-24,'×2',{fontFamily:'monospace',fontSize:'9px',fontStyle:'bold',color:'#d8ffe6',stroke:'#173124',strokeThickness:3}).setDepth(25);
+          this.shieldChargeText.setText(`×${this.shieldCharges}`).setPosition(this.player.x+24,this.player.y-24).setVisible(true);
+        }else if(this.shieldChargeText?.active)this.shieldChargeText.setVisible(false);
+      } else {
+        if(this.shieldVisual){this.shieldVisual.destroy();this.shieldVisual=null;}
+        if(this.shieldChargeText){this.shieldChargeText.destroy();this.shieldChargeText=null;}
       }
     }
 
@@ -3314,7 +3716,7 @@
         this.updateBuildPresentation(build);
         return;
       }
-      this.withBuild(build,()=>{let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed,dy*this.moveSpeed);if(dx!==0)this.player.setFlipX(dx<0);this.updateSkills(delta);this.updateMajorAugments(delta,moving);this.updateShieldVisual();this.basicTimer+=delta;if(this.basicTimer>=this.basicCooldown){this.basicTimer=0;this.fireBasicProjectile();}});
+      this.withBuild(build,()=>{let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);const snackMove=(this.runTimeMs<(this.snackSpeedUntil||0)?(this.snackSpeedMult||1):1);if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed*snackMove,dy*this.moveSpeed*snackMove);if(dx!==0)this.player.setFlipX(dx<0);this.updateSkills(delta,moving);this.updateMajorAugments(delta,moving);this.updateShieldVisual();this.basicTimer+=delta;if(this.basicTimer>=this.basicCooldown){this.basicTimer=0;this.fireBasicProjectile();}});
       this.updateBuildPresentation(build);
     }
     entityNetId(o,prefix='e'){if(!o.netId)o.netId=`${prefix}${this.netIdCounter++}`;return o.netId;}
@@ -3360,7 +3762,11 @@
         (b.poopOrbiters||[]).forEach((o,i)=>{if(o?.active&&this.isNetworkRelevantPoint(o.x,o.y,900))extras.push({id:`poop-${b.id}-${i}`,kind:'image',texture:'poopOrbit',x:Math.round(o.x),y:Math.round(o.y),scale:Math.round((o.scaleX||1)*100)/100,alpha:o.alpha??1});});
         (b.gasClouds||[]).forEach((z,i)=>{if(z.obj?.active&&this.isNetworkRelevantPoint(z.x,z.y,900))extras.push({id:`gas-${b.id}-${i}`,kind:'circle',x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:0xe7d84d,alpha:z.obj.alpha??0.12});});
         (b.territoryZones||[]).forEach((z,i)=>{if(z.obj?.active&&this.isNetworkRelevantPoint(z.x,z.y,900))extras.push({id:`zone-${b.id}-${i}`,kind:'circle',x:Math.round(z.x),y:Math.round(z.y),radius:Math.round(z.radius),color:0xe8ce48,alpha:z.obj.alpha??0.13});});
+        (b.feeders||[]).forEach((f,i)=>{if(f.obj?.active&&this.isNetworkRelevantPoint(f.obj.x,f.obj.y,900))extras.push({id:`feeder-${b.id}-${i}`,kind:'image',texture:'autoFeeder',x:Math.round(f.obj.x),y:Math.round(f.obj.y),scale:Math.round((f.obj.scaleX||1)*100)/100,alpha:f.obj.alpha??1});});
+        (b.leashOrbiters||[]).forEach((o,i)=>{if(o.obj?.active&&this.isNetworkRelevantPoint(o.obj.x,o.obj.y,900))extras.push({id:`leash-${b.id}-${i}`,kind:'image',texture:'leashOrbit',x:Math.round(o.obj.x),y:Math.round(o.obj.y),rotation:Math.round((o.obj.rotation||0)*100)/100,scaleX:Math.round((o.obj.scaleX||1)*100)/100,scaleY:Math.round((o.obj.scaleY||1)*100)/100,alpha:o.obj.alpha??.82});});
+        (b.pawMines||[]).forEach((m,i)=>{if(m.obj?.active&&this.isNetworkRelevantPoint(m.x,m.y,900))extras.push({id:`paw-${b.id}-${i}`,kind:'image',texture:'pawStamp',x:Math.round(m.x),y:Math.round(m.y),rotation:Math.round((m.obj.rotation||0)*100)/100,scale:Math.round((m.obj.scaleX||1)*100)/100,alpha:m.obj.alpha??.72});});
       });
+      (this.raidHazards||[]).forEach((h,i)=>{if(h.obj?.active&&this.isNetworkRelevantPoint(h.x,h.y,1000))extras.push({id:`raidHazard-${i}`,kind:'image',texture:'chocoPuddle',x:Math.round(h.x),y:Math.round(h.y),scale:Math.round((h.obj.scaleX||1)*100)/100,alpha:h.obj.alpha??.55});});
       this.enemies.getChildren().forEach(e=>{
         if(e?.active&&e.enemyRole==='raidBoss'&&e.raidTelegraph?.active){
           extras.push({id:`rush-${this.entityNetId(e,'e')}`,kind:'image',texture:'rushLine',x:Math.round(e.raidTelegraph.x),y:Math.round(e.raidTelegraph.y),rotation:Math.round((e.raidTelegraph.rotation||0)*100)/100,scaleX:Math.round((e.raidTelegraph.scaleX||1)*100)/100,scaleY:Math.round((e.raidTelegraph.scaleY||1)*100)/100,alpha:e.raidTelegraph.alpha??0.8});
@@ -3414,15 +3820,17 @@
       }
     }
     syncNetworkExtras(extras){
-      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(d.texture==='rushLine'?6:14);this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{const sx=d.scaleX??d.scale??1,sy=d.scaleY??d.scale??sx;o.setScale(sx,sy);o.setRotation(d.rotation||0);o.setAlpha(d.alpha??1);o.setDepth(d.texture==='rushLine'?6:14);}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
+      const depthFor=(texture)=>texture==='rushLine'?6:texture==='chocoPuddle'||texture==='pawStamp'?5:texture==='autoFeeder'?12:texture==='leashOrbit'?13:14;
+      const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(depthFor(d.texture));this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{const sx=d.scaleX??d.scale??1,sy=d.scaleY??d.scale??sx;o.setScale(sx,sy);o.setRotation(d.rotation||0);o.setAlpha(d.alpha??1);o.setDepth(depthFor(d.texture));}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
     }
+
     applyNetworkSnapshot(s){
       if(!this.coopMode||this.networkRole!=='guest'||!s)return;
       this.runTimeMs=s.t||0;this.level=s.level||1;this.xp=s.xp||0;this.xpNeed=s.xpNeed||2;this.kills=s.kills||0;
       (s.players||[]).forEach(ps=>{
         const b=this.getBuild(ps.id);if(!b)return;
         const prevHp=Number.isFinite(b.hp)?b.hp:ps.hp;
-        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;b.playerInvulnUntil=this.runTimeMs+(ps.invulnLeft||0);
+        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;b.playerInvulnUntil=this.runTimeMs+(ps.invulnLeft||0);b.snackSpeedUntil=this.runTimeMs+(ps.snackSpeedLeft||0);
         if(b.sprite?.active&&!ps.down&&Number.isFinite(ps.hp)){
           if(ps.hp<prevHp-0.25)this.flashPlayerSprite(b.sprite);
           else if(ps.hp>prevHp+1){const last=b.sprite._lastHealFxAt||-9999;if(this.runTimeMs-last>=420){b.sprite._lastHealFxAt=this.runTimeMs;this.playHealFx(b.sprite);}}
@@ -3435,6 +3843,7 @@
         b.shadow?.setAlpha(ps.down?0.08:0.22);
         this.updateReviveUi(b);
       });
+      this.builds?.forEach?.(b=>this.withBuild(b,()=>{this.updateShieldVisual();if((this.skillLevels?.juiceBox||0)>0)this.ensureSnackGaugeVisual();}));
       const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
       if((s.raidPendingSeq||0)>this.lastNetRaidPendingSeq){this.lastNetRaidPendingSeq=s.raidPendingSeq||0;this.showBanner('TRUE BOSS 접근 중...','현재 전투를 마무리하세요! · 신규 적 스폰 억제');}
       if((s.raidIntroSeq||0)>this.lastNetRaidIntroSeq){this.lastNetRaidIntroSeq=s.raidIntroSeq||0;this.showBanner('⚠ TRUE BOSS 경고 ⚠',`${s.raidBossName||'위험 개체'} 출현 감지`);showBossWarningUi(s.raidBossName||'TRUE BOSS','탄막전 시작 · 패턴을 보고 피하세요');}
@@ -3460,7 +3869,7 @@
       if(lb?.sprite){
         if(!lb.down&&!this.isChoiceOpen&&!this.manualPause){
           let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;
-          const dt=Math.min(delta,40)/1000;lb.sprite.x=Phaser.Math.Clamp(lb.sprite.x+dx*(lb.moveSpeed||190)*dt,0,this.worldSize);lb.sprite.y=Phaser.Math.Clamp(lb.sprite.y+dy*(lb.moveSpeed||190)*dt,0,this.worldSize);if(dx!==0)lb.sprite.setFlipX(dx<0);
+          const dt=Math.min(delta,40)/1000,snackBoost=this.runTimeMs<(lb.snackSpeedUntil||0)?(treasureSkillStats('juiceBox',lb.skillLevels?.juiceBox||1).speedMult||1):1;lb.sprite.x=Phaser.Math.Clamp(lb.sprite.x+dx*(lb.moveSpeed||190)*snackBoost*dt,0,this.worldSize);lb.sprite.y=Phaser.Math.Clamp(lb.sprite.y+dy*(lb.moveSpeed||190)*snackBoost*dt,0,this.worldSize);if(dx!==0)lb.sprite.setFlipX(dx<0);
         }
         if(Number.isFinite(lb.netX)&&Number.isFinite(lb.netY)){
           const d=Phaser.Math.Distance.Between(lb.sprite.x,lb.sprite.y,lb.netX,lb.netY);const f=d>150?0.28:(1-Math.exp(-Math.max(1,delta)/260));lb.sprite.x=Phaser.Math.Linear(lb.sprite.x,lb.netX,f);lb.sprite.y=Phaser.Math.Linear(lb.sprite.y,lb.netY,f);
@@ -3542,7 +3951,7 @@
       dx /= len; dy /= len;
       const moving = Math.abs(dx) + Math.abs(dy) > 0.01;
       if (moving) this.facingAngle = Math.atan2(dy, dx);
-      this.player.body.setVelocity(dx * this.moveSpeed, dy * this.moveSpeed);
+      const snackMove=(this.runTimeMs<(this.snackSpeedUntil||0)?(this.snackSpeedMult||1):1); this.player.body.setVelocity(dx * this.moveSpeed * snackMove, dy * this.moveSpeed * snackMove);
       if (dx !== 0) this.player.setFlipX(dx < 0);
       this.updateSoloPresentation();
 
@@ -3550,7 +3959,7 @@
       this.updateEnemyAI();
       this.updateGems();
       this.updateProjectiles();
-      this.updateSkills(delta);
+      this.updateSkills(delta, moving);
       this.updateMajorAugments(delta, moving);
       this.updateShieldVisual();
 

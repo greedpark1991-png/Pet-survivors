@@ -1,0 +1,17 @@
+[
+  {
+    "viewport": "1366x768",
+    "min_safe_margin": 18,
+    "aspect_checks": 6
+  },
+  {
+    "viewport": "1920x1080",
+    "min_safe_margin": 18,
+    "aspect_checks": 6
+  },
+  {
+    "viewport": "2560x1440",
+    "min_safe_margin": 20.9,
+    "aspect_checks": 6
+  }
+]
