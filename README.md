@@ -1,6 +1,27 @@
-# 멍냥 서바이버즈 — Phaser 웹게임 v1.16.2
+# 멍냥 서바이버즈 — Phaser 웹게임 v1.18
 
 작은 도트 강아지·고양이가 반려동물에게 위험한 음식 몬스터 떼를 버티는 탑다운 서바이버 로그라이트입니다. 혼자 플레이하거나 같은 Render 링크에서 2인 온라인 협동으로 플레이할 수 있습니다.
+
+## v1.18 — Boss Evolution & Run Variety
+
+- 기본 런을 15분 목표 구조로 정리: 3분 포도 → 6분 초콜릿 → 9분 양파 → 12분 커피 → 15분 자일리톨 껌
+- 기존 3분 포위 이벤트는 첫 포도와 겹치지 않도록 2분 30초로 앞당겨 이벤트 자체는 유지
+- TRUE BOSS 5종 모두 Phase 1 / Phase 2(65%) / Final(20%)의 외형·패턴 변화 + Final 필살기 1회
+- 자일리톨 처치 후 `산책 완료!` 화면, 다시 시작 / 로비 / 계속 산책하기(Endless) 지원
+- TRUE BOSS 공통 r25 hurtbox를 보스별 r27~31 개별 hurtbox로 확장하고 F2 debug에 표시
+- 산책줄을 캐릭터별 목/등 뒤 anchor + 휘어진 리드줄/손잡이 그래픽으로 변경, Lv.3~5 두 줄 길이 동기화
+- 발톱 슥삭을 진짜 3줄 claw mark로 변경하고 사거리 62 → 80 → 88 → 102 → 128px 성장, Lv.5 중거리 8방향 + 발톱 마무리
+- 초콜릿 장판을 340ms 준비 → 650ms 착탄 예고 → 500ms 포물선 투사 → 착지 장판 순서로 연결
+- 포도송이 분열탄은 최소 210px 이동 / 기본 780ms 뒤 분열
+- TRUE BOSS 전환 시 살아 있는 적 + 바닥 XP를 100% 보존하고, 기존 상자/간식/자석도 삭제하지 않음
+- 신규 커피 보스: 빠른 조준 / 1회 방향전환 / 커피 연사 / 카페인 폭주
+- 신규 자일리톨 보스: bounce / 끈적 장판 / 공간 제어 / 풍선껌 대폭발
+- 멍배송 보급상자: 45~75초 랜덤 낙하, 1초 예고, 간식/버프/자석/수상한 약/스킬 +1/병맛 보너스
+- 2인에서 boss phase, 착탄 telegraph, delivery warning, Final 필살기 경고를 기존 snapshot/compact extras로 동기화
+- v1.17 스킬 성장, v1.16.2 honest collision, pendingTrueBoss, 보상 보호, 부활, Host-authoritative, interpolation/local prediction/volatile 전송 유지
+
+세부 표는 `V1.18_BOSS_PHASES.md`, `V1.18_SKILL_FIXES.md`, `V1.18_DELIVERY.md`, `V1.18_CHANGELOG.md`, 검증 결과는 `V1.18_TEST_REPORT.md`를 참고하세요.
+
 
 ## v1.16.2 COMBAT FEEL / COLLISION HOTFIX
 

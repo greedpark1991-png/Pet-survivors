@@ -1,12 +1,12 @@
 {
   "name": "pet-survivors-phaser",
-  "version": "1.17.0",
+  "version": "1.18.0",
   "private": true,
-  "description": "Pixel pet survivor roguelite with co-op, visible skill evolution and distinct TRUE BOSS identities, made with Phaser 3",
+  "description": "Pixel pet survivor roguelite with five evolving TRUE BOSSES, 15-minute run clear, Endless mode, delivery events and online co-op",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/v15_logic_test.js && node tests/v15_server_mock_test.js && node tests/v161_visual_static_test.js && node tests/v162_combat_feel_static_test.js && node tests/v17_growth_boss_test.js && node tests/v17_static_test.js"
+    "test": "node tests/v15_server_mock_test.js && node tests/v162_combat_feel_static_test.js && node tests/v18_skill_regression_test.js && node tests/v18_logic_test.js && node tests/v18_static_test.js"
   },
   "engines": {
     "node": ">=20"

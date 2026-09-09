@@ -136,6 +136,14 @@ io.on('connection', socket => {
     const room=getRoom(socket); if(!room?.started || room.hostId!==socket.id) return;
     socket.to(room.code).emit('coopGameOver', payload||{});
   });
+  socket.on('coopRunComplete', payload => {
+    const room=getRoom(socket); if(!room?.started || room.hostId!==socket.id) return;
+    socket.to(room.code).emit('coopRunComplete', payload||{});
+  });
+  socket.on('coopRunContinue', payload => {
+    const room=getRoom(socket); if(!room?.started || room.hostId!==socket.id) return;
+    socket.to(room.code).emit('coopRunContinue', payload||{});
+  });
   socket.on('coopBackLobby', () => {
     const room=getRoom(socket); if(!room) return;
     room.started=false;

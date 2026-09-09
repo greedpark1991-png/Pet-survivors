@@ -27,10 +27,10 @@
   const PLAYER_SPRITES = {
     // v1.16.2: 피격 중심을 머리/귀가 아니라 몸통으로 내리고 원형 판정으로 통일한다.
     // cx/cy는 64x64 원본 texture 좌표 기준이며, 감자는 체형에 맞춰 더 작게 유지한다.
-    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1, shadow: { w:24,h:7,oy:13 }, hitbox: { r: 6, cx: 33, cy: 50 } },
-    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1, shadow: { w:29,h:8,oy:15 }, hitbox: { r: 7, cx: 31, cy: 49 } },
-    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 1, shadow: { w:28,h:8,oy:15 }, hitbox: { r: 7, cx: 31, cy: 47 } },
-    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1, shadow: { w:25,h:7,oy:13 }, hitbox: { r: 7, cx: 31, cy: 47 } }
+    gamja: { src: '/assets/players/gamja.png', previewSize: 42, worldScale: 1, shadow: { w:24,h:7,oy:13 }, hitbox: { r: 6, cx: 33, cy: 50 }, leashAnchor:{x:-2,y:9} },
+    gucci: { src: '/assets/players/gucci.png', previewSize: 46, worldScale: 1, shadow: { w:29,h:8,oy:15 }, hitbox: { r: 7, cx: 31, cy: 49 }, leashAnchor:{x:-4,y:9} },
+    mandu: { src: '/assets/players/mandu.png', previewSize: 44, worldScale: 1, shadow: { w:28,h:8,oy:15 }, hitbox: { r: 7, cx: 31, cy: 47 }, leashAnchor:{x:-3,y:8} },
+    jjigae: { src: '/assets/players/jjigae.png', previewSize: 46, worldScale: 1, shadow: { w:25,h:7,oy:13 }, hitbox: { r: 7, cx: 31, cy: 47 }, leashAnchor:{x:-3,y:8} }
   };
 
   const ENEMY_BULLET_HITBOX = {
@@ -55,6 +55,46 @@
     recoveryMs: 620,
     nextRushMin: 7000,
     nextRushMax: 9600
+  };
+
+  const TRUE_BOSS_SCHEDULE_MS = [180000, 360000, 540000, 720000, 900000];
+  const TRUE_BOSS_ORDER = ['grape','choco','onion','coffee','gum'];
+
+  // v1.18: 데이터 기반 TRUE BOSS 정의. 이후 6번째 보스는 이 테이블 + 패턴만 추가하면 된다.
+  const BOSS_DEFINITIONS = {
+    grape:{
+      key:'grape', name:'포도', phaseNames:['청포도','보라포도','붉은 포도'], textures:['enemy_raid_grape_green','enemy_raid_grape','enemy_raid_grape_red'],
+      baseHp:5200, baseSpeed:63, contactDamage:36, hurtbox:{r:30,ox:6,oy:8}, ultimate:'grapeUltimate',
+      identity:'원형 탄막 + 직선 돌진 + 포도송이 분열'
+    },
+    choco:{
+      key:'choco', name:'초콜릿', phaseNames:['화이트 초콜릿','밀크 초콜릿','마카다미아 초콜릿'], textures:['enemy_raid_choco_white','enemy_raid_choco','enemy_raid_choco_macadamia'],
+      baseHp:6500, baseSpeed:61, contactDamage:38, hurtbox:{r:31,ox:5,oy:5}, ultimate:'chocoUltimate',
+      identity:'분열 + 장판 + 각진 탄 + 공간 제한'
+    },
+    onion:{
+      key:'onion', name:'양파', phaseNames:['흰양파','노란양파','적양파'], textures:['enemy_raid_onion','enemy_raid_onion_yellow','enemy_raid_onion_red'],
+      baseHp:7800, baseSpeed:64, contactDamage:40, hurtbox:{r:29,ox:7,oy:9}, ultimate:'onionUltimate',
+      identity:'회전 + 껍질 + 겹 + 시간차'
+    },
+    coffee:{
+      key:'coffee', name:'커피', phaseNames:['아이스커피','아메리카노','에스프레소'], textures:['enemy_raid_coffee_ice','enemy_raid_coffee_americano','enemy_raid_coffee_espresso'],
+      baseHp:9000, baseSpeed:70, contactDamage:41, hurtbox:{r:27,ox:9,oy:9}, ultimate:'coffeeUltimate',
+      identity:'빠른 조준 + 반사 + 집중 회피'
+    },
+    gum:{
+      key:'gum', name:'자일리톨 껌', phaseNames:['자일리톨 껌','풍선껌','거대 풍선껌'], textures:['enemy_raid_gum','enemy_raid_gum_bubble','enemy_raid_gum_giant'],
+      baseHp:10500, baseSpeed:62, contactDamage:43, hurtbox:{r:31,ox:5,oy:7}, ultimate:'gumUltimate',
+      identity:'bounce + 끈적임 + 공간 제어'
+    }
+  };
+
+  const DELIVERY = {
+    minDelay:45000,maxDelay:75000,telegraphMs:1000,lifeMs:25000,
+    rewards:[
+      {id:'snack',weight:35},{id:'buff',weight:25},{id:'magnet',weight:15},
+      {id:'weird',weight:10},{id:'skill',weight:10},{id:'bonk',weight:5}
+    ]
   };
 
   const LEVEL_UPGRADES = [
@@ -135,36 +175,54 @@
     support: { name:'지원', icon:'✚', color:0x8fe29d, hpMult:0.92, speedMult:0.90, damageMult:0.90, shotMult:0.95 }
   };
 
-  const TRUE_BOSS_NAMES = ['거대 포도', '거대 초콜릿', '거대 양파'];
+  const TRUE_BOSS_NAMES = TRUE_BOSS_ORDER.map(k=>BOSS_DEFINITIONS[k].phaseNames[0]);
 
   // TRUE BOSS 패턴은 메타데이터 + 실행 키로 관리한다.
   // 향후 패턴을 추가할 때 기존 AI 분기를 크게 건드리지 않아도 된다.
   const TRUE_BOSS_PATTERNS = {
-    // 포도 = 포도알 원형 탄막 + 직선 돌진 / 초콜릿 = 분열 + 각진 탄 + 공간 제한 / 양파 = 겹 + 회전 + 나선
-    grape: [
-      { id:'grapeSpiralRing', phase:1, weight:4, cooldown:1550, minDistance:0, condition:'any', execute:'grapeSpiralRing' },
-      { id:'grapePredictFan', phase:1, weight:3, cooldown:1650, minDistance:120, condition:'any', execute:'grapePredictFan' },
-      { id:'grapeStaggeredRings', phase:1, weight:3, cooldown:1850, minDistance:0, condition:'any', execute:'grapeStaggeredRings' },
-      { id:'grapeRingPredict', phase:2, weight:3, cooldown:1650, minDistance:0, condition:'any', execute:'grapeRingPredict' },
-      { id:'grapeDashBurst', phase:2, weight:3, cooldown:1950, minDistance:120, condition:'canRush', execute:'grapeDashBurst' },
-      { id:'grapeShiftedGap', phase:2, weight:2, cooldown:1750, minDistance:0, condition:'any', execute:'grapeShiftedGap' },
-      { id:'grapeClusterSplit', phase:2, weight:3, cooldown:1900, minDistance:100, condition:'any', execute:'grapeClusterSplit' }
+    grape:[
+      {id:'grapeSpiralRing',phase:1,weight:4,cooldown:1550,minDistance:0,condition:'any',execute:'grapeSpiralRing'},
+      {id:'grapePredictFan',phase:1,weight:3,cooldown:1650,minDistance:120,condition:'any',execute:'grapePredictFan'},
+      {id:'grapeStaggeredRings',phase:1,weight:3,cooldown:1850,minDistance:0,condition:'any',execute:'grapeStaggeredRings'},
+      {id:'grapeRingPredict',phase:2,weight:3,cooldown:1650,minDistance:0,condition:'any',execute:'grapeRingPredict'},
+      {id:'grapeDashBurst',phase:2,weight:3,cooldown:1950,minDistance:120,condition:'canRush',execute:'grapeDashBurst'},
+      {id:'grapeClusterSplit',phase:2,weight:4,cooldown:1900,minDistance:100,condition:'any',execute:'grapeClusterSplit'},
+      {id:'grapeFinalShift',phase:3,weight:4,cooldown:1550,minDistance:0,condition:'any',execute:'grapeFinalShift'},
+      {id:'grapeFinalDash',phase:3,weight:3,cooldown:1850,minDistance:120,condition:'canRush',execute:'grapeDashBurst'},
+      {id:'grapeFinalCluster',phase:3,weight:4,cooldown:1750,minDistance:100,condition:'any',execute:'grapeClusterSplit'}
     ],
-    choco: [
-      { id:'chocoBarSplit', phase:1, weight:4, cooldown:1750, minDistance:100, condition:'any', execute:'chocoBarSplit' },
-      { id:'chocoFan', phase:1, weight:3, cooldown:1550, minDistance:0, condition:'any', execute:'chocoFan' },
-      { id:'chocoMelt', phase:1, weight:3, cooldown:2050, minDistance:0, condition:'any', execute:'chocoMelt' },
-      { id:'chocoCrossBreak', phase:2, weight:4, cooldown:1800, minDistance:80, condition:'any', execute:'chocoCrossBreak' },
-      { id:'chocoBounce', phase:2, weight:3, cooldown:1750, minDistance:0, condition:'any', execute:'chocoBounce' },
-      { id:'chocoMeltClamp', phase:2, weight:3, cooldown:2100, minDistance:0, condition:'any', execute:'chocoMeltClamp' }
+    choco:[
+      {id:'chocoBarSplit',phase:1,weight:4,cooldown:1750,minDistance:100,condition:'any',execute:'chocoBarSplit'},
+      {id:'chocoFan',phase:1,weight:4,cooldown:1550,minDistance:0,condition:'any',execute:'chocoFan'},
+      {id:'chocoMelt',phase:2,weight:4,cooldown:2050,minDistance:0,condition:'any',execute:'chocoMelt'},
+      {id:'chocoCrossBreak',phase:2,weight:4,cooldown:1800,minDistance:80,condition:'any',execute:'chocoCrossBreak'},
+      {id:'chocoBounce',phase:2,weight:3,cooldown:1750,minDistance:0,condition:'any',execute:'chocoBounce'},
+      {id:'chocoFinalRain',phase:3,weight:4,cooldown:1600,minDistance:0,condition:'any',execute:'chocoFinalRain'},
+      {id:'chocoFinalClamp',phase:3,weight:3,cooldown:1950,minDistance:0,condition:'any',execute:'chocoMeltClamp'}
     ],
-    onion: [
-      { id:'onionPeelSpiral', phase:1, weight:4, cooldown:1600, minDistance:0, condition:'any', execute:'onionPeelSpiral' },
-      { id:'onionRingGap', phase:1, weight:3, cooldown:1700, minDistance:0, condition:'any', execute:'onionRingGap' },
-      { id:'onionLayered', phase:1, weight:3, cooldown:1900, minDistance:0, condition:'any', execute:'onionLayered' },
-      { id:'onionTriSpiral', phase:2, weight:4, cooldown:1650, minDistance:0, condition:'any', execute:'onionTriSpiral' },
-      { id:'onionCounterSpiral', phase:2, weight:3, cooldown:1900, minDistance:0, condition:'any', execute:'onionCounterSpiral' },
-      { id:'onionRingPulse', phase:2, weight:3, cooldown:1800, minDistance:0, condition:'any', execute:'onionRingPulse' }
+    onion:[
+      {id:'onionPeelSpiral',phase:1,weight:4,cooldown:1600,minDistance:0,condition:'any',execute:'onionPeelSpiral'},
+      {id:'onionRingGap',phase:1,weight:3,cooldown:1700,minDistance:0,condition:'any',execute:'onionRingGap'},
+      {id:'onionLayered',phase:2,weight:4,cooldown:1900,minDistance:0,condition:'any',execute:'onionLayered'},
+      {id:'onionCounterSpiral',phase:2,weight:4,cooldown:1900,minDistance:0,condition:'any',execute:'onionCounterSpiral'},
+      {id:'onionTriSpiral',phase:3,weight:4,cooldown:1650,minDistance:0,condition:'any',execute:'onionTriSpiral'},
+      {id:'onionRingPulse',phase:3,weight:3,cooldown:1800,minDistance:0,condition:'any',execute:'onionRingPulse'}
+    ],
+    coffee:[
+      {id:'coffeeAimBeans',phase:1,weight:5,cooldown:1500,minDistance:0,condition:'any',execute:'coffeeAimBeans'},
+      {id:'coffeeSlowBeans',phase:1,weight:3,cooldown:1750,minDistance:0,condition:'any',execute:'coffeeSlowBeans'},
+      {id:'coffeeBounce',phase:2,weight:4,cooldown:1650,minDistance:0,condition:'any',execute:'coffeeBounce'},
+      {id:'coffeeStream',phase:2,weight:4,cooldown:1900,minDistance:80,condition:'any',execute:'coffeeStream'},
+      {id:'coffeeEspressoFan',phase:3,weight:4,cooldown:1350,minDistance:0,condition:'any',execute:'coffeeEspressoFan'},
+      {id:'coffeeEspressoSweep',phase:3,weight:4,cooldown:1550,minDistance:0,condition:'any',execute:'coffeeEspressoSweep'}
+    ],
+    gum:[
+      {id:'gumBounceFan',phase:1,weight:5,cooldown:1750,minDistance:0,condition:'any',execute:'gumBounceFan'},
+      {id:'gumSlowBig',phase:1,weight:3,cooldown:1900,minDistance:0,condition:'any',execute:'gumSlowBig'},
+      {id:'gumStickyDrop',phase:2,weight:4,cooldown:2050,minDistance:0,condition:'any',execute:'gumStickyDrop'},
+      {id:'gumMixedBounce',phase:2,weight:4,cooldown:1850,minDistance:0,condition:'any',execute:'gumMixedBounce'},
+      {id:'gumFinalBurst',phase:3,weight:4,cooldown:1700,minDistance:0,condition:'any',execute:'gumFinalBurst'},
+      {id:'gumFinalControl',phase:3,weight:3,cooldown:1950,minDistance:0,condition:'any',execute:'gumStickyDrop'}
     ]
   };
 
@@ -172,7 +230,7 @@
     snackPct:0.20,
     levelUpPct:0.03,
     eliteSnackChance:0.10,
-    cleanupXpRatio:0.50
+    cleanupXpRatio:1.00
   };
 
   let selectedCharacter = 'jjigae';
@@ -189,7 +247,7 @@
     'playerDamageMult','augments','characterAugmentLevels','basicTimer','playerInvulnUntil','shieldCharges','skillLevels','skillTimers','shieldVisual','shieldChargeText',
     'juiceComboUntil','juiceComboHits','snackGauge','snackProcReadyAt','snackSpeedUntil','snackSpeedMult','snackGaugeBack','snackGaugeFill',
     'feeders','leashOrbiters','pawMines','pawLastX','pawLastY','pawDistanceAcc','pawStampBurstReadyAt','gasSpawnSeq',
-    'reviveProgress','reviveNeedMs','deathCount'
+    'reviveProgress','reviveNeedMs','deathCount','tempBuffUntil','tempMoveMult','tempAttackMult','tempDamageMult','reverseControlsUntil','hazardSlowUntil','hazardSlowMult'
   ];
 
   function characterStartStats(key) {
@@ -272,21 +330,21 @@
     }
     if (id === 'sword') {
       const table=[null,
-        {interval:3000,damageMult:1.78,reach:50,directions:2,clearNormalBullets:false,finisher:false},
-        {interval:2800,damageMult:1.90,reach:62,directions:2,clearNormalBullets:false,finisher:false},
-        {interval:2650,damageMult:2.02,reach:64,directions:4,clearNormalBullets:false,finisher:false},
-        {interval:2500,damageMult:2.12,reach:68,directions:8,clearNormalBullets:true,finisher:false},
-        {interval:2320,damageMult:2.25,reach:72,directions:8,clearNormalBullets:true,finisher:true}
+        {interval:3000,damageMult:1.78,reach:62,directions:2,clearNormalBullets:false,finisher:false},
+        {interval:2800,damageMult:1.90,reach:80,directions:2,clearNormalBullets:false,finisher:false},
+        {interval:2650,damageMult:2.02,reach:88,directions:4,clearNormalBullets:false,finisher:false},
+        {interval:2500,damageMult:2.12,reach:102,directions:8,clearNormalBullets:true,finisher:false},
+        {interval:2320,damageMult:2.25,reach:128,directions:8,clearNormalBullets:true,finisher:true}
       ];
       const st={...table[tier]};st.interval=Math.max(1900,st.interval-over*80);st.damageMult+=over*0.08;return st;
     }
     if (id === 'hellConductor') {
       const table=[null,
-        {count:1,radius:76,outerRadius:76,spin:0.0024,damageMult:0.30,knock:0,bigSwingInterval:0},
-        {count:1,radius:96,outerRadius:96,spin:0.0025,damageMult:0.33,knock:0,bigSwingInterval:0},
+        {count:1,radius:74,outerRadius:74,spin:0.0024,damageMult:0.30,knock:0,bigSwingInterval:0},
+        {count:1,radius:94,outerRadius:94,spin:0.0025,damageMult:0.33,knock:0,bigSwingInterval:0},
         {count:2,radius:98,outerRadius:98,spin:0.0026,damageMult:0.35,knock:0,bigSwingInterval:0},
-        {count:2,radius:104,outerRadius:104,spin:0.0032,damageMult:0.38,knock:6,bigSwingInterval:0},
-        {count:2,radius:98,outerRadius:136,spin:0.0035,damageMult:0.42,knock:8,bigSwingInterval:3300}
+        {count:2,radius:112,outerRadius:112,spin:0.0032,damageMult:0.38,knock:6,bigSwingInterval:0},
+        {count:2,radius:128,outerRadius:128,spin:0.0035,damageMult:0.42,knock:8,bigSwingInterval:3300}
       ];
       const st={...table[tier]};st.damageMult+=over*0.025;if(st.bigSwingInterval)st.bigSwingInterval=Math.max(2600,st.bigSwingInterval-over*100);return st;
     }
@@ -312,7 +370,7 @@
       juiceBox:['8회 적중마다 간식 회복','필요 적중 8 → 7','회복량 증가 · 간식이 더 크게 보임','회복 시 잠깐 우다다 속도','간식 파티 · 큰 회복 + 여러 간식'],
       veil:['공격 1회 막는 넥카라','넥카라 재생시간 단축','파괴 시 작은 충격파','보호막 최대 2회 저장','초대형 넥카라 · 일반탄 밀어내기'],
       sword:['위·아래 발톱 베기','베기 크기와 사거리 증가','좌·우 추가 · 십자 베기','대각선 추가 · 일반탄 제거','슥삭 대난동 · 8방향 + 마무리 원형베기'],
-      hellConductor:['산책줄 1개 회전','산책줄 길이와 범위 증가','반대편 두 번째 산책줄','회전속도 증가 · 일반 적 밀치기','대환장 산책시간 · 다른 반경 + 큰 휘두르기'],
+      hellConductor:['산책줄 1개 회전','산책줄 길이와 범위 증가','반대편 두 번째 산책줄','회전속도 증가 · 일반 적 밀치기','대환장 산책시간 · 두 줄 완성형 + 큰 휘두르기'],
       bulletBarrage:['이동한 자리에 발바닥 도장','폭발 범위 증가','도장 2개씩 · 생성 간격 감소','주변 도장 연쇄폭발','우다다 발도장 · 빠른 생성 + 순차 폭발']
     };
     if(lv>5)return '완성형 유지 · 피해와 발동 효율 소폭 강화';
@@ -642,6 +700,8 @@
     socket.on('coopPauseRequest',()=>{if(activeScene?.coopMode&&activeScene.networkRole==='host')activeScene.toggleCoopPauseFromRequest?.();});
     socket.on('coopPauseState',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.applyRemotePauseState?.(payload||{});});
     socket.on('coopGameOver',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.showRemoteGameOver?.(payload||{});});
+    socket.on('coopRunComplete',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.showRemoteRunComplete?.(payload||{});});
+    socket.on('coopRunContinue',payload=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')activeScene.applyRemoteEndless?.(payload||{});});
     socket.on('coopReturnedLobby',room=>{
       coop.active=false; renderCoopRoom(room);
       document.querySelector('#coop-wait-screen')?.classList.remove('show');
@@ -685,6 +745,7 @@
 
     init(data) {
       this.coopMode = !!data.coop;
+      this.devMode = window.__PET_DEV__===true || /(?:\?|&)dev=1(?:&|$)/.test(window.location?.search||'');
       this.networkRole = data.networkRole || 'solo';
       this.localId = data.localId || null;
       this.roomCode = data.roomCode || null;
@@ -749,7 +810,13 @@
       this.regularBossCount = 0;
       this.lastRegularBossSpawnAt = -999999;
       this.lastTrueBossEndedAt = -999999;
-      this.nextRaidWave = 35;
+      this.nextRaidWave = 35; // legacy HUD/test compatibility
+      this.nextRaidIndex = 0;
+      this.nextRaidAt = TRUE_BOSS_SCHEDULE_MS[0];
+      this.currentRaidBossIndex = 0;
+      this.endlessMode = false;
+      this.endlessCycle = 0;
+      this.runCleared = false;
       this.pendingTrueBoss = null;
       this.trueBossFinishWindowMs = 24000;
       this.trueBossMinBossGapMs = 60000;
@@ -762,9 +829,13 @@
       this.raidShotPhase = 0;
       this.raidIntroSeq = 0;
       this.raidPhaseSeq = 0;
+      this.raidUltimateSeq = 0;
+      this.raidUltimateName = '';
       this.lastNetRaidIntroSeq = 0;
       this.lastNetRaidPhaseSeq = 0;
+      this.lastNetRaidUltimateSeq = 0;
       this.raidTelegraphs = [];
+      this.raidTelegraphSeq = 0;
       this.pendingCleanupProgression = false;
       this.magnetUntil = 0;
       this.playerInvulnUntil = 0;
@@ -787,9 +858,13 @@
       this.pawStampBurstReadyAt = 0;
       this.gasSpawnSeq = 0;
       this.raidHazards = [];
+      this.deliveryWarnings = [];
+      this.deliverySeq = 0;
+      this.nextDeliveryAt = Phaser.Math.Between(DELIVERY.minDelay, DELIVERY.maxDelay);
       this.reviveProgress = 0;
       this.reviveNeedMs = 4800;
       this.deathCount = 0;
+      this.tempBuffUntil=0;this.tempMoveMult=1;this.tempAttackMult=1;this.tempDamageMult=1;this.reverseControlsUntil=0;this.hazardSlowUntil=0;this.hazardSlowMult=1;
       this.skillLevels = {};
       this.skillTimers = {
         magicMissile: 0,
@@ -1024,6 +1099,81 @@
         g.fillStyle(0xff5f61,1); g.fillRect(20,34,8,6); g.fillRect(44,34,8,6); g.fillStyle(0x17141a,1); g.fillRect(23,36,3,3); g.fillRect(47,36,3,3);
         g.fillStyle(0x6c334f,1); g.fillRect(27,49,18,6); g.fillStyle(0xffffff,1); g.fillRect(30,49,3,4); g.fillRect(39,49,3,4);
       });
+      // v1.18 TRUE BOSS phase sprites: 같은 보스라도 체력 단계가 외형으로 즉시 읽힌다.
+      create('enemy_raid_grape_green',72,72,g=>{
+        const pts=[[18,15],[31,12],[45,16],[24,28],[38,27],[51,31],[18,42],[32,44],[46,46],[31,57]];
+        pts.forEach(([x,y],i)=>{g.fillStyle(0x355c32,1);g.fillCircle(x,y,11);g.fillStyle(i%2?0x9ed35f:0xb8df69,1);g.fillCircle(x,y,7);});
+        g.fillStyle(0x4c8d43,1);g.fillRect(31,1,7,13);g.fillRect(38,4,15,6);
+        g.fillStyle(0x332631,1);g.fillRect(21,31,4,4);g.fillRect(46,31,4,4);g.fillRect(29,50,15,4);
+      });
+      create('enemy_raid_grape_red',72,72,g=>{
+        const pts=[[18,15],[31,12],[45,16],[24,28],[38,27],[51,31],[18,42],[32,44],[46,46],[31,57]];
+        pts.forEach(([x,y],i)=>{g.fillStyle(0x4d1725,1);g.fillCircle(x,y,11);g.fillStyle(i%2?0xb8324f:0xd64d5d,1);g.fillCircle(x,y,7);});
+        g.fillStyle(0x4d8a42,1);g.fillRect(31,1,7,13);g.fillRect(38,4,15,6);
+        g.fillStyle(0xffb65e,1);g.fillRect(18,29,9,6);g.fillRect(44,29,9,6);g.fillStyle(0x32131a,1);g.fillRect(21,31,4,3);g.fillRect(47,31,4,3);g.fillRect(27,49,19,6);
+      });
+      create('enemy_raid_choco_white',72,72,g=>{
+        g.fillStyle(0x7b6652,1);g.fillRect(10,8,52,56);g.fillStyle(0xf0dfba,1);g.fillRect(12,10,48,52);
+        for(let yy=14;yy<58;yy+=14)for(let xx=16;xx<56;xx+=14){g.fillStyle(0xd8c79f,1);g.fillRect(xx,yy,10,10);}
+        g.fillStyle(0x4a352e,1);g.fillRect(18,25,5,4);g.fillRect(49,25,5,4);g.fillRect(25,47,22,5);
+      });
+      create('enemy_raid_choco_macadamia',72,72,g=>{
+        g.fillStyle(0x2b1815,1);g.fillRect(10,8,52,56);g.fillStyle(0x593023,1);g.fillRect(12,10,48,52);
+        for(let yy=14;yy<58;yy+=14)for(let xx=16;xx<56;xx+=14){g.fillStyle(0x7e4730,1);g.fillRect(xx,yy,10,10);}
+        [[20,18],[43,16],[31,38],[49,48],[18,50]].forEach(([x,y])=>{g.fillStyle(0xf0d9a8,1);g.fillCircle(x,y,5);g.fillStyle(0xbe9a6a,1);g.fillCircle(x+1,y+1,3);});
+        g.fillStyle(0xffbd69,1);g.fillRect(17,25,7,5);g.fillRect(48,25,7,5);g.fillStyle(0x1a1111,1);g.fillRect(26,50,20,5);
+      });
+      create('enemy_raid_onion_yellow',72,72,g=>{
+        g.fillStyle(0xead88b,1);g.fillEllipse(36,40,50,48);g.lineStyle(5,0xc5a75a,1);g.strokeEllipse(36,40,39,37);g.strokeEllipse(36,40,24,24);
+        g.fillStyle(0x6fae63,1);g.fillTriangle(27,18,34,2,38,20);g.fillTriangle(35,18,45,1,43,21);
+        g.fillStyle(0x3d2b24,1);g.fillRect(21,35,5,4);g.fillRect(46,35,5,4);g.fillRect(28,50,17,5);
+      });
+      create('enemy_raid_onion_red',72,72,g=>{
+        g.fillStyle(0xb85f78,1);g.fillEllipse(36,40,50,48);g.lineStyle(5,0x7d3150,1);g.strokeEllipse(36,40,39,37);g.strokeEllipse(36,40,24,24);
+        g.fillStyle(0x5d9f58,1);g.fillTriangle(27,18,34,2,38,20);g.fillTriangle(35,18,45,1,43,21);
+        g.fillStyle(0xffd180,1);g.fillRect(20,34,8,6);g.fillRect(44,34,8,6);g.fillStyle(0x3d1830,1);g.fillRect(27,49,18,6);
+      });
+      create('enemy_raid_coffee_ice',72,72,g=>{
+        g.fillStyle(0x49352d,1);g.fillRoundedRect(15,9,42,54,6);g.fillStyle(0xdff0ef,0.92);g.fillRect(18,13,36,45);g.fillStyle(0x93654b,1);g.fillRect(20,31,32,25);
+        [[25,21],[35,18],[45,24]].forEach(([x,y])=>{g.fillStyle(0xe9ffff,1);g.fillRect(x,y,8,7);g.lineStyle(1,0x9ec5c8,1);g.strokeRect(x,y,8,7);});
+        g.fillStyle(0x30211e,1);g.fillRect(25,39,5,5);g.fillRect(43,39,5,5);g.fillRect(29,51,15,4);
+      });
+      create('enemy_raid_coffee_americano',72,72,g=>{
+        g.fillStyle(0x35251f,1);g.fillRoundedRect(15,9,42,54,6);g.fillStyle(0xdcc9ae,1);g.fillRect(18,13,36,45);g.fillStyle(0x513023,1);g.fillRect(20,22,32,36);
+        g.fillStyle(0xb98f62,1);g.fillRect(25,18,22,5);g.fillStyle(0xffb85f,1);g.fillRect(24,37,7,5);g.fillRect(42,37,7,5);g.fillStyle(0x1e1412,1);g.fillRect(29,50,15,5);
+      });
+      create('enemy_raid_coffee_espresso',72,72,g=>{
+        g.fillStyle(0x1f1513,1);g.fillRoundedRect(16,14,40,45,6);g.fillStyle(0x4a281f,1);g.fillRect(19,18,34,35);g.fillStyle(0xd59b5e,1);g.fillRect(22,18,28,5);
+        g.fillStyle(0xff7259,1);g.fillRect(23,33,8,6);g.fillRect(42,33,8,6);g.fillStyle(0x0f0a09,1);g.fillRect(27,46,19,5);
+        g.fillStyle(0xe5d6c1,1);g.fillRect(28,6,5,10);g.fillRect(42,5,5,11);
+      });
+      create('enemy_raid_gum',72,72,g=>{
+        g.fillStyle(0x5e4053,1);g.fillRoundedRect(11,18,50,38,11);g.fillStyle(0xd7f5ed,1);g.fillRoundedRect(14,20,44,34,9);g.fillStyle(0x8fd9c7,1);g.fillRect(20,26,32,7);
+        g.fillStyle(0x293a36,1);g.fillRect(23,38,5,5);g.fillRect(44,38,5,5);g.fillRect(29,48,14,4);
+      });
+      create('enemy_raid_gum_bubble',72,72,g=>{
+        g.fillStyle(0x5e4053,1);g.fillRoundedRect(10,19,52,37,12);g.fillStyle(0xf58dbd,1);g.fillRoundedRect(13,21,46,33,10);g.fillStyle(0xffbfd9,1);g.fillCircle(47,27,11);
+        g.fillStyle(0x4a2537,1);g.fillRect(22,39,5,5);g.fillRect(43,39,5,5);g.fillRect(29,49,14,4);
+      });
+      create('enemy_raid_gum_giant',72,72,g=>{
+        g.fillStyle(0x4a2638,1);g.fillCircle(36,36,30);g.fillStyle(0xec6fa8,1);g.fillCircle(36,36,26);g.fillStyle(0xffafd0,1);g.fillCircle(28,27,8);g.fillStyle(0xffffff,0.55);g.fillRect(23,22,8,4);
+        g.fillStyle(0x421d31,1);g.fillRect(24,39,6,5);g.fillRect(43,39,6,5);g.fillRect(29,50,15,5);
+      });
+
+      create('raidCoffeeBean',18,14,g=>{g.fillStyle(0x1b1110,1);g.fillEllipse(9,7,15,11);g.fillStyle(0x7b4933,1);g.fillEllipse(9,7,11,8);g.lineStyle(2,0xd39a67,1);g.lineBetween(5,3,12,11);});
+      create('raidCoffeeDrop',22,12,g=>{g.fillStyle(0x1b1110,1);g.fillRoundedRect(1,2,20,8,3);g.fillStyle(0x9c5a3a,1);g.fillRoundedRect(3,3,16,6,2);g.fillStyle(0xffd37d,1);g.fillRect(15,4,3,2);});
+      create('raidGumBullet',18,18,g=>{g.fillStyle(0x321b2b,1);g.fillCircle(9,9,8);g.fillStyle(0xf17db0,1);g.fillCircle(9,9,6);g.fillStyle(0xffc0da,1);g.fillCircle(7,6,2);});
+      create('raidGumBig',28,28,g=>{g.fillStyle(0x321b2b,1);g.fillCircle(14,14,13);g.fillStyle(0xe85f9d,1);g.fillCircle(14,14,10);g.fillStyle(0xffb8d6,1);g.fillCircle(10,9,3);});
+      create('macadamiaBullet',14,14,g=>{g.fillStyle(0x453523,1);g.fillCircle(7,7,6);g.fillStyle(0xf2d8a3,1);g.fillCircle(7,7,4);g.fillStyle(0xffffff,1);g.fillRect(5,4,2,2);});
+      create('stickyGumPuddle',52,34,g=>{g.fillStyle(0x54253f,0.70);g.fillEllipse(26,20,48,23);g.fillStyle(0xe26ca5,0.68);g.fillEllipse(25,17,42,19);g.fillStyle(0xffb4d3,0.42);g.fillEllipse(18,13,12,5);});
+      create('puddleWarning',54,36,g=>{g.lineStyle(2,0xffd38a,0.58);g.strokeEllipse(27,18,48,28);g.lineStyle(1,0x6e4b35,0.40);g.strokeEllipse(27,18,39,21);});
+      create('deliveryCrate',36,32,g=>{
+        g.fillStyle(0x4b3428,1);g.fillRect(3,5,30,24);g.fillStyle(0xc99559,1);g.fillRect(5,7,26,20);g.lineStyle(2,0x6e4b31,1);g.strokeRect(5,7,26,20);g.lineBetween(18,7,18,27);
+        g.fillStyle(0xf0e3bd,1);g.fillRect(8,10,20,8);g.fillStyle(0x8acb75,1);g.fillCircle(18,15,4);[[13,11],[16,9],[20,9],[23,11]].forEach(([x,y])=>g.fillCircle(x,y,2));
+      });
+      create('deliveryShadow',42,22,g=>{g.fillStyle(0x221c1b,0.25);g.fillEllipse(21,12,36,12);g.lineStyle(2,0xffdf85,0.70);g.strokeEllipse(21,11,38,17);});
+      create('deliveryAlert',16,24,g=>{g.fillStyle(0xffd96b,1);g.fillRect(7,2,3,13);g.fillRect(7,18,3,3);g.fillStyle(0x5b3b24,1);g.fillRect(6,1,5,2);});
+
       create('eliteFace', 36, 36, g => {
         g.fillStyle(0xff4545,1); g.fillRect(8,12,5,4); g.fillRect(23,12,5,4);
         g.fillStyle(0x17141a,1); g.fillRect(10,13,2,2); g.fillRect(24,13,2,2);
@@ -1120,15 +1270,22 @@
         g.lineStyle(3,0x74d8aa,0.72); g.strokeCircle(34,34,23);
         g.fillStyle(0xa9eed0,0.10); g.fillCircle(34,34,27);
       });
-      create('clawSlash', 42, 24, g => {
-        g.lineStyle(4,0xfff0c1,0.92);
-        g.lineBetween(3,19,34,3); g.lineBetween(7,22,38,6); g.lineBetween(1,15,30,1);
-        g.lineStyle(2,0xe8896d,0.70); g.lineBetween(5,20,36,4);
+      create('clawSlash', 56, 30, g => {
+        // 3개의 분리된 발톱 자국. 한 장짜리 칼날/사다리꼴로 보이지 않게 한다.
+        const scratch=(oy,len)=>{
+          g.lineStyle(5,0x5b3c3c,0.72);g.beginPath();g.moveTo(4,oy+4);g.lineTo(18,oy+1);g.lineTo(34,oy-1);g.lineTo(4+len,oy-5);g.strokePath();
+          g.lineStyle(3,0xffe9b8,0.98);g.beginPath();g.moveTo(5,oy+3);g.lineTo(19,oy);g.lineTo(34,oy-2);g.lineTo(4+len,oy-6);g.strokePath();
+          g.fillStyle(0xffffff,0.78);g.fillTriangle(4+len,oy-8,4+len,oy-4,9+len,oy-7);
+        };
+        scratch(10,42);scratch(17,46);scratch(24,40);
       });
-      create('leashOrbit', 74, 14, g => {
-        g.lineStyle(4,0x493b35,0.95); g.lineBetween(3,7,58,7);
-        g.lineStyle(2,0xd9b26a,1); g.lineBetween(5,6,58,6);
-        g.fillStyle(0xe5826d,1); g.fillRoundedRect(57,2,13,10,3);
+      create('leashOrbit', 96, 34, g => {
+        // 휘어진 산책 리드줄 + 손잡이. 연결부는 얇고 끝부분은 한눈에 산책줄로 읽힌다.
+        g.lineStyle(5,0x3b302d,0.94);g.beginPath();g.moveTo(3,18);g.lineTo(24,13);g.lineTo(48,17);g.lineTo(70,10);g.lineTo(82,14);g.strokePath();
+        g.lineStyle(2,0xe4bb70,1);g.beginPath();g.moveTo(4,17);g.lineTo(24,12);g.lineTo(48,16);g.lineTo(70,9);g.lineTo(82,13);g.strokePath();
+        g.fillStyle(0x522f34,1);g.fillRoundedRect(80,7,13,13,4);
+        g.fillStyle(0xe88770,1);g.fillRoundedRect(82,9,9,9,3);
+        g.fillStyle(0x3b302d,1);g.fillRect(84,11,5,5);
       });
       create('pawStamp', 22, 20, g => {
         g.fillStyle(0x47384b,0.90); g.fillCircle(11,13,5);
@@ -1368,7 +1525,8 @@
         augments:[],characterAugmentLevels:{},basicTimer:350,playerInvulnUntil:0,shieldCharges:0,skillLevels:{},juiceComboUntil:0,juiceComboHits:0,
         snackGauge:0,snackProcReadyAt:0,snackSpeedUntil:0,snackSpeedMult:1,snackGaugeBack:null,snackGaugeFill:null,
         feeders:[],leashOrbiters:[],pawMines:[],pawLastX:null,pawLastY:null,pawDistanceAcc:0,pawStampBurstReadyAt:0,gasSpawnSeq:0,
-        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,shieldChargeText:null,down:false,reviveProgress:0,reviveNeedMs:4800,deathCount:0,reviveUi:null
+        skillTimers:{magicMissile:0,veil:0,sword:0,hellConductor:0,bulletBarrage:0},shieldVisual:null,shieldChargeText:null,down:false,reviveProgress:0,reviveNeedMs:4800,deathCount:0,reviveUi:null,
+        tempBuffUntil:0,tempMoveMult:1,tempAttackMult:1,tempDamageMult:1,reverseControlsUntil:0,hazardSlowUntil:0,hazardSlowMult:1
       };
     }
     setupCoopBuilds() {
@@ -1424,7 +1582,7 @@
         }
       });
     }
-    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,extraBasicShots:b.extraBasicShots||0,basicDamageMult:b.basicDamageMult||1,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,characterAugmentLevels:b.characterAugmentLevels,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges,snackGauge:b.snackGauge||0,snackSpeedLeft:Math.max(0,(b.snackSpeedUntil||0)-this.runTimeMs),reviveProgress:b.reviveProgress||0,reviveNeedMs:b.reviveNeedMs||4800,deathCount:b.deathCount||0,invulnLeft:Math.max(0,(b.playerInvulnUntil||0)-this.runTimeMs)}:null;}
+    buildSummary(b){return b?{id:b.id,characterKey:b.characterKey,hp:b.hp,maxHp:b.maxHp,down:!!b.down,attackPower:b.attackPower,moveSpeed:b.moveSpeed,basicCooldown:b.basicCooldown,extraBasicShots:b.extraBasicShots||0,basicDamageMult:b.basicDamageMult||1,xpGainMult:b.xpGainMult,gemMagnetRange:b.gemMagnetRange,playerDamageMult:b.playerDamageMult,levelUpgradeCounts:b.levelUpgradeCounts,augments:b.augments,characterAugmentLevels:b.characterAugmentLevels,majorLevels:b.majorLevels,skillLevels:b.skillLevels,shieldCharges:b.shieldCharges,snackGauge:b.snackGauge||0,snackSpeedLeft:Math.max(0,(b.snackSpeedUntil||0)-this.runTimeMs),reviveProgress:b.reviveProgress||0,reviveNeedMs:b.reviveNeedMs||4800,deathCount:b.deathCount||0,invulnLeft:Math.max(0,(b.playerInvulnUntil||0)-this.runTimeMs),tempBuffLeft:Math.max(0,(b.tempBuffUntil||0)-this.runTimeMs),reverseLeft:Math.max(0,(b.reverseControlsUntil||0)-this.runTimeMs),tempMoveMult:b.tempMoveMult||1,tempAttackMult:b.tempAttackMult||1,tempDamageMult:b.tempDamageMult||1,hazardSlowLeft:Math.max(0,(b.hazardSlowUntil||0)-this.runTimeMs),hazardSlowMult:b.hazardSlowMult||1}:null;}
 
     milestoneChoicesForBuild(build){
       const picks=shuffle(MILESTONE_AUGMENTS).slice(0,3).map(x=>({...x,exclusive:false}));
@@ -1552,6 +1710,8 @@
       document.querySelector('#levelup-screen').classList.remove('show');
       document.querySelector('#chest-screen').classList.remove('show');
       document.querySelector('#coop-wait-screen')?.classList.remove('show');
+      document.querySelector('#run-complete-screen')?.classList.remove('show');
+      document.querySelector('#run-endless-btn')?.classList.remove('guest-wait');
       this.time.paused = false; this.physics.world.resume(); stopBgm();
       if(this.coopMode){if(this.networkRole==='host')socket?.emit('coopBackLobby');else{socket?.emit('coopLeave');coop.room=null;coop.active=false;renderCoopRoom(null);}}
       this.scene.stop(); activeScene = null; document.querySelector('#game-shell')?.classList.remove('game-running'); document.querySelector('#combat-hud')?.setAttribute('aria-hidden','true'); document.querySelector('#start-screen').classList.add('show');
@@ -1579,11 +1739,20 @@
       };
       this.input.keyboard.on('keydown-ESC', this._escHandler);
       this.input.keyboard.on('keydown-F2', this._hitboxHandler);
+      if(this.devMode){
+        this._devF3=()=>{if(this.coopMode&&this.networkRole==='guest')return;if(!this.raidBossActive&&!this.pendingTrueBoss){this.nextRaidAt=this.runTimeMs;this.queueTrueBossEncounter(this.getWave(),this.nextRaidIndex,this.runTimeMs);}};
+        this._devF4=()=>{const b=this.enemies?.getChildren?.().find(e=>e.active&&e.enemyRole==='raidBoss');if(b){b.hp=Math.min(b.hp,b.maxHp*.64);this.activateRaidPhase(b,2);}};
+        this._devF5=()=>{const b=this.enemies?.getChildren?.().find(e=>e.active&&e.enemyRole==='raidBoss');if(b){b.hp=Math.min(b.hp,b.maxHp*.19);this.activateRaidPhase(b,3);}};
+        this._devF6=()=>{const b=this.enemies?.getChildren?.().find(e=>e.active&&e.enemyRole==='raidBoss');if(b)this.executeRaidUltimate(b);};
+        this.input.keyboard.on('keydown-F3',this._devF3);this.input.keyboard.on('keydown-F4',this._devF4);this.input.keyboard.on('keydown-F5',this._devF5);this.input.keyboard.on('keydown-F6',this._devF6);
+      }
       this.events.once('shutdown', () => {
         if (this._escHandler) this.input?.keyboard?.off('keydown-ESC', this._escHandler);
         if (this._hitboxHandler) this.input?.keyboard?.off('keydown-F2', this._hitboxHandler);
+        if(this._devF3)this.input?.keyboard?.off('keydown-F3',this._devF3);if(this._devF4)this.input?.keyboard?.off('keydown-F4',this._devF4);if(this._devF5)this.input?.keyboard?.off('keydown-F5',this._devF5);if(this._devF6)this.input?.keyboard?.off('keydown-F6',this._devF6);
         this.hitboxDebugGraphics?.destroy?.();this.hitboxDebugGraphics=null;
         if (this.builds) [...this.builds.values()].forEach(b => this.clearReviveUi?.(b));
+        this.clearRaidTelegraphs?.();this.clearDeliveryWarnings?.();
         if (activeScene === this) activeScene = null;
         this.hudDom=null;
       });
@@ -1673,6 +1842,12 @@
         const r=b.hitRadius||ENEMY_BULLET_HITBOX[kind]?.hitRadius||3.5;
         g.lineStyle(1,kind==='raid'?0xff6b4f:kind==='boss'?0xc775ff:0xff6477,0.88);g.strokeCircle(b.x,b.y,r*Math.abs(b.scaleX||1));
       });
+      this.enemies?.getChildren?.().forEach(e=>{
+        if(!e?.active||e.getData?.('dead'))return;
+        const hc=this.enemyHurtCircle(e);
+        const color=e.enemyRole==='raidBoss'?0xffd96b:e.enemyRole==='elite'?0x72d8ff:e.enemyRole==='boss'?0xffa96b:0xa7b8c4;
+        g.lineStyle(e.enemyRole==='raidBoss'?2:1,color,e.enemyRole==='raidBoss'?0.95:0.58);g.strokeCircle(hc.x,hc.y,hc.r);
+      });
     }
 
     showBanner(title, subtitle = '') {
@@ -1754,14 +1929,15 @@
       let role = 'normal', mutationKey = null, bossStats = null;
 
       if (isRaid) {
-        const raidTextures = ['enemy_raid_grape', 'enemy_raid_choco', 'enemy_raid_onion'];
-        texture = raidTextures[Math.max(0, this.raidBossCount - 1) % raidTextures.length];
-        baseHp = 6500 + this.raidBossCount * 1800;
-        baseSpeed = 60 + Math.min(24, this.raidBossCount * 3);
-        damage = 34 + this.raidBossCount * 4;
-        xp = 0;
-        spriteScale = 3.05;
-        role = 'raidBoss';
+        const raidIndex=Number.isFinite(opts.raidIndex)?opts.raidIndex:(Number.isFinite(this.currentRaidBossIndex)?this.currentRaidBossIndex:Math.max(0,this.raidBossCount-1)%TRUE_BOSS_ORDER.length);
+        const raidKey=TRUE_BOSS_ORDER[((raidIndex%TRUE_BOSS_ORDER.length)+TRUE_BOSS_ORDER.length)%TRUE_BOSS_ORDER.length];
+        const def=BOSS_DEFINITIONS[raidKey]||BOSS_DEFINITIONS.grape;
+        const cycle=this.endlessMode?Math.max(0,this.endlessCycle||0):0;
+        texture=def.textures[0];
+        baseHp=def.baseHp*Math.pow(1.16,cycle);
+        baseSpeed=def.baseSpeed*Math.min(1.22,1+cycle*0.035);
+        damage=def.contactDamage*Math.min(1.20,1+cycle*0.04);
+        xp=0;spriteScale=3.05;role='raidBoss';
       } else if (isBoss) {
         bossStats=this.getBossEscalation(opts.bossIndex || this.regularBossCount || 1);
         texture = 'enemy_boss';
@@ -1824,13 +2000,17 @@
       e.eliteShotMult=mutationShotMult;
       e.nextShotAt = this.runTimeMs + Phaser.Math.Between(role === 'elite' ? 1300 : 900, role === 'elite' ? 2500 : 1700) * mutationShotMult;
       e.shotPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const raidKindAtSpawn=role==='raidBoss'?['grape','choco','onion'][Math.max(0,this.raidBossCount-1)%3]:null;
-      e.nextRushAt = this.runTimeMs + (raidKindAtSpawn==='grape'?Phaser.Math.Between(6500,8500):Phaser.Math.Between(3000,5200));
+      const raidKindAtSpawn=role==='raidBoss'?TRUE_BOSS_ORDER[((Number.isFinite(opts.raidIndex)?opts.raidIndex:this.currentRaidBossIndex||0)%TRUE_BOSS_ORDER.length+TRUE_BOSS_ORDER.length)%TRUE_BOSS_ORDER.length]:null;
+      e.nextRushAt = raidKindAtSpawn==='grape'?this.runTimeMs+Phaser.Math.Between(GRAPE_RUSH.nextRushMin,GRAPE_RUSH.nextRushMax):Infinity;
       e.rushUntil = 0;
-      e.raidPhase2 = false;
+      e.raidPhase=1;e.raidPhase2=false;e.raidFinal=false;e.ultimateUsed=false;e.phaseGuardUntil=0;
       e.setData('dead', false);
 
-      if (role === 'raidBoss') e.body.setCircle(25, 11, 11);
+      if (role === 'raidBoss') {
+        const def=BOSS_DEFINITIONS[raidKindAtSpawn]||BOSS_DEFINITIONS.grape,hb=def.hurtbox;
+        e.body.setCircle(hb.r,hb.ox,hb.oy);
+        e.hurtboxRadius=hb.r;e.hurtboxOffsetX=hb.ox;e.hurtboxOffsetY=hb.oy;e.raidKind=raidKindAtSpawn;
+      }
       else if (role === 'boss') e.body.setCircle(18, 6, 6);
       else if (role === 'elite') e.body.setCircle(13, 3, 3);
       else e.body.setCircle(10, 5, 5);
@@ -1845,9 +2025,11 @@
       }
       if (role === 'boss') e.setTint(0xe6b26f);
       if (role === 'raidBoss') {
-        e.raidName=this.raidBossName || TRUE_BOSS_NAMES[Math.max(0,this.raidBossCount-1)%TRUE_BOSS_NAMES.length];
+        const def=BOSS_DEFINITIONS[e.raidKind]||BOSS_DEFINITIONS.grape;
+        e.raidName=this.raidBossName || def.phaseNames[0];
         e.raidBaseScale=spriteScale;
         e.rushRecoveryUntil=0;e.rushTrailAt=0;e.rushPostDone=false;e.rushTelegraphStart=0;
+        e.ultimateChargeStart=0;e.ultimateChargeUntil=0;e.ultimateChargeKind='';
         e.setTint(0xffffff);
       }
       if(opts.offspring){
@@ -1863,6 +2045,38 @@
       if(e.netMutationMarker?.active)e.netMutationMarker.destroy();
       if(e.raidTelegraph?.active)e.raidTelegraph.destroy();
       e.raidTelegraph=null;
+    }
+
+    enemyHurtRadius(enemy){
+      if(!enemy)return 0;
+      if(enemy.enemyRole==='raidBoss')return (enemy.hurtboxRadius||25)*Math.abs(enemy.scaleX||1);
+      if(enemy.enemyRole==='boss')return 18*Math.abs(enemy.scaleX||1);
+      if(enemy.enemyRole==='elite')return 13*Math.abs(enemy.scaleX||1);
+      return 10*Math.abs(enemy.scaleX||1);
+    }
+
+    enemyHurtCircle(enemy){
+      if(!enemy)return {x:0,y:0,r:0};
+      const r=this.enemyHurtRadius(enemy);
+      if(enemy.enemyRole==='raidBoss'){
+        const def=BOSS_DEFINITIONS[this.raidBossKind(enemy)]||BOSS_DEFINITIONS.grape;
+        const hb=def.hurtbox||{r:25,ox:11,oy:11};
+        const sx=Math.abs(enemy.scaleX||1),sy=Math.abs(enemy.scaleY||enemy.scaleX||1);
+        const fw=enemy.frame?.realWidth||enemy.width||72,fh=enemy.frame?.realHeight||enemy.height||72;
+        const ox=enemy.originX??0.5,oy=enemy.originY??0.5;
+        return {
+          x:enemy.x-fw*sx*ox+(hb.ox+hb.r)*sx,
+          y:enemy.y-fh*sy*oy+(hb.oy+hb.r)*sy,
+          r
+        };
+      }
+      const c=enemy.body?.center;
+      return {x:Number.isFinite(c?.x)?c.x:enemy.x,y:Number.isFinite(c?.y)?c.y:enemy.y,r};
+    }
+
+    meleeHurtPadding(enemy, normalRatio=0.45, raidRatio=0.88){
+      const r=this.enemyHurtRadius(enemy);
+      return r*(enemy?.enemyRole==='raidBoss'?raidRatio:normalRatio);
     }
 
     spawnSplitterChildren(enemy) {
@@ -1923,23 +2137,22 @@
       return this.enemies.getChildren().find(e=>e.active&&!e.getData('dead')&&e.enemyRole==='boss') || null;
     }
 
-    queueTrueBossEncounter(triggerWave=this.getWave()) {
+    queueTrueBossEncounter(triggerWave=this.getWave(), bossIndex=this.nextRaidIndex, scheduledAt=this.runTimeMs) {
       if(this.raidBossActive||this.raidBossTransition||this.pendingTrueBoss)return;
       const boss=this.getActiveRegularBoss();
-      const earliestStartAt=Math.max(this.runTimeMs,(this.lastRegularBossSpawnAt||-999999)+this.trueBossMinBossGapMs);
+      const earliestStartAt=Math.max(scheduledAt,(this.lastRegularBossSpawnAt||-999999)+this.trueBossMinBossGapMs);
       this.pendingTrueBoss={
-        triggerWave,
+        triggerWave,bossIndex,
         queuedAt:this.runTimeMs,
         deadlineAt:this.runTimeMs+this.trueBossFinishWindowMs,
         earliestStartAt,
         resolvedAt:boss?null:this.runTimeMs,
-        blockSpawns:!!boss
+        blockSpawns:!!boss || earliestStartAt-this.runTimeMs<=3000
       };
       this.raidPendingSeq+=1;
       this.zombieTimer=0;this.batTimer=0;this.eliteTimer=0;
-      const waitSec=Math.max(0,Math.ceil((earliestStartAt-this.runTimeMs)/1000));
       if(boss)this.showBanner('TRUE BOSS 접근 중...','현재 보스를 마무리하세요! · 신규 적 스폰 중지');
-      else this.showBanner('TRUE BOSS 접근 중...',waitSec>0?`전장 정리 중 · 약 ${waitSec}초 후 출현`:'전장 정리 후 곧 출현');
+      else this.showBanner('TRUE BOSS 접근 중...','전장 정리 준비 · 떨어진 XP와 보상은 모두 보존');
     }
 
     forceResolveRegularBossForRaid(boss) {
@@ -1956,59 +2169,69 @@
       const pending=this.pendingTrueBoss;
       if(!pending||this.raidBossActive||this.raidBossTransition)return true;
       let boss=this.getActiveRegularBoss();
-      if(boss && this.runTimeMs>=pending.deadlineAt){
-        this.forceResolveRegularBossForRaid(boss);
-        boss=null;
-        pending.resolvedAt=this.runTimeMs;
-      }
-      if(boss)return true;
+      if(boss&&this.runTimeMs>=pending.deadlineAt){this.forceResolveRegularBossForRaid(boss);boss=null;pending.resolvedAt=this.runTimeMs;}
+      if(boss){pending.blockSpawns=true;return true;}
       if(!Number.isFinite(pending.resolvedAt))pending.resolvedAt=this.runTimeMs;
-      const readyAt=Math.max(pending.earliestStartAt,pending.resolvedAt+1000);
+      const readyAt=Math.max(pending.earliestStartAt,pending.resolvedAt+350);
+      pending.blockSpawns=readyAt-this.runTimeMs<=3000;
       if(this.runTimeMs>=readyAt){this.startRaidBossEncounter();return true;}
-      // 실제 일반 보스를 마무리하는 중이었다면 전장을 비워 주고,
-      // 보스가 이미 없던 경우에는 최소 간격을 기다리는 동안 일반 웨이브를 유지한다.
       return !!pending.blockSpawns;
     }
 
     clearBattlefieldForRaid() {
-      let rawXp=0,removed=0;
-      [...this.enemies.getChildren()].forEach(e => {
+      let rawXp=0,removed=0,eliteRemoved=0;
+      const anchor=this.nearestActivePlayerTo(this.player?.x||0,this.player?.y||0)||this.player;
+      [...this.enemies.getChildren()].forEach(e=>{
         if(!e?.active)return;
         const role=e.enemyRole||'normal';
         if(role==='normal'||role==='elite'){
-          rawXp+=Math.max(0,e.xpValue||0);
-          removed+=1;
+          rawXp+=Math.max(0,e.xpValue||0);removed+=1;
+          if(role==='elite'){
+            eliteRemoved+=1;
+            if(Math.random()<0.18&&anchor)this.dropChest(anchor.x+Phaser.Math.Between(-34,34),anchor.y+Phaser.Math.Between(-28,28));
+            if(Math.random()<HEALING.eliteSnackChance&&anchor)this.dropSnack(anchor.x+Phaser.Math.Between(-34,34),anchor.y+Phaser.Math.Between(-28,28));
+          }
         }else if(role==='boss'){
-          // 예약 로직이 놓친 보스가 있어도 보상 없이 삭제하지 않는 최종 안전장치.
           this.dropRegularBossRewards(e.x,e.y,true);
         }
-        this.destroyEnemyDecorations(e);
-        e.destroy();
+        this.destroyEnemyDecorations(e);e.destroy();
       });
-      this.enemyProjectiles.clear(true, true);
+      // 이미 바닥에 떨어진 XP는 보스전 때문에 사라지지 않는다. 내부 합산으로 즉시 회수.
+      this.gems?.getChildren?.().forEach(g=>{if(!g?.active)return;rawXp+=Math.max(0,g.xpValue||0);g.destroy();});
+      // 기존 상자/간식/자석은 보존하고 가까운 플레이어 주위로만 정리한다.
+      if(anchor){
+        let idx=0;
+        this.items?.getChildren?.().forEach(it=>{
+          if(!it?.active)return;
+          const a=(idx++%8)*Math.PI/4,r=56+Math.floor(idx/8)*18;
+          it.setPosition(anchor.x+Math.cos(a)*r,anchor.y+Math.sin(a)*r);
+        });
+      }
+      this.enemyProjectiles.clear(true,true);
       this.clearRaidHazards();
       const cleanupXp=Math.max(0,Math.floor(rawXp*HEALING.cleanupXpRatio));
-      if(cleanupXp>0){
-        this.xp+=cleanupXp;
-        this.pendingCleanupProgression=true;
-      }
-      return { cleanupXp, removed };
+      if(cleanupXp>0){this.xp+=cleanupXp;this.pendingCleanupProgression=true;}
+      return {cleanupXp,removed,eliteRemoved};
     }
 
     startRaidBossEncounter() {
       if(this.raidBossActive||this.raidBossTransition)return;
       const stillBoss=this.getActiveRegularBoss();
       if(stillBoss){
-        if(!this.pendingTrueBoss)this.queueTrueBossEncounter(this.getWave());
+        if(!this.pendingTrueBoss)this.queueTrueBossEncounter(this.getWave(),this.nextRaidIndex,this.runTimeMs);
         return;
       }
+      const pending=this.pendingTrueBoss||{};
+      this.currentRaidBossIndex=Number.isFinite(pending.bossIndex)?pending.bossIndex:(this.currentRaidBossIndex||0);
       this.pendingTrueBoss=null;
-      this.raidBossActive = true;
-      this.raidBossTransition = true;
+      this.raidBossActive=true;
+      this.raidBossTransition=true;
       const cleanup=this.clearBattlefieldForRaid();
-      this.raidBossCount += 1;
-      this.raidBossName=TRUE_BOSS_NAMES[(this.raidBossCount-1)%TRUE_BOSS_NAMES.length];
-      this.raidIntroSeq += 1;
+      this.raidBossCount+=1;
+      const key=TRUE_BOSS_ORDER[this.currentRaidBossIndex%TRUE_BOSS_ORDER.length];
+      const def=BOSS_DEFINITIONS[key]||BOSS_DEFINITIONS.grape;
+      this.raidBossName=def.phaseNames[0];
+      this.raidIntroSeq+=1;
       const cleanupText=cleanup.cleanupXp>0?` · 전장 정리 XP +${cleanup.cleanupXp}`:'';
       this.showBanner('⚠ TRUE BOSS 경고 ⚠', `${this.raidBossName} 출현 감지${cleanupText}`);
       showBossWarningUi(this.raidBossName, `탄막전 시작 · 패턴을 보고 피하세요${cleanupText}`);
@@ -2021,20 +2244,21 @@
     }
 
     spawnRaidBossNow() {
-      const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const r = Math.max(this.cameras.main.width, this.cameras.main.height) * 0.55;
-      const x = Phaser.Math.Clamp(this.player.x + Math.cos(a) * r, 140, this.worldSize - 140);
-      const y = Phaser.Math.Clamp(this.player.y + Math.sin(a) * r, 140, this.worldSize - 140);
-      const boss = this.spawnEnemy('raidBoss', x, y);
-      boss.raidIndex = this.raidBossCount - 1;
+      const a=Phaser.Math.FloatBetween(0,Math.PI*2);
+      const r=Math.max(this.cameras.main.width,this.cameras.main.height)*0.55;
+      const anchor=this.nearestActivePlayerTo(this.player?.x||this.worldSize/2,this.player?.y||this.worldSize/2)||this.player;
+      const x=Phaser.Math.Clamp((anchor?.x||this.worldSize/2)+Math.cos(a)*r,140,this.worldSize-140);
+      const y=Phaser.Math.Clamp((anchor?.y||this.worldSize/2)+Math.sin(a)*r,140,this.worldSize-140);
+      const boss=this.spawnEnemy('raidBoss',x,y,{raidIndex:this.currentRaidBossIndex});
+      boss.raidIndex=this.currentRaidBossIndex;
       boss.raidName=this.raidBossName;
       boss.raidPatternHistory=[];
       boss.raidPatternId='';
       boss.rushTelegraphUntil=0;boss.rushUntil=0;boss.rushAngle=0;boss.rushPostDone=true;
       this.raidBossTransition=false;
       this.showBanner(this.raidBossName, `WAVE ${this.getWave()} · 탄막전 시작!`);
-      this.cameras.main.flash(500, 255, 60, 35);
-      this.cameras.main.shake(650, 0.012);
+      this.cameras.main.flash(500,255,60,35);
+      this.cameras.main.shake(650,0.012);
       playEnemyShotSfx(true);
       if(this.pendingCleanupProgression){
         this.pendingCleanupProgression=false;
@@ -2048,9 +2272,16 @@
       const minutes=sec/60;
       const wave = this.getWave();
 
-      if (!this.raidBossActive && !this.pendingTrueBoss && wave >= this.nextRaidWave) {
-        this.queueTrueBossEncounter(this.nextRaidWave);
-        this.nextRaidWave += 35;
+      if(!this.raidBossActive&&!this.pendingTrueBoss&&!this.runCleared&&Number.isFinite(this.nextRaidAt)&&this.runTimeMs>=this.nextRaidAt-3000){
+        const scheduled=this.nextRaidAt,bossIndex=this.nextRaidIndex;
+        this.queueTrueBossEncounter(wave,bossIndex,scheduled);
+        this.nextRaidIndex+=1;
+        if(this.endlessMode){
+          if(this.nextRaidIndex>=TRUE_BOSS_ORDER.length){this.nextRaidIndex=0;this.endlessCycle+=1;}
+          this.nextRaidAt=scheduled+180000;
+        }else{
+          this.nextRaidAt=this.nextRaidIndex<TRUE_BOSS_SCHEDULE_MS.length?TRUE_BOSS_SCHEDULE_MS[this.nextRaidIndex]:Infinity;
+        }
       }
       if (this.pendingTrueBoss) {
         const blockSpawns=this.updatePendingTrueBoss();
@@ -2100,7 +2331,7 @@
         }
       }
 
-      if (sec >= 180 && !this.event180Done) {
+      if (sec >= 150 && !this.event180Done) {
         this.event180Done = true;
         this.spawnRingEvent();
       }
@@ -2338,26 +2569,32 @@
     castClawSwipe(level) {
       const st=treasureSkillStats('sword',level),dirs=st.directions;
       const angles=dirs===2?[-Math.PI/2,Math.PI/2]:dirs===4?[0,Math.PI/2,Math.PI,-Math.PI/2]:Array.from({length:8},(_,i)=>i*Math.PI/4);
-      const owner=this.currentBuildId||this.localId||'solo';
-      angles.forEach((a,i)=>{
-        const x=this.player.x+Math.cos(a)*st.reach*.55,y=this.player.y+Math.sin(a)*st.reach*.55;
-        const slash=this.add.image(x,y,'clawSlash').setDepth(18).setRotation(a).setScale(.72+Math.min(5,level)*.06).setAlpha(.92);
-        this.tweens.add({targets:slash,alpha:0,scaleX:slash.scaleX*1.18,duration:250,onComplete:()=>slash.destroy()});
+      let bulletBudget=level>=5?18:12;
+      angles.forEach(a=>{
+        const start=22+st.reach*.38,x=this.player.x+Math.cos(a)*start,y=this.player.y+Math.sin(a)*start;
+        const slash=this.add.image(x,y,'clawSlash').setDepth(18).setRotation(a).setScale(Math.max(.72,st.reach/88),.9).setAlpha(.9);
+        const tx=x+Math.cos(a)*(level>=5?38:14),ty=y+Math.sin(a)*(level>=5?38:14);
+        this.tweens.add({targets:slash,x:tx,y:ty,alpha:0,scaleX:slash.scaleX*1.12,duration:level>=5?280:230,onComplete:()=>slash.destroy()});
         this.enemies.getChildren().forEach(e=>{
           if(!e.active||e.getData('dead'))return;
-          const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y);if(d>st.reach)return;
-          const ea=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);
-          if(Math.abs(Phaser.Math.Angle.Wrap(ea-a))<0.36)this.damageEnemy(e,this.attackPower*st.damageMult,'clawSwipe');
+          const hc=this.enemyHurtCircle(e),d=Phaser.Math.Distance.Between(this.player.x,this.player.y,hc.x,hc.y);
+          if(d>st.reach+this.meleeHurtPadding(e,.45,.90))return;
+          const ea=Phaser.Math.Angle.Between(this.player.x,this.player.y,hc.x,hc.y);
+          if(Math.abs(Phaser.Math.Angle.Wrap(ea-a))<0.34)this.damageEnemy(e,this.attackPower*st.damageMult,'clawSwipe');
         });
       });
       if(st.clearNormalBullets){
-        this.enemyProjectiles.getChildren().forEach(b=>{if(b.active&&b.kind==='enemy'&&Phaser.Math.Distance.Between(this.player.x,this.player.y,b.x,b.y)<=st.reach+8)b.destroy();});
+        this.enemyProjectiles.getChildren().forEach(b=>{if(bulletBudget<=0||!b.active||b.kind!=='enemy')return;if(Phaser.Math.Distance.Between(this.player.x,this.player.y,b.x,b.y)<=st.reach+8){b.destroy();bulletBudget--;}});
       }
       if(st.finisher){
         this.time.delayedCall(160,()=>{
-          const ring=this.add.image(this.player.x,this.player.y,'shockwave').setDepth(17).setAlpha(.58).setScale(.35);
-          this.tweens.add({targets:ring,scale:(st.reach+24)/28,alpha:0,duration:300,onComplete:()=>ring.destroy()});
-          this.enemies.getChildren().forEach(e=>{if(e.active&&!e.getData('dead')&&Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y)<=st.reach+24)this.damageEnemy(e,this.attackPower*st.damageMult*.52,'clawFinisher');});
+          // Lv.5 마무리는 검/충격파 원이 아니라 3줄 발톱 자국들이 몸 주위를 휘감는 모습으로 보인다.
+          const finishRadius=Math.min(76,st.reach*.56);
+          for(let i=0;i<8;i++){
+            const a=i*Math.PI/4,fx=this.add.image(this.player.x+Math.cos(a)*finishRadius,this.player.y+Math.sin(a)*finishRadius,'clawSlash').setDepth(17).setRotation(a+Math.PI/2).setScale(.72,.70).setAlpha(.62);
+            this.tweens.add({targets:fx,x:this.player.x+Math.cos(a)*(finishRadius+22),y:this.player.y+Math.sin(a)*(finishRadius+22),alpha:0,scaleX:.9,duration:300,onComplete:()=>fx.destroy()});
+          }
+          this.enemies.getChildren().forEach(e=>{if(!e.active||e.getData('dead'))return;const hc=this.enemyHurtCircle(e);if(Phaser.Math.Distance.Between(this.player.x,this.player.y,hc.x,hc.y)<=st.reach+24+this.meleeHurtPadding(e,.35,.86))this.damageEnemy(e,this.attackPower*st.damageMult*.52,'clawFinisher');});
         });
       }
       noise(.055,.025,1100);
@@ -2368,8 +2605,8 @@
       if(!level)return;
       const st=treasureSkillStats('hellConductor',level);
       for(let i=0;i<st.count;i++){
-        const obj=this.add.image(this.player.x,this.player.y,'leashOrbit').setOrigin(0,.5).setDepth(13).setAlpha(.82);
-        this.leashOrbiters.push({obj,index:i,hitReady:new Map()});
+        const obj=this.add.image(this.player.x,this.player.y,'leashOrbit').setOrigin(.04,.5).setDepth(9).setAlpha(.78);
+        this.leashOrbiters.push({obj,index:i,hitReady:new Map(),radius:st.radius,level});
       }
     }
 
@@ -2383,31 +2620,32 @@
       if(!level)return;
       const st=treasureSkillStats('hellConductor',level);
       if((this.leashOrbiters||[]).length!==st.count)this.rebuildLeashOrbiters(level);
+      const anchorCfg=PLAYER_SPRITES[this.characterKey]?.leashAnchor||{x:-3,y:8};
+      const ax=this.player.x+(this.player.flipX?-anchorCfg.x:anchorCfg.x),ay=this.player.y+anchorCfg.y;
       this.leashOrbiters.forEach((o,i)=>{
         if(!o.obj?.active)return;
-        const radius=(i===1&&st.outerRadius)?st.outerRadius:st.radius;
+        const radius=st.radius;
         const a=this.runTimeMs*st.spin+(Math.PI*2*i/Math.max(1,st.count));
-        o.obj.setPosition(this.player.x,this.player.y).setRotation(a).setScale(radius/74,1);
-        const x2=this.player.x+Math.cos(a)*radius,y2=this.player.y+Math.sin(a)*radius;
+        o.radius=radius;o.level=level;
+        o.obj.setPosition(ax,ay).setRotation(a).setScale(radius/96,1);
+        const x2=ax+Math.cos(a)*radius,y2=ay+Math.sin(a)*radius;
         this.enemies.getChildren().forEach(e=>{
           if(!e.active||e.getData('dead'))return;
           const key=this.entityNetId(e,'e'),ready=o.hitReady.get(key)||0;if(this.runTimeMs<ready)return;
-          if(this.distancePointToSegment(e.x,e.y,this.player.x,this.player.y,x2,y2)<=13){
+          const hc=this.enemyHurtCircle(e);
+          if(this.distancePointToSegment(hc.x,hc.y,ax,ay,x2,y2)<=9+this.meleeHurtPadding(e,.42,.88)){
             o.hitReady.set(key,this.runTimeMs+330);this.damageEnemy(e,this.attackPower*st.damageMult,'leashOrbit');
-            if(st.knock&&e.enemyRole!=='raidBoss'){const pa=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(pa)*st.knock;e.y+=Math.sin(pa)*st.knock;}
+            if(st.knock&&e.enemyRole!=='raidBoss'){const pa=Phaser.Math.Angle.Between(ax,ay,e.x,e.y);e.x+=Math.cos(pa)*st.knock;e.y+=Math.sin(pa)*st.knock;}
           }
         });
       });
-      if(st.bigSwingInterval){
-        this.skillTimers.hellConductor+=0; // timer is advanced in updateSkills
-      }
     }
 
     castLeashBigSwing(level) {
       const st=treasureSkillStats('hellConductor',level),radius=Math.max(st.radius,st.outerRadius)+26;
       const ring=this.add.image(this.player.x,this.player.y,'shockwave').setDepth(16).setScale(.45).setAlpha(.6);
       this.tweens.add({targets:ring,scale:radius/28,alpha:0,duration:380,onComplete:()=>ring.destroy()});
-      this.enemies.getChildren().forEach(e=>{if(e.active&&!e.getData('dead')&&Phaser.Math.Distance.Between(this.player.x,this.player.y,e.x,e.y)<=radius){this.damageEnemy(e,this.attackPower*st.damageMult*1.35,'leashSwing');if(e.enemyRole!=='raidBoss'){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(a)*18;e.y+=Math.sin(a)*18;}}});
+      this.enemies.getChildren().forEach(e=>{if(!e.active||e.getData('dead'))return;const hc=this.enemyHurtCircle(e),pad=this.meleeHurtPadding(e,.30,.82);if(Phaser.Math.Distance.Between(this.player.x,this.player.y,hc.x,hc.y)<=radius+pad){this.damageEnemy(e,this.attackPower*st.damageMult*1.35,'leashSwing');if(e.enemyRole!=='raidBoss'){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,hc.x,hc.y);e.x+=Math.cos(a)*18;e.y+=Math.sin(a)*18;}}});
     }
 
     spawnPawMine(x,y,level,side=0) {
@@ -2504,65 +2742,94 @@
     }
 
     damageEnemy(enemy, amount, source) {
-      if (!enemy.active || enemy.getData('dead')) return;
-      const vuln = this.runTimeMs < (enemy.vulnerableUntil || 0) ? (enemy.vulnerableMult || 1) : 1;
-      const effectiveAmount = amount * vuln;
-      enemy.hp -= effectiveAmount;
-      enemy.hitFlashUntil = this.runTimeMs + 90;
-      enemy.setTint(0xffffff);
-      this.time.delayedCall(80, () => {
-        if (!enemy.active) return;
-        enemy.clearTint();
-        if (enemy.enemyRole === 'elite') enemy.setTint(0xc8a5a5);
-        else if (enemy.enemyRole === 'boss') enemy.setTint(0xe6b26f);
-      });
-      this.spawnDamageText(enemy.x, enemy.y - 18, Math.round(effectiveAmount));
-      if (this.runTimeMs - (this.lastHitSfxAt || 0) > 45) {
-        this.lastHitSfxAt = this.runTimeMs;
-        playHitSfx(enemy.enemyRole === 'boss' || enemy.enemyRole === 'raidBoss');
-      }
-      if(enemy.enemyRole==='raidBoss' && enemy.hp>0 && !enemy.raidPhase2 && enemy.hp<=enemy.maxHp*0.5)this.activateRaidPhase2(enemy);
-      if (enemy.hp <= 0) this.killEnemy(enemy, source);
+      if(!enemy.active||enemy.getData('dead'))return;
+      if(enemy.enemyRole==='raidBoss'&&this.runTimeMs<(enemy.phaseGuardUntil||0))return;
+      const vuln=this.runTimeMs<(enemy.vulnerableUntil||0)?(enemy.vulnerableMult||1):1;
+      const tempMult=this.runTimeMs<(this.tempBuffUntil||0)?(this.tempDamageMult||1):1;
+      const effectiveAmount=amount*vuln*tempMult;
+      if(enemy.enemyRole==='raidBoss'){
+        const phase=enemy.raidPhase||1,after=enemy.hp-effectiveAmount;
+        if(phase<2&&after<=enemy.maxHp*.65){
+          enemy.hp=Math.max(enemy.maxHp*.65,after);this.activateRaidPhase(enemy,2);
+        }else if(phase<3&&after<=enemy.maxHp*.20){
+          enemy.hp=Math.max(enemy.maxHp*.20,1);this.activateRaidPhase(enemy,3);
+        }else enemy.hp=after;
+      }else enemy.hp-=effectiveAmount;
+      enemy.hitFlashUntil=this.runTimeMs+90;enemy.setTint(0xffffff);
+      this.time.delayedCall(80,()=>{if(!enemy.active)return;enemy.clearTint();if(enemy.enemyRole==='elite')enemy.setTint(0xc8a5a5);else if(enemy.enemyRole==='boss')enemy.setTint(0xe6b26f);});
+      this.spawnDamageText(enemy.x,enemy.y-18,Math.round(effectiveAmount));
+      if(this.runTimeMs-(this.lastHitSfxAt||0)>45){this.lastHitSfxAt=this.runTimeMs;playHitSfx(enemy.enemyRole==='boss'||enemy.enemyRole==='raidBoss');}
+      if(enemy.hp<=0)this.killEnemy(enemy,source);
     }
 
-    activateRaidPhase2(enemy){
-      if(!enemy?.active||enemy.raidPhase2)return;
-      enemy.raidPhase2=true;
-      enemy.raidPatternHistory=[];
-      enemy.nextShotAt=Math.max(enemy.nextShotAt||0,this.runTimeMs+520);
-      this.raidPhaseSeq+=1;
-      this.showBanner(`${enemy.raidName||this.raidBossName} 2 PHASE`,'패턴이 변한다!');
-      this.cameras.main.flash(300,255,120,70);
-      this.cameras.main.shake(260,0.007);
+    activateRaidPhase2(enemy){ this.activateRaidPhase(enemy,2); }
+
+
+    activateRaidPhase(enemy,phase){
+      if(!enemy?.active||enemy.getData('dead')||(enemy.raidPhase||1)>=phase)return;
+      const kind=this.raidBossKind(enemy),def=BOSS_DEFINITIONS[kind]||BOSS_DEFINITIONS.grape;
+      enemy.raidPhase=phase;enemy.raidPhase2=phase>=2;enemy.raidFinal=phase>=3;enemy.raidPatternHistory=[];enemy.raidPatternId='';
+      enemy.nextShotAt=Math.max(enemy.nextShotAt||0,this.runTimeMs+(phase===3?900:650));
+      const tex=def.textures[Math.min(2,phase-1)];if(tex&&this.textures.exists(tex))enemy.setTexture(tex);
+      enemy.raidName=def.phaseNames[Math.min(2,phase-1)];this.raidBossName=enemy.raidName;
+      enemy.phaseGuardUntil=phase===3?this.runTimeMs+800:0;
+      this.raidPhaseSeq+=1;this.raidPhaseNumber=phase;this.raidPhaseName=enemy.raidName;
+      this.showBanner(phase===3?`${enemy.raidName} 폭주!`:`${enemy.raidName} 변이!`,phase===3?'FINAL PHASE · 필살기를 조심해!':'새로운 패턴이 시작된다');
+      this.cameras.main.flash(360,phase===3?255:210,phase===3?70:150,80);this.cameras.main.shake(320,0.008);
+      const base=enemy.baseDisplayScale||enemy.scaleX||1;
+      this.tweens.add({targets:enemy,scaleX:base*1.10,scaleY:base*.90,duration:160,yoyo:true,repeat:1});
+      if(phase===3&&!enemy.ultimateUsed){
+        enemy.ultimateUsed=true;
+        this.time.delayedCall(700,()=>{if(enemy?.active&&!enemy.getData('dead'))this.executeRaidUltimate(enemy);});
+      }
+    }
+
+    executeRaidUltimate(enemy){
+      if(!enemy?.active)return;
+      const kind=this.raidBossKind(enemy),target=this.chooseRaidTarget(enemy)||this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
+      const dmg=13+this.raidBossCount*1.4,base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):0;
+      const announce={grape:'포도 대폭발!',choco:'마카다미아 폭우!',onion:'양파 껍질 태풍!',coffee:'카페인 폭주!',gum:'풍선껌 대폭발!'}[kind]||'위험한 필살기!';
+      this.raidUltimateSeq=(this.raidUltimateSeq||0)+1;this.raidUltimateName=announce;
+      this.showBanner(announce,'안전한 틈을 찾아 움직여!');
       playEnemyShotSfx(true);
+      if(kind==='grape'){
+        for(let j=0;j<5;j++){const a=base+(j-2)*.42;const fake={active:true,x:enemy.x,y:enemy.y,body:enemy.body};const t={active:true,x:enemy.x+Math.cos(a)*300,y:enemy.y+Math.sin(a)*300,body:{velocity:{x:0,y:0}}};this.spawnRaidSplittingBullet(enemy,t,'grape',dmg+2,270);}
+      }else if(kind==='choco'){
+        this.spawnRaidRing(enemy,{count:this.coopMode?14:11,speed:145,damage:dmg,offset:.18,visualType:'chocoBig',gapCenter:base,gapWidth:.55});
+        this.scheduleRaidAction(enemy,420,()=>{for(let i=-3;i<=3;i++)if(i!==0)this.spawnEnemyBullet(enemy.x,enemy.y,base+i*.18,310,dmg*.78,'raid',4300,'macadamia');});
+      }else if(kind==='onion'){
+        this.spawnRaidRing(enemy,{count:this.coopMode?18:14,speed:170,damage:dmg,offset:this.raidShotPhase,visualType:'onionPeel',gapCenter:base-.7,gapWidth:.42});
+        this.scheduleRaidAction(enemy,700,()=>this.spawnRaidRing(enemy,{count:this.coopMode?18:14,speed:220,damage:dmg+1,offset:-this.raidShotPhase,visualType:'onionPeel',gapCenter:base+.7,gapWidth:.42}));
+        this.scheduleRaidAction(enemy,1250,()=>this.spawnRaidRing(enemy,{count:18,speed:155,damage:dmg+.5,offset:.12,visualType:'onionRing',gapCenter:base,gapWidth:.78}));
+      }else if(kind==='coffee'){
+        // 카페인 폭주: 약 0.8초 힘을 모은 뒤 약 2초 동안 읽을 수 있는 회전/조준 연사.
+        enemy.ultimateChargeStart=this.runTimeMs;enemy.ultimateChargeUntil=this.runTimeMs+800;enemy.ultimateChargeKind='coffee';
+        for(let n=0;n<12;n++)this.scheduleRaidAction(enemy,800+180*n,()=>{const t=this.chooseRaidTarget(enemy)||target;if(!t)return;this.fireRaidFanAt(enemy,t,{count:3,spread:.085,speed:332,damage:dmg*.78,predictMs:250,angleOffset:(n-5.5)*.045,visualType:'coffee'});});
+      }else if(kind==='gum'){
+        // 풍선껌 대폭발: 몸이 약 0.9초 동안 부풀어 오른 뒤 안전틈이 있는 폭발 + 끈적 장판.
+        enemy.ultimateChargeStart=this.runTimeMs;enemy.ultimateChargeUntil=this.runTimeMs+900;enemy.ultimateChargeKind='gum';
+        this.scheduleRaidAction(enemy,900,()=>{this.spawnRaidRing(enemy,{count:this.coopMode?20:16,speed:190,damage:dmg,offset:.16,visualType:'gum',gapCenter:base,gapWidth:.62});for(let i=0;i<4;i++){const a=base+(i-1.5)*.7;this.telegraphStickyGum(enemy,enemy.x+Math.cos(a)*180,enemy.y+Math.sin(a)*180,dmg*.42);}const pop=this.add.image(enemy.x,enemy.y,'shockwave').setDepth(24).setTint(0xff9bc8).setScale(.55).setAlpha(.62);this.tweens.add({targets:pop,scale:1.35,alpha:0,duration:360,onComplete:()=>pop.destroy()});});
+      }
     }
 
     killEnemy(enemy) {
-      if (!enemy.active || enemy.getData('dead')) return;
-      enemy.setData('dead', true);
-      const x = enemy.x, y = enemy.y, role = enemy.enemyRole || 'normal';
-      this.kills += 1;
+      if(!enemy.active||enemy.getData('dead'))return;
+      enemy.setData('dead',true);const x=enemy.x,y=enemy.y,role=enemy.enemyRole||'normal';this.kills+=1;
       if(role==='elite'&&enemy.eliteMutation==='splitter')this.spawnSplitterChildren(enemy);
       this.destroyEnemyDecorations(enemy);
-      this.cameras.main.shake(role === 'raidBoss' ? 520 : role === 'boss' ? 280 : role === 'elite' ? 120 : 55, role === 'raidBoss' ? 0.015 : role === 'boss' ? 0.007 : role === 'elite' ? 0.003 : 0.0015);
-      if (role === 'raidBoss') {
-        this.clearRaidHazards();
-        this.raidBossActive = false;
-        this.raidBossTransition = false;
-        this.lastTrueBossEndedAt = this.runTimeMs;
-        this.dropMagnet(x - 42, y);
-        this.dropChest(x + 42, y);
-        this.dropChest(x, y + 36);
-        this.dropSnack(x - 22, y + 40);
-        this.dropSnack(x + 22, y + 40);
-        this.showBanner('TRUE BOSS 격파!', '잡몹 웨이브 재개 · 보물상자 2 · 간식 2');
-        this.cameras.main.flash(420, 255, 224, 100);
-      } else if (role === 'boss') {
-        this.dropRegularBossRewards(x,y,false);
-      } else {
-        if ((enemy.xpValue ?? 1) > 0) this.dropGem(x, y, enemy.xpValue ?? 1);
-        if (role === 'elite' && Math.random() < 0.18) this.dropChest(x + 14, y);
-        if (role === 'elite' && Math.random() < HEALING.eliteSnackChance) this.dropSnack(x - 14, y + 8);
+      this.cameras.main.shake(role==='raidBoss'?520:role==='boss'?280:role==='elite'?120:55,role==='raidBoss'?.015:role==='boss'?.007:role==='elite'?.003:.0015);
+      if(role==='raidBoss'){
+        const killedIndex=enemy.raidIndex??this.currentRaidBossIndex;
+        this.clearRaidHazards();this.raidBossActive=false;this.raidBossTransition=false;this.lastTrueBossEndedAt=this.runTimeMs;
+        this.dropMagnet(x-42,y);this.dropChest(x+42,y);this.dropChest(x,y+36);this.dropSnack(x-22,y+40);this.dropSnack(x+22,y+40);
+        this.showBanner('TRUE BOSS 격파!','다음 구간을 준비해 · 보물상자 2 · 간식 2');
+        this.cameras.main.flash(420,255,224,100);
+        if(!this.endlessMode&&killedIndex===4)this.time.delayedCall(700,()=>this.showRunComplete());
+      }else if(role==='boss')this.dropRegularBossRewards(x,y,false);
+      else{
+        if((enemy.xpValue??1)>0)this.dropGem(x,y,enemy.xpValue??1);
+        if(role==='elite'&&Math.random()<.18)this.dropChest(x+14,y);
+        if(role==='elite'&&Math.random()<HEALING.eliteSnackChance)this.dropSnack(x-14,y+8);
       }
       enemy.destroy();
     }
@@ -2644,23 +2911,71 @@
       if(!this.playerDown&&this.hp>0)this.hp=Math.min(this.maxHp,this.hp+this.maxHp*HEALING.levelUpPct);
     }
 
-    collectItem(picker, item) {
-      if (!item.active) return;
-      const type = item.itemType; item.destroy();
-      if (type === 'magnet') {
-        this.magnetUntil = this.runTimeMs + 5000;
-        this.gems.getChildren().forEach(g => { if (g.active) g.magnetized = true; });
-        this.showBanner('자석 획득!', '모든 경험치 보석 흡수');
-      } else if (type === 'chest') {
-        if(this.coopMode){if(this.networkRole==='host')this.beginCoopChoice('chest',[picker?.netPlayerId||this.localId]);}
-        else this.openChest();
-      } else if (type === 'snack') {
-        if(this.coopMode){
-          if(this.networkRole!=='host')return;
-          const build=this.getBuild(picker?.netPlayerId)||this.getLocalBuild();
-          if(build&&!build.down)this.withBuild(build,()=>this.heal(this.maxHp*HEALING.snackPct));
-        }else this.heal(this.maxHp*HEALING.snackPct);
+
+    rollDeliveryReward(){
+      let r=Math.random()*DELIVERY.rewards.reduce((a,x)=>a+x.weight,0);
+      for(const it of DELIVERY.rewards){r-=it.weight;if(r<=0)return it.id;}
+      return 'snack';
+    }
+    scheduleNextDelivery(){this.nextDeliveryAt=this.runTimeMs+Phaser.Math.Between(DELIVERY.minDelay,DELIVERY.maxDelay);}
+    spawnDeliveryDrop(){
+      if(this.raidBossActive||this.pendingTrueBoss||this.raidBossTransition||this.runCleared){this.scheduleNextDelivery();return;}
+      const target=this.nearestActivePlayerTo(this.player?.x||3000,this.player?.y||3000)||this.player;
+      if(!target){this.scheduleNextDelivery();return;}
+      const a=Phaser.Math.FloatBetween(0,Math.PI*2),r=Phaser.Math.Between(260,430);
+      const x=Phaser.Math.Clamp(target.x+Math.cos(a)*r,90,this.worldSize-90),y=Phaser.Math.Clamp(target.y+Math.sin(a)*r,90,this.worldSize-90);
+      const shadow=this.add.image(x,y,'deliveryShadow').setDepth(4).setAlpha(.22).setScale(.7),alert=this.add.image(x,y-18,'deliveryAlert').setDepth(8).setAlpha(.85);
+      this.trackTransientFx('deliveryWarnings',shadow,'deliveryShadow');this.trackTransientFx('deliveryWarnings',alert,'deliveryAlert');
+      this.tweens.add({targets:alert,y:y-25,duration:220,yoyo:true,repeat:2});
+      this.time.delayedCall(DELIVERY.telegraphMs,()=>{
+        if(!shadow.active)return;
+        if(this.raidBossActive||this.pendingTrueBoss||this.raidBossTransition||this.runCleared){alert.destroy();shadow.destroy();return;}
+        alert.destroy();
+        const item=this.items.create(x,y-140,'deliveryCrate').setDepth(8).setScale(.95);item.itemType='delivery';item.expireAt=this.runTimeMs+DELIVERY.lifeMs;item.blinkAt=item.expireAt-5000;
+        this.tweens.add({targets:item,y,duration:380,ease:'Bounce.easeOut',onComplete:()=>{if(shadow.active)shadow.destroy();this.cameras.main.shake(90,.0025);}});
+      });
+      this.scheduleNextDelivery();
+    }
+    updateDeliveryItems(){
+      this.pruneTransientFx();
+      if(!this.runCleared&&!this.raidBossActive&&!this.pendingTrueBoss&&!this.raidBossTransition&&this.runTimeMs>=(this.nextDeliveryAt||Infinity))this.spawnDeliveryDrop();
+      this.items?.getChildren?.().forEach(it=>{if(!it.active||it.itemType!=='delivery')return;if(this.runTimeMs>=(it.expireAt||Infinity)){it.destroy();return;}if(this.runTimeMs>=(it.blinkAt||Infinity))it.setAlpha(Math.floor(this.runTimeMs/180)%2?.35:1);});
+    }
+    applyDeliveryReward(picker,reward){
+      const name={snack:'간식 도착!',buff:'멍배송 버프!',magnet:'자석 배송!',weird:'수상한 약!',skill:'스킬 특급배송!',bonk:'병맛 보너스!'}[reward]||'멍배송!';
+      const applyToBuild=(b,fn)=>{if(!b||b.down)return;this.withBuild(b,fn);};
+      if(reward==='snack'){
+        if(this.coopMode&&this.builds)this.builds.forEach(b=>applyToBuild(b,()=>this.heal(this.maxHp*.18)));
+        else this.heal(this.maxHp*.30);
+      }else if(reward==='magnet'){
+        this.magnetUntil=this.runTimeMs+5500;this.gems.getChildren().forEach(g=>{if(g.active)g.magnetized=true;});
+      }else{
+        const b=this.coopMode?(this.getBuild(picker?.netPlayerId)||this.getLocalBuild()):null;
+        const apply=()=>{
+          if(reward==='buff'){
+            const type=['move','speed','damage'][Math.floor(Math.random()*3)];this.tempBuffUntil=this.runTimeMs+10000;this.tempMoveMult=type==='move'?1.28:1;this.tempAttackMult=type==='speed'?1.24:1;this.tempDamageMult=type==='damage'?1.22:1;
+          }else if(reward==='weird'){
+            this.tempBuffUntil=this.runTimeMs+10000;this.reverseControlsUntil=this.runTimeMs+10000;this.tempMoveMult=1.35;this.tempAttackMult=1.25;this.tempDamageMult=1.08;
+          }else if(reward==='skill'){
+            const owned=Object.entries(this.skillLevels||{}).filter(([,lv])=>lv>0).map(([id])=>id);
+            const majors=Object.entries(this.majorLevels||{}).filter(([,lv])=>lv>0).map(([id])=>id);
+            if(owned.length){const id=owned[Math.floor(Math.random()*owned.length)];this.acquireSkill(id);}
+            else if(majors.length){const id=majors[Math.floor(Math.random()*majors.length)];this.applyMajorAugment(id);}
+            else this.attackPower*=1.07;
+          }else if(reward==='bonk'){this.tempBuffUntil=this.runTimeMs+9000;this.tempDamageMult=1.18;this.tempMoveMult=1.12;}
+        };
+        if(this.coopMode)applyToBuild(b,apply);else apply();
       }
+      this.showBanner(name,reward==='weird'?'조작 반전! 대신 이속 +35% · 공속 +25%':reward==='skill'?'현재 빌드의 주요 스킬 하나가 성장했다':reward==='buff'?'10초 동안 랜덤 능력 강화':'멍배송을 챙겼다!');
+    }
+
+    collectItem(picker,item){
+      if(!item.active)return;
+      const type=item.itemType;item.destroy();
+      if(type==='magnet'){this.magnetUntil=this.runTimeMs+5000;this.gems.getChildren().forEach(g=>{if(g.active)g.magnetized=true;});this.showBanner('자석 획득!','모든 경험치 보석 흡수');}
+      else if(type==='chest'){if(this.coopMode){if(this.networkRole==='host')this.beginCoopChoice('chest',[picker?.netPlayerId||this.localId]);}else this.openChest();}
+      else if(type==='snack'){if(this.coopMode){if(this.networkRole!=='host')return;const build=this.getBuild(picker?.netPlayerId)||this.getLocalBuild();if(build&&!build.down)this.withBuild(build,()=>this.heal(this.maxHp*HEALING.snackPct));}else this.heal(this.maxHp*HEALING.snackPct);}
+      else if(type==='delivery'){if(this.coopMode&&this.networkRole!=='host')return;this.applyDeliveryReward(picker,this.rollDeliveryReward());}
     }
 
     openLevelUp() {
@@ -2918,7 +3233,7 @@
       if(lv.poopOrbit){
         const count=Math.min(5,lv.poopOrbit);if((this.poopOrbiters||[]).length!==count)this.rebuildPoopOrbiters();
         this.poopOrbiters.forEach((o,i)=>{const band=o.orbitBand||0,radius=78+Math.min(36,lv.poopOrbit*5)+band*18,a=this.runTimeMs*(.0031+band*.00045)+(Math.PI*2*i/Math.max(1,count));o.setPosition(this.player.x+Math.cos(a)*radius,this.player.y+Math.sin(a)*radius);
-          this.enemies.getChildren().forEach(e=>{const owner=this.currentBuildId||'solo';e.poopHitReadyBy=e.poopHitReadyBy||{};if(!e.active||e.getData('dead')||this.runTimeMs<(e.poopHitReadyBy[owner]||0))return;if(Phaser.Math.Distance.Between(o.x,o.y,e.x,e.y)<=31){e.poopHitReadyBy[owner]=this.runTimeMs+380;this.damageEnemy(e,this.attackPower*(.40+lv.poopOrbit*.060),'poopOrbit');if(e.enemyRole!=='raidBoss'){const pa=Phaser.Math.Angle.Between(this.player.x,this.player.y,e.x,e.y);e.x+=Math.cos(pa)*14;e.y+=Math.sin(pa)*14;}}});
+          this.enemies.getChildren().forEach(e=>{const owner=this.currentBuildId||'solo';e.poopHitReadyBy=e.poopHitReadyBy||{};if(!e.active||e.getData('dead')||this.runTimeMs<(e.poopHitReadyBy[owner]||0))return;const hc=this.enemyHurtCircle(e);if(Phaser.Math.Distance.Between(o.x,o.y,hc.x,hc.y)<=31+this.meleeHurtPadding(e,.42,.88)){e.poopHitReadyBy[owner]=this.runTimeMs+380;this.damageEnemy(e,this.attackPower*(.40+lv.poopOrbit*.060),'poopOrbit');if(e.enemyRole!=='raidBoss'){const pa=Phaser.Math.Angle.Between(this.player.x,this.player.y,hc.x,hc.y);e.x+=Math.cos(pa)*14;e.y+=Math.sin(pa)*14;}}});
         });
         if(lv.poopOrbit>=5){this.majorTimers.poopOrbit+=delta;if(this.majorTimers.poopOrbit>=3200){this.majorTimers.poopOrbit=0;const t=this.nearestEnemy();if(t){const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,t.x,t.y),p=this.projectiles.create(this.player.x,this.player.y,'poopOrbit').setDepth(14).setScale(.8);p.ownerId=this.currentBuildId||'solo';p.kind='poopToss';p.damage=this.attackPower*.72;p.hitSet=new Set();p.spawnAt=this.runTimeMs;p.lifeMs=1300;this.physics.velocityFromRotation(a,360,p.body.velocity);}}}
       }
@@ -3084,7 +3399,7 @@
     spawnEnemyBullet(x,y,angle,speed,damage,kind='enemy',lifeMs=4200,visualType=null) {
       let texture=kind==='raid'?'raidBullet':kind==='boss'?'bossBullet':'enemyBullet';
       if(kind==='raid'&&visualType){
-        texture=visualType==='grape'?'raidGrapeBullet':visualType==='grapeCluster'?'raidGrapeCluster':visualType==='choco'?'raidChocoBullet':visualType==='chocoBig'?'raidChocoBig':visualType==='onionRing'?'raidOnionRing':visualType==='onionPeel'?'raidOnionPeel':texture;
+        texture=visualType==='grape'?'raidGrapeBullet':visualType==='grapeCluster'?'raidGrapeCluster':visualType==='choco'?'raidChocoBullet':visualType==='chocoBig'?'raidChocoBig':visualType==='onionRing'?'raidOnionRing':visualType==='onionPeel'?'raidOnionPeel':visualType==='coffee'?'raidCoffeeBean':visualType==='coffeeDrop'?'raidCoffeeDrop':visualType==='gum'?'raidGumBullet':visualType==='gumBig'?'raidGumBig':visualType==='macadamia'?'macadamiaBullet':texture;
       }
       const b=this.enemyProjectiles.create(x,y,texture).setDepth(kind==='raid'?29:kind==='boss'?28:27);
       b.damage=damage;b.kind=kind;b.visualType=visualType;b.strong=kind==='boss'||kind==='raid';b.spawnAt=this.runTimeMs;b.lifeMs=lifeMs;b.setRotation(angle);
@@ -3095,6 +3410,9 @@
       if(visualType==='choco'||visualType==='chocoBig')b.spinRate=0.055;
       if(visualType==='onionPeel'||visualType==='onionRing')b.spinRate=0.075;
       if(visualType==='grapeCluster')b.spinRate=0.025;
+      if(visualType==='coffee'||visualType==='coffeeDrop')b.spinRate=0.065;
+      if(visualType==='gum'||visualType==='gumBig')b.spinRate=0.045;
+      if(visualType==='macadamia')b.spinRate=0.08;
       return b;
     }
 
@@ -3136,9 +3454,19 @@
       return this.playerDown||!this.player?.active?[]:[this.player];
     }
 
-    raidBossKind(enemy) {
-      return ['grape','choco','onion'][Math.max(0,enemy?.raidIndex||0)%3];
+
+    chooseRaidTarget(enemy){
+      const targets=this.activeRaidTargets();
+      if(!targets.length)return this.player;
+      if(targets.length===1)return targets[0];
+      const last=enemy?.lastRaidTargetId;
+      const alt=targets.find(t=>t.netPlayerId&&t.netPlayerId!==last);
+      const target=(alt&&Math.random()<0.65)?alt:targets[Math.floor(Math.random()*targets.length)];
+      if(enemy)enemy.lastRaidTargetId=target?.netPlayerId||null;
+      return target;
     }
+
+    raidBossKind(enemy){ return enemy?.raidKind||TRUE_BOSS_ORDER[Math.max(0,enemy?.raidIndex||this.currentRaidBossIndex||0)%TRUE_BOSS_ORDER.length]||'grape'; }
 
     predictedAimAngle(enemy,target,leadMs=450,leadFactor=0.68) {
       if(!target)return 0;
@@ -3149,17 +3477,18 @@
     }
 
     scheduleRaidAction(enemy,delay,fn) {
-      const phaseAtSchedule=!!enemy?.raidPhase2;
+      const phaseAtSchedule=enemy?.raidPhase||1;
       this.time.delayedCall(delay,()=>{
         if(this.isGameOver||!this.raidBossActive||!enemy?.active||enemy.getData('dead'))return;
-        if(!!enemy.raidPhase2!==phaseAtSchedule)return;
+        if((enemy.raidPhase||1)!==phaseAtSchedule)return;
         fn();
       });
     }
 
-    raidBulletVisual(enemy, override=null) {
+    raidBulletVisual(enemy,override=null){
       if(override)return override;
-      const kind=this.raidBossKind(enemy);return kind==='grape'?'grape':kind==='choco'?'choco':'onionPeel';
+      const kind=this.raidBossKind(enemy);
+      return kind==='grape'?'grape':kind==='choco'?'choco':kind==='onion'?'onionPeel':kind==='coffee'?'coffee':'gum';
     }
 
     spawnRaidRing(enemy,{count=16,speed=180,damage=12,offset=0,gapCenter=null,gapWidth=0,lifeMs=5400,speedPattern=null,visualType=null}={}) {
@@ -3183,30 +3512,100 @@
     spawnRaidSplittingBullet(enemy,target,type,damage,speed=180) {
       if(!enemy?.active||!target?.active)return;
       const visual=type==='grape'?'grapeCluster':'chocoBig',angle=this.predictedAimAngle(enemy,target,380,.62);
-      const b=this.spawnEnemyBullet(enemy.x,enemy.y,angle,speed,damage,'raid',4800,visual);
-      if(!b)return;b.splitType=type;b.splitAt=this.runTimeMs+(type==='grape'?820:720);b.splitDone=false;
+      const b=this.spawnEnemyBullet(enemy.x,enemy.y,angle,speed,damage,'raid',5200,visual);
+      if(!b)return;
+      b.splitType=type;b.splitDone=false;b.splitOriginX=enemy.x;b.splitOriginY=enemy.y;
+      b.splitAt=this.runTimeMs+(type==='grape'?780:720);
+      b.splitForceAt=this.runTimeMs+(type==='grape'?1180:980);
+      b.splitMinDistance=type==='grape'?210:145;
+    }
+
+    trackTransientFx(listName,obj,texture=null){
+      if(!obj)return null;
+      const seqName=listName==='deliveryWarnings'?'deliverySeq':'raidTelegraphSeq';
+      this[seqName]=(this[seqName]||0)+1;
+      const rec={id:`${listName==='deliveryWarnings'?'delivery':'raidfx'}-${this[seqName]}`,obj,texture:texture||obj.texture?.key||null};
+      this[listName]=this[listName]||[];this[listName].push(rec);
+      return rec;
+    }
+    pruneTransientFx(){
+      this.raidTelegraphs=(this.raidTelegraphs||[]).filter(r=>r?.obj?.active);
+      this.deliveryWarnings=(this.deliveryWarnings||[]).filter(r=>r?.obj?.active);
+    }
+    clearRaidTelegraphs(){
+      (this.raidTelegraphs||[]).forEach(r=>r?.obj?.destroy?.());
+      this.raidTelegraphs=[];
+    }
+    clearDeliveryWarnings(){
+      (this.deliveryWarnings||[]).forEach(r=>r?.obj?.destroy?.());
+      this.deliveryWarnings=[];
     }
 
     spawnChocoPuddle(x,y,damage) {
+      if(!this.add?.image)return;
       const obj=this.add.image(x,y,'chocoPuddle').setDepth(5).setAlpha(.66);
-      const h={obj,x,y,radius:22,damage,expire:this.runTimeMs+2600,nextHit:new Map()};
+      const h={obj,x,y,radius:22,damage,slowMult:1,texture:'chocoPuddle',expire:this.runTimeMs+2600,nextHit:new Map()};
       this.raidHazards=this.raidHazards||[];this.raidHazards.push(h);
       while(this.raidHazards.length>6){const old=this.raidHazards.shift();if(old?.obj?.active)old.obj.destroy();}
       this.tweens.add({targets:obj,alpha:.45,scale:1.08,duration:650,yoyo:true,repeat:2});
+    }
+
+
+    telegraphChocoPuddle(enemy,x,y,damage){
+      if(!enemy?.active)return;
+      if(!this.add?.image||!this.tweens?.add){this.spawnChocoPuddle(x,y,damage);return;}
+      const phase=enemy.raidPhase||1,baseScale=enemy.baseDisplayScale||enemy.scaleX||1;
+      this.tweens.add({targets:enemy,angle:(Math.random()<.5?-3:3),scaleX:baseScale*.96,scaleY:baseScale*1.04,duration:180,yoyo:true});
+      this.time.delayedCall(340,()=>{
+        if(!enemy?.active||enemy.getData('dead')||(enemy.raidPhase||1)!==phase)return;
+        const warn=this.add.image(x,y,'puddleWarning').setDepth(4).setAlpha(.25).setScale(.56);
+        this.trackTransientFx('raidTelegraphs',warn,'puddleWarning');
+        this.tweens.add({targets:warn,alpha:.62,scale:.98,duration:700,ease:'Sine.easeInOut'});
+        this.time.delayedCall(650,()=>{
+          if(!enemy?.active||enemy.getData('dead')||(enemy.raidPhase||1)!==phase){if(warn.active)warn.destroy();return;}
+          const projectile=this.add.image(enemy.x,enemy.y,'raidChocoBig').setDepth(25).setScale(.85);
+          this.trackTransientFx('raidTelegraphs',projectile,'raidChocoBig');
+          const mx=(enemy.x+x)/2,my=(enemy.y+y)/2-38;
+          this.tweens.add({targets:projectile,x:mx,y:my,rotation:1.7,duration:250,ease:'Quad.easeOut',onComplete:()=>{
+            this.tweens.add({targets:projectile,x,y,rotation:3.5,duration:250,ease:'Quad.easeIn',onComplete:()=>{
+              projectile.destroy();if(warn.active)warn.destroy();
+              const splash=this.add.image(x,y,'chocoPuddle').setDepth(6).setAlpha(.8).setScale(.35);
+              this.tweens.add({targets:splash,scale:1.05,alpha:0,duration:260,onComplete:()=>splash.destroy()});
+              this.spawnChocoPuddle(x,y,damage);noise(.06,.035,430);
+            }});
+          }});
+        });
+      });
+    }
+
+    telegraphStickyGum(enemy,x,y,damage){
+      if(!this.add?.image||!this.time?.delayedCall){this.spawnStickyGumPuddle(x,y,damage);return;}
+      const w=this.add.image(x,y,'puddleWarning').setDepth(4).setTint(0xff9bc8).setAlpha(.28).setScale(.6);
+      this.trackTransientFx('raidTelegraphs',w,'puddleWarning');
+      this.tweens.add({targets:w,alpha:.58,scale:.9,duration:480});
+      this.time.delayedCall(520,()=>{if(w.active)w.destroy();if(enemy?.active&&!enemy.getData('dead')){this.spawnStickyGumPuddle(x,y,damage);noise(.05,.025,500);}});
+    }
+
+    spawnStickyGumPuddle(x,y,damage){
+      if(!this.add?.image)return;
+      const obj=this.add.image(x,y,'stickyGumPuddle').setDepth(5).setAlpha(.58);
+      const h={obj,x,y,radius:24,damage,slowMult:.72,texture:'stickyGumPuddle',expire:this.runTimeMs+3200,nextHit:new Map()};
+      this.raidHazards=this.raidHazards||[];this.raidHazards.push(h);
+      while(this.raidHazards.length>8){const old=this.raidHazards.shift();if(old?.obj?.active)old.obj.destroy();}
     }
 
     updateRaidHazards() {
       this.raidHazards=(this.raidHazards||[]).filter(h=>{
         if(!h.obj?.active||this.runTimeMs>=h.expire){if(h.obj?.active)h.obj.destroy();return false;}
         const builds=this.coopMode&&this.builds?[...this.builds.values()].filter(b=>!b.down):[{id:'solo',sprite:this.player}];
-        builds.forEach(b=>{const sp=b.sprite;if(!sp?.active||Phaser.Math.Distance.Between(h.x,h.y,sp.x,sp.y)>h.radius)return;const ready=h.nextHit.get(b.id)||0;if(this.runTimeMs<ready)return;h.nextHit.set(b.id,this.runTimeMs+720);if(this.coopMode)this.withBuild(b,()=>this.applyPlayerDamage(h.damage,h.x,h.y,220));else this.applyPlayerDamage(h.damage,h.x,h.y,220);});
+        builds.forEach(b=>{const sp=b.sprite;if(!sp?.active||Phaser.Math.Distance.Between(h.x,h.y,sp.x,sp.y)>h.radius)return;const ready=h.nextHit.get(b.id)||0;if(this.runTimeMs<ready)return;h.nextHit.set(b.id,this.runTimeMs+720);if(this.coopMode)this.withBuild(b,()=>{this.applyPlayerDamage(h.damage,h.x,h.y,220);if((h.slowMult||1)<1){this.hazardSlowUntil=Math.max(this.hazardSlowUntil||0,this.runTimeMs+720);this.hazardSlowMult=Math.min(this.hazardSlowMult||1,h.slowMult);}});else{this.applyPlayerDamage(h.damage,h.x,h.y,220);if((h.slowMult||1)<1){this.hazardSlowUntil=Math.max(this.hazardSlowUntil||0,this.runTimeMs+720);this.hazardSlowMult=Math.min(this.hazardSlowMult||1,h.slowMult);}}});
         return true;
       });
     }
-    clearRaidHazards(){(this.raidHazards||[]).forEach(h=>{if(h?.obj?.active)h.obj.destroy();});this.raidHazards=[];}
+    clearRaidHazards(){(this.raidHazards||[]).forEach(h=>{if(h?.obj?.active)h.obj.destroy();});this.raidHazards=[];this.clearRaidTelegraphs();}
 
     selectRaidPattern(enemy) {
-      const kind=this.raidBossKind(enemy),phase=enemy.raidPhase2?2:1;
+      const kind=this.raidBossKind(enemy),phase=enemy.raidPhase||1;
       const target=this.nearestActivePlayerTo(enemy.x,enemy.y)||this.player;
       const dist=target?Phaser.Math.Distance.Between(enemy.x,enemy.y,target.x,target.y):999;
       const all=(TRUE_BOSS_PATTERNS[kind]||[]).filter(p=>p.phase===phase);
@@ -3229,48 +3628,48 @@
     }
 
     executeRaidPattern(enemy,def) {
-      const targets=this.activeRaidTargets(),target=this.nearestActivePlayerTo(enemy.x,enemy.y)||targets[0]||this.player;
+      const targets=this.activeRaidTargets(),target=this.chooseRaidTarget(enemy)||this.nearestActivePlayerTo(enemy.x,enemy.y)||targets[0]||this.player;
       const base=target?Phaser.Math.Angle.Between(enemy.x,enemy.y,target.x,target.y):0,bossDmg=11+this.raidBossCount*1.45,coop=this.coopMode;
-      this.raidShotPhase+=enemy.raidPhase2?.41:.29;
+      this.raidShotPhase+=(enemy.raidPhase||1)>=2?.41:.29;
+      const fireTarget=(fn)=>{if(target)fn(target);};
       const fireTargets=(fn)=>{(targets.length?targets:[target]).filter(Boolean).forEach(fn);};
       switch(def?.execute){
-        // 포도: 읽을 수 있는 포도알 원형탄 + 예측 + 직선 돌진.
         case 'grapeSpiralRing':
           this.spawnRaidRing(enemy,{count:coop?22:18,speed:185,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base+(Math.sin(this.raidShotPhase)>=0?.62:-.62),gapWidth:.50,visualType:'grape'});break;
         case 'grapePredictFan':
-          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.085,speed:268,damage:bossDmg+1.5,predictMs:520,visualType:'grape'}));break;
+          fireTarget(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.085,speed:268,damage:bossDmg+1.5,predictMs:520,visualType:'grape'}));break;
         case 'grapeStaggeredRings':
           this.spawnRaidRing(enemy,{count:coop?18:14,speed:138,damage:bossDmg-1,offset:this.raidShotPhase,gapCenter:base-.55,gapWidth:.58,lifeMs:5800,visualType:'grape'});
           this.scheduleRaidAction(enemy,720,()=>this.spawnRaidRing(enemy,{count:coop?16:12,speed:232,damage:bossDmg+.5,offset:this.raidShotPhase+.27,gapCenter:base+.62,gapWidth:.52,lifeMs:4800,visualType:'grape'}));break;
         case 'grapeRingPredict':
           this.spawnRaidRing(enemy,{count:coop?20:16,speed:150,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.48,gapWidth:.48,lifeMs:5800,visualType:'grape'});
-          this.scheduleRaidAction(enemy,650,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.08,speed:286,damage:bossDmg+1.8,predictMs:470,visualType:'grape'})));break;
+          this.scheduleRaidAction(enemy,650,()=>{const t=this.chooseRaidTarget(enemy)||target;if(t)this.fireRaidFanAt(enemy,t,{count:5,spread:.08,speed:286,damage:bossDmg+1.8,predictMs:470,visualType:'grape'});});break;
         case 'grapeDashBurst':
-          if(!this.beginRaidRushTelegraph(enemy,target,true))fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.08,speed:278,damage:bossDmg+1.5,predictMs:420,visualType:'grape'}));break;
-        case 'grapeShiftedGap':
-          this.spawnRaidRing(enemy,{count:coop?20:16,speed:172,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.72,gapWidth:.46,visualType:'grape'});
-          this.scheduleRaidAction(enemy,620,()=>{const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target,b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;this.spawnRaidRing(enemy,{count:coop?18:14,speed:238,damage:bossDmg+1,offset:-this.raidShotPhase*.7,gapCenter:b+.72,gapWidth:.46,lifeMs:4700,visualType:'grape'});});break;
+          if(!this.beginRaidRushTelegraph(enemy,target,true)&&target)this.fireRaidFanAt(enemy,target,{count:5,spread:.08,speed:278,damage:bossDmg+1.5,predictMs:420,visualType:'grape'});break;
         case 'grapeClusterSplit':
-          fireTargets(t=>this.spawnRaidSplittingBullet(enemy,t,'grape',bossDmg+1.5,174));break;
+          fireTarget(t=>this.spawnRaidSplittingBullet(enemy,t,'grape',bossDmg+1.5,275));break;
+        case 'grapeFinalShift':
+          this.spawnRaidRing(enemy,{count:coop?20:16,speed:168,damage:bossDmg+.5,offset:this.raidShotPhase,gapCenter:base-.72,gapWidth:.46,visualType:'grape'});
+          this.scheduleRaidAction(enemy,620,()=>{const t=this.chooseRaidTarget(enemy)||target,b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;this.spawnRaidRing(enemy,{count:coop?18:14,speed:236,damage:bossDmg+1.1,offset:-this.raidShotPhase*.7,gapCenter:b+.72,gapWidth:.46,lifeMs:4700,visualType:'grape'});});break;
 
-        // 초콜릿: 각진 탄 + 분열 + 잠깐의 바닥 제한. 포도보다 판단 요소가 하나 더 많다.
         case 'chocoBarSplit':
-          fireTargets(t=>this.spawnRaidSplittingBullet(enemy,t,'choco',bossDmg+2.3,188));break;
+          fireTarget(t=>this.spawnRaidSplittingBullet(enemy,t,'choco',bossDmg+2.3,205));break;
         case 'chocoFan':
-          fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:coop?7:6,spread:.115,speed:255,damage:bossDmg+1.8,predictMs:200,visualType:'choco'}));break;
+          fireTarget(t=>this.fireRaidFanAt(enemy,t,{count:coop?7:6,spread:.115,speed:255,damage:bossDmg+1.8,predictMs:200,visualType:'choco'}));break;
         case 'chocoMelt': {
-          fireTargets(t=>{const a=this.predictedAimAngle(enemy,t,620,.55),d=Phaser.Math.Clamp(Phaser.Math.Distance.Between(enemy.x,enemy.y,t.x,t.y)*.48,90,240);this.spawnChocoPuddle(t.x+Math.cos(a)*28,t.y+Math.sin(a)*28,bossDmg*.55);this.spawnChocoPuddle(t.x-Math.sin(a)*40,t.y+Math.cos(a)*40,bossDmg*.48);});break;
+          if(target){const a=this.predictedAimAngle(enemy,target,620,.55);const px=target.x+Math.cos(a)*24,py=target.y+Math.sin(a)*24;this.telegraphChocoPuddle(enemy,px,py,bossDmg*.55);}
+          break;
         }
         case 'chocoCrossBreak':
-          fireTargets(t=>this.spawnRaidSplittingBullet(enemy,t,'choco',bossDmg+2.6,202));
-          this.scheduleRaidAction(enemy,520,()=>fireTargets(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.095,speed:286,damage:bossDmg+1.8,predictMs:430,visualType:'choco'})));break;
-        case 'chocoBounce': {
-          fireTargets(t=>{const b0=this.predictedAimAngle(enemy,t,260,.55);for(let i=-2;i<=2;i++){const b=this.spawnEnemyBullet(enemy.x,enemy.y,b0+i*.13,238,bossDmg+1.6,'raid',6000,'choco');if(b){b.bounceOnce=true;b.bounceCount=0;b.bounceAt=this.runTimeMs+700+Math.abs(i)*55;b.bounceTurn=(i%2===0?1:-1)*(0.62+Math.abs(i)*0.08);}}});break;
-        }
+          fireTarget(t=>this.spawnRaidSplittingBullet(enemy,t,'choco',bossDmg+2.6,218));
+          this.scheduleRaidAction(enemy,520,()=>{const t=this.chooseRaidTarget(enemy)||target;if(t)this.fireRaidFanAt(enemy,t,{count:5,spread:.095,speed:286,damage:bossDmg+1.8,predictMs:430,visualType:'choco'});});break;
+        case 'chocoBounce':
+          fireTarget(t=>{const b0=this.predictedAimAngle(enemy,t,260,.55);for(let i=-2;i<=2;i++){const b=this.spawnEnemyBullet(enemy.x,enemy.y,b0+i*.13,238,bossDmg+1.6,'raid',6000,'choco');if(b){b.bounceOnce=true;b.bounceCount=0;b.bounceAt=this.runTimeMs+700+Math.abs(i)*55;b.bounceTurn=(i%2===0?1:-1)*(0.62+Math.abs(i)*0.08);}}});break;
+        case 'chocoFinalRain':
+          for(let i=-3;i<=3;i++){if(i===0)continue;const a=base+i*.19;this.spawnEnemyBullet(enemy.x,enemy.y,a,i%2?170:290,bossDmg*(i%2?.9:.68),'raid',5200,i%2?'chocoBig':'macadamia');}break;
         case 'chocoMeltClamp':
-          fireTargets(t=>{this.spawnChocoPuddle(t.x+42,t.y,bossDmg*.58);this.spawnChocoPuddle(t.x-42,t.y,bossDmg*.58);this.fireRaidFanAt(enemy,t,{count:5,spread:.09,speed:276,damage:bossDmg+1.9,predictMs:360,visualType:'choco'});});break;
+          if(target){this.telegraphChocoPuddle(enemy,target.x+44,target.y,bossDmg*.58);this.scheduleRaidAction(enemy,240,()=>this.telegraphChocoPuddle(enemy,target.x-44,target.y,bossDmg*.52));this.fireRaidFanAt(enemy,target,{count:5,spread:.09,speed:276,damage:bossDmg+1.9,predictMs:360,visualType:'choco'});}break;
 
-        // 양파: 겹 + 정/역회전 + 시간차 층.
         case 'onionPeelSpiral':
           this.spawnRaidRing(enemy,{count:coop?18:14,damage:bossDmg,offset:this.raidShotPhase,speedPattern:[145,205],lifeMs:5700,visualType:'onionPeel'});break;
         case 'onionRingGap':
@@ -3285,7 +3684,31 @@
           this.scheduleRaidAction(enemy,680,()=>this.spawnRaidRing(enemy,{count:coop?17:13,speed:238,damage:bossDmg+1.5,offset:-this.raidShotPhase*.85,gapCenter:base+.58,gapWidth:.44,lifeMs:5000,visualType:'onionRing'}));break;
         case 'onionRingPulse':
           this.spawnRaidRing(enemy,{count:coop?19:15,speed:168,damage:bossDmg,offset:this.raidShotPhase,gapCenter:base-.80,gapWidth:.56,visualType:'onionRing'});
-          this.scheduleRaidAction(enemy,650,()=>{const t=this.nearestActivePlayerTo(enemy.x,enemy.y)||target,b=t?Phaser.Math.Angle.Between(enemy.x,enemy.y,t.x,t.y):base;this.spawnRaidRing(enemy,{count:coop?19:15,speed:226,damage:bossDmg+1.2,offset:-this.raidShotPhase*.78,gapCenter:b+.80,gapWidth:.56,visualType:'onionPeel'});});break;
+          this.scheduleRaidAction(enemy,650,()=>this.spawnRaidRing(enemy,{count:coop?19:15,speed:226,damage:bossDmg+1.2,offset:-this.raidShotPhase*.78,gapCenter:base+.80,gapWidth:.56,visualType:'onionPeel'}));break;
+
+        case 'coffeeAimBeans':
+          fireTarget(t=>this.fireRaidFanAt(enemy,t,{count:4,spread:.07,speed:305,damage:bossDmg+1,predictMs:260,visualType:'coffee'}));break;
+        case 'coffeeSlowBeans':
+          this.spawnRaidRing(enemy,{count:coop?14:11,speed:155,damage:bossDmg-.2,offset:this.raidShotPhase,gapCenter:base+.7,gapWidth:.58,visualType:'coffee'});break;
+        case 'coffeeBounce':
+          fireTarget(t=>{const a=this.predictedAimAngle(enemy,t,300,.52);for(let i=-2;i<=2;i++){const b=this.spawnEnemyBullet(enemy.x,enemy.y,a+i*.12,285,bossDmg+1.1,'raid',5400,'coffee');if(b){b.bounceOnce=true;b.bounceAt=this.runTimeMs+620+Math.abs(i)*60;b.bounceTurn=(i<0?-1:1)*.5;}}});break;
+        case 'coffeeStream':
+          if(target)for(let n=0;n<5;n++)this.scheduleRaidAction(enemy,n*145,()=>{const t=this.chooseRaidTarget(enemy)||target;if(t)this.fireRaidFanAt(enemy,t,{count:2,spread:.055,speed:320,damage:bossDmg*.72,predictMs:180,angleOffset:(n-2)*.04,visualType:'coffee'});});break;
+        case 'coffeeEspressoFan':
+          fireTarget(t=>this.fireRaidFanAt(enemy,t,{count:5,spread:.085,speed:340,damage:bossDmg+.8,predictMs:310,visualType:'coffee'}));break;
+        case 'coffeeEspressoSweep':
+          for(let n=0;n<6;n++)this.scheduleRaidAction(enemy,n*120,()=>this.spawnEnemyBullet(enemy.x,enemy.y,base-.34+n*.135,330,bossDmg*.72,'raid',4300,'coffee'));break;
+
+        case 'gumBounceFan':
+          fireTarget(t=>{const a=this.predictedAimAngle(enemy,t,260,.5);for(let i=-2;i<=2;i++){const b=this.spawnEnemyBullet(enemy.x,enemy.y,a+i*.16,220,bossDmg,'raid',5600,'gum');if(b){b.bounceOnce=true;b.bounceAt=this.runTimeMs+850+Math.abs(i)*70;b.bounceTurn=(i%2?-.62:.62);}}});break;
+        case 'gumSlowBig':
+          this.spawnRaidRing(enemy,{count:coop?12:9,speed:130,damage:bossDmg+1.5,offset:this.raidShotPhase,gapCenter:base-.65,gapWidth:.62,visualType:'gumBig'});break;
+        case 'gumStickyDrop':
+          if(target){const a=this.predictedAimAngle(enemy,target,520,.5);const px=target.x+Math.cos(a)*26,py=target.y+Math.sin(a)*26;this.telegraphStickyGum(enemy,px,py,bossDmg*.42);this.spawnRaidRing(enemy,{count:10,speed:165,damage:bossDmg*.75,offset:this.raidShotPhase,gapCenter:base+.65,gapWidth:.65,visualType:'gum'});}break;
+        case 'gumMixedBounce':
+          if(target){this.fireRaidFanAt(enemy,target,{count:5,spread:.13,speed:245,damage:bossDmg+.8,predictMs:260,visualType:'gum'});this.scheduleRaidAction(enemy,420,()=>this.spawnRaidRing(enemy,{count:10,speed:135,damage:bossDmg*.8,offset:-this.raidShotPhase,gapCenter:base-.7,gapWidth:.7,visualType:'gumBig'}));}break;
+        case 'gumFinalBurst':
+          this.spawnRaidRing(enemy,{count:coop?18:14,speed:200,damage:bossDmg+1,offset:this.raidShotPhase,gapCenter:base,gapWidth:.7,visualType:'gum'});break;
         default:this.spawnRaidRing(enemy,{count:12,speed:180,damage:bossDmg,offset:this.raidShotPhase});
       }
     }
@@ -3488,7 +3911,18 @@
         else if (this.runTimeMs < (e.slowUntil || 0)) speed *= (e.slowMult || 0.65);
         let raidBusy=false;
         if (e.enemyRole === 'raidBoss') {
-          raidBusy=this.updateRaidRushState(e,targetPlayer,speed);
+          if((e.ultimateChargeUntil||0)>this.runTimeMs){
+            raidBusy=true;e.body.setVelocity(0,0);
+            const rk=this.raidBossKind(e),baseScale=e.baseDisplayScale||e.scaleX||1,total=Math.max(1,(e.ultimateChargeUntil||0)-(e.ultimateChargeStart||this.runTimeMs)),p=Phaser.Math.Clamp((this.runTimeMs-(e.ultimateChargeStart||this.runTimeMs))/total,0,1);
+            if(rk==='gum'){
+              const grow=1+0.18*Phaser.Math.Easing.Sine.InOut(p);e.setScale(baseScale*grow,baseScale*grow);e.setAngle(Math.sin(p*Math.PI*10)*1.2);
+            }else if(rk==='coffee'){
+              const pulse=1+Math.sin(p*Math.PI*8)*.018;e.setScale(baseScale*pulse,baseScale*(2-pulse));e.setAngle(Math.sin(p*Math.PI*14)*1.5);
+            }
+          }else{
+            if((e.ultimateChargeUntil||0)>0){e.ultimateChargeUntil=0;e.ultimateChargeStart=0;e.ultimateChargeKind='';e.setAngle(0);e.setScale(e.baseDisplayScale||1);}
+            raidBusy=this.updateRaidRushState(e,targetPlayer,speed);
+          }
           if(!raidBusy){
             const d = Phaser.Math.Distance.Between(e.x, e.y, targetPlayer.x, targetPlayer.y);
             if (d > 360) speed *= 1.55;
@@ -3566,6 +4000,8 @@
         if(!p.active)return;
         if(p.spinRate)p.rotation+=(p.spinRate||0);
         if(p.splitAt&&!p.splitDone&&this.runTimeMs>=p.splitAt){
+          const splitDist=Number.isFinite(p.splitOriginX)?Phaser.Math.Distance.Between(p.splitOriginX,p.splitOriginY,p.x,p.y):999;
+          if(splitDist<(p.splitMinDistance||0)&&this.runTimeMs<(p.splitForceAt||Infinity))return;
           p.splitDone=true;
           const type=p.splitType,base=Math.atan2(p.body.velocity.y,p.body.velocity.x);
           if(type==='grape'){
@@ -3711,12 +4147,17 @@
     setRemoteInput(playerId,input){if(this.networkRole!=='host'||!this.getBuild(playerId))return;this.remoteInput={left:!!input.left,right:!!input.right,up:!!input.up,down:!!input.down};}
     runPlayerBuildTick(build,input,delta){
       if(!build||!build.sprite?.active)return;
-      if(build.down){
-        this.withBuild(build,()=>{this.updatePersistentMajorZones();if(this.shieldVisual?.active)this.shieldVisual.setVisible(false);});
-        this.updateBuildPresentation(build);
-        return;
-      }
-      this.withBuild(build,()=>{let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);const snackMove=(this.runTimeMs<(this.snackSpeedUntil||0)?(this.snackSpeedMult||1):1);if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed*snackMove,dy*this.moveSpeed*snackMove);if(dx!==0)this.player.setFlipX(dx<0);this.updateSkills(delta,moving);this.updateMajorAugments(delta,moving);this.updateShieldVisual();this.basicTimer+=delta;if(this.basicTimer>=this.basicCooldown){this.basicTimer=0;this.fireBasicProjectile();}});
+      if(build.down){this.withBuild(build,()=>{this.updatePersistentMajorZones();if(this.shieldVisual?.active)this.shieldVisual.setVisible(false);});this.updateBuildPresentation(build);return;}
+      this.withBuild(build,()=>{
+        let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);
+        if(this.runTimeMs<(this.reverseControlsUntil||0)){dx=-dx;dy=-dy;}
+        const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const moving=Math.abs(dx)+Math.abs(dy)>0.01;if(moving)this.facingAngle=Math.atan2(dy,dx);
+        const snackMove=this.runTimeMs<(this.snackSpeedUntil||0)?(this.snackSpeedMult||1):1,tempMove=this.runTimeMs<(this.tempBuffUntil||0)?(this.tempMoveMult||1):1,hazardSlow=this.runTimeMs<(this.hazardSlowUntil||0)?(this.hazardSlowMult||1):1;
+        if(this.player.body?.enable)this.player.body.setVelocity(dx*this.moveSpeed*snackMove*tempMove*hazardSlow,dy*this.moveSpeed*snackMove*tempMove*hazardSlow);
+        if(dx!==0)this.player.setFlipX(dx<0);this.updateSkills(delta,moving);this.updateMajorAugments(delta,moving);this.updateShieldVisual();
+        this.basicTimer+=delta;const tempAtk=this.runTimeMs<(this.tempBuffUntil||0)?(this.tempAttackMult||1):1;
+        if(this.basicTimer>=this.basicCooldown/tempAtk){this.basicTimer=0;this.fireBasicProjectile();}
+      });
       this.updateBuildPresentation(build);
     }
     entityNetId(o,prefix='e'){if(!o.netId)o.netId=`${prefix}${this.netIdCounter++}`;return o.netId;}
@@ -3745,7 +4186,7 @@
           if(o.eliteMutation)d.mu=o.eliteMutation;
           if(o.enemyRole==='boss'||o.enemyRole==='raidBoss'){d.h=Math.round(o.hp||0);d.m=Math.round(o.maxHp||0);}
           if(o.enemyRole==='boss'&&o.bossIndex)d.bi=o.bossIndex;
-          if(o.enemyRole==='raidBoss'){if(o.raidName)d.rn=o.raidName;if(o.raidPhase2)d.p2=1;}
+          if(o.enemyRole==='raidBoss'){if(o.raidName)d.rn=o.raidName;d.ph=o.raidPhase||1;if(o.raidPhase2)d.p2=1;}
         }
         if(kind==='item'&&o.itemType)d.it=o.itemType;
         return out.push(d);
@@ -3766,7 +4207,10 @@
         (b.leashOrbiters||[]).forEach((o,i)=>{if(o.obj?.active&&this.isNetworkRelevantPoint(o.obj.x,o.obj.y,900))extras.push({id:`leash-${b.id}-${i}`,kind:'image',texture:'leashOrbit',x:Math.round(o.obj.x),y:Math.round(o.obj.y),rotation:Math.round((o.obj.rotation||0)*100)/100,scaleX:Math.round((o.obj.scaleX||1)*100)/100,scaleY:Math.round((o.obj.scaleY||1)*100)/100,alpha:o.obj.alpha??.82});});
         (b.pawMines||[]).forEach((m,i)=>{if(m.obj?.active&&this.isNetworkRelevantPoint(m.x,m.y,900))extras.push({id:`paw-${b.id}-${i}`,kind:'image',texture:'pawStamp',x:Math.round(m.x),y:Math.round(m.y),rotation:Math.round((m.obj.rotation||0)*100)/100,scale:Math.round((m.obj.scaleX||1)*100)/100,alpha:m.obj.alpha??.72});});
       });
-      (this.raidHazards||[]).forEach((h,i)=>{if(h.obj?.active&&this.isNetworkRelevantPoint(h.x,h.y,1000))extras.push({id:`raidHazard-${i}`,kind:'image',texture:'chocoPuddle',x:Math.round(h.x),y:Math.round(h.y),scale:Math.round((h.obj.scaleX||1)*100)/100,alpha:h.obj.alpha??.55});});
+      this.pruneTransientFx();
+      (this.raidTelegraphs||[]).forEach(r=>{const o=r.obj;if(o?.active&&this.isNetworkRelevantPoint(o.x,o.y,1050))extras.push({id:r.id,kind:'image',texture:r.texture||o.texture?.key||'puddleWarning',x:Math.round(o.x),y:Math.round(o.y),rotation:Math.round((o.rotation||0)*100)/100,scaleX:Math.round((o.scaleX||1)*100)/100,scaleY:Math.round((o.scaleY||1)*100)/100,alpha:o.alpha??.55});});
+      (this.deliveryWarnings||[]).forEach(r=>{const o=r.obj;if(o?.active&&this.isNetworkRelevantPoint(o.x,o.y,1050))extras.push({id:r.id,kind:'image',texture:r.texture||o.texture?.key||'deliveryShadow',x:Math.round(o.x),y:Math.round(o.y),rotation:Math.round((o.rotation||0)*100)/100,scaleX:Math.round((o.scaleX||1)*100)/100,scaleY:Math.round((o.scaleY||1)*100)/100,alpha:o.alpha??.55});});
+      (this.raidHazards||[]).forEach((h,i)=>{if(h.obj?.active&&this.isNetworkRelevantPoint(h.x,h.y,1000))extras.push({id:`raidHazard-${i}`,kind:'image',texture:h.texture||'chocoPuddle',x:Math.round(h.x),y:Math.round(h.y),scale:Math.round((h.obj.scaleX||1)*100)/100,alpha:h.obj.alpha??.55});});
       this.enemies.getChildren().forEach(e=>{
         if(e?.active&&e.enemyRole==='raidBoss'&&e.raidTelegraph?.active){
           extras.push({id:`rush-${this.entityNetId(e,'e')}`,kind:'image',texture:'rushLine',x:Math.round(e.raidTelegraph.x),y:Math.round(e.raidTelegraph.y),rotation:Math.round((e.raidTelegraph.rotation||0)*100)/100,scaleX:Math.round((e.raidTelegraph.scaleX||1)*100)/100,scaleY:Math.round((e.raidTelegraph.scaleY||1)*100)/100,alpha:e.raidTelegraph.alpha??0.8});
@@ -3781,8 +4225,8 @@
         gems:this.serializeGroup(this.gems,'g','gem',900),
         items:this.serializeGroup(this.items,'i','item',900),extras,
         raidPendingSeq:this.raidPendingSeq||0,raidPendingActive:!!this.pendingTrueBoss,
-        raidIntroSeq:this.raidIntroSeq||0,raidIntroActive:!!this.raidBossTransition,raidBossName:this.raidBossName||'',raidPhaseSeq:this.raidPhaseSeq||0,
-        boss:boss?{role:boss.enemyRole,hp:Math.round(boss.hp),maxHp:Math.round(boss.maxHp),name:boss.raidName||'',phase2:!!boss.raidPhase2,bossIndex:boss.bossIndex||0}:null
+        raidIntroSeq:this.raidIntroSeq||0,raidIntroActive:!!this.raidBossTransition,raidBossName:this.raidBossName||'',raidPhaseSeq:this.raidPhaseSeq||0,raidPhaseName:this.raidPhaseName||'',raidPhaseNumber:this.raidPhaseNumber||1,raidUltimateSeq:this.raidUltimateSeq||0,raidUltimateName:this.raidUltimateName||'',runCleared:!!this.runCleared,endlessMode:!!this.endlessMode,
+        boss:boss?{role:boss.enemyRole,hp:Math.round(boss.hp),maxHp:Math.round(boss.maxHp),name:boss.raidName||'',phase:boss.raidPhase||1,phase2:!!boss.raidPhase2,bossIndex:boss.bossIndex||0}:null
       };
       this._netInterestPoints=null;
       return snapshot;
@@ -3800,7 +4244,7 @@
         o.setRotation(d.r??d.rotation??0);
         const sx=d.sx??d.scaleX??1,sy=d.sy??d.scaleY??sx;o.setScale(sx,sy);
         o.setFlipX(!!(d.f??d.flipX));o.setAlpha(d.a??d.alpha??1);o.setDepth(depth);
-        o.enemyRole=d.ro??d.role??null;o.eliteMutation=d.mu??null;o.raidName=d.rn??'';o.raidPhase2=!!d.p2;o.bossIndex=d.bi??0;
+        o.enemyRole=d.ro??d.role??null;o.eliteMutation=d.mu??null;o.raidName=d.rn??'';o.raidPhase=d.ph??(d.p2?2:1);o.raidPhase2=o.raidPhase>=2;o.bossIndex=d.bi??0;
         if(Number.isFinite(d.h??d.hp))o.hp=d.h??d.hp;if(Number.isFinite(d.m??d.maxHp))o.maxHp=d.m??d.maxHp;
         o.itemType=d.it??d.itemType??null;
         if(o.enemyRole==='elite'){
@@ -3820,7 +4264,7 @@
       }
     }
     syncNetworkExtras(extras){
-      const depthFor=(texture)=>texture==='rushLine'?6:texture==='chocoPuddle'||texture==='pawStamp'?5:texture==='autoFeeder'?12:texture==='leashOrbit'?13:14;
+      const depthFor=(texture)=>texture==='rushLine'?6:texture==='deliveryShadow'||texture==='puddleWarning'?4:texture==='deliveryAlert'?8:texture==='chocoPuddle'||texture==='stickyGumPuddle'||texture==='pawStamp'?5:texture==='raidChocoBig'?25:texture==='autoFeeder'?12:texture==='leashOrbit'?13:14;
       const keep=new Set();(extras||[]).forEach(d=>{keep.add(d.id);let o=this.netExtraMap.get(d.id);if(!o?.active){o=d.kind==='circle'?this.add.circle(d.x,d.y,d.radius||30,d.color||0xffffff,d.alpha??0.12).setDepth(3):this.add.image(d.x,d.y,d.texture||'poopOrbit').setDepth(depthFor(d.texture));this.netExtraMap.set(d.id,o);}o.netTargetX=d.x;o.netTargetY=d.y;if(Phaser.Math.Distance.Between(o.x,o.y,d.x,d.y)>220)o.setPosition(d.x,d.y);if(d.kind==='circle'){o.setRadius?.(d.radius||30);o.setFillStyle?.(d.color||0xffffff,d.alpha??0.12);}else{const sx=d.scaleX??d.scale??1,sy=d.scaleY??d.scale??sx;o.setScale(sx,sy);o.setRotation(d.rotation||0);o.setAlpha(d.alpha??1);o.setDepth(depthFor(d.texture));}});for(const[id,o]of this.netExtraMap){if(!keep.has(id)){o?.destroy();this.netExtraMap.delete(id);}}
     }
 
@@ -3830,7 +4274,7 @@
       (s.players||[]).forEach(ps=>{
         const b=this.getBuild(ps.id);if(!b)return;
         const prevHp=Number.isFinite(b.hp)?b.hp:ps.hp;
-        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;b.playerInvulnUntil=this.runTimeMs+(ps.invulnLeft||0);b.snackSpeedUntil=this.runTimeMs+(ps.snackSpeedLeft||0);
+        Object.assign(b,ps);b.charData=CHARACTERS[b.characterKey]||b.charData;b.down=!!ps.down;b.netX=ps.x;b.netY=ps.y;b.playerInvulnUntil=this.runTimeMs+(ps.invulnLeft||0);b.snackSpeedUntil=this.runTimeMs+(ps.snackSpeedLeft||0);b.tempBuffUntil=this.runTimeMs+(ps.tempBuffLeft||0);b.reverseControlsUntil=this.runTimeMs+(ps.reverseLeft||0);b.hazardSlowUntil=this.runTimeMs+(ps.hazardSlowLeft||0);
         if(b.sprite?.active&&!ps.down&&Number.isFinite(ps.hp)){
           if(ps.hp<prevHp-0.25)this.flashPlayerSprite(b.sprite);
           else if(ps.hp>prevHp+1){const last=b.sprite._lastHealFxAt||-9999;if(this.runTimeMs-last>=420){b.sprite._lastHealFxAt=this.runTimeMs;this.playHealFx(b.sprite);}}
@@ -3847,7 +4291,8 @@
       const lb=this.getLocalBuild();if(lb)this.loadBuild(lb);
       if((s.raidPendingSeq||0)>this.lastNetRaidPendingSeq){this.lastNetRaidPendingSeq=s.raidPendingSeq||0;this.showBanner('TRUE BOSS 접근 중...','현재 전투를 마무리하세요! · 신규 적 스폰 억제');}
       if((s.raidIntroSeq||0)>this.lastNetRaidIntroSeq){this.lastNetRaidIntroSeq=s.raidIntroSeq||0;this.showBanner('⚠ TRUE BOSS 경고 ⚠',`${s.raidBossName||'위험 개체'} 출현 감지`);showBossWarningUi(s.raidBossName||'TRUE BOSS','탄막전 시작 · 패턴을 보고 피하세요');}
-      if((s.raidPhaseSeq||0)>this.lastNetRaidPhaseSeq){this.lastNetRaidPhaseSeq=s.raidPhaseSeq||0;this.showBanner(`${s.raidBossName||'TRUE BOSS'} 2 PHASE`,'패턴이 변한다!');}
+      if((s.raidPhaseSeq||0)>this.lastNetRaidPhaseSeq){this.lastNetRaidPhaseSeq=s.raidPhaseSeq||0;this.showBanner(s.raidPhaseName||(s.raidBossName||'TRUE BOSS'),(s.raidPhaseNumber||2)>=3?'FINAL PHASE · 폭주!':'패턴이 변한다!');}
+      if((s.raidUltimateSeq||0)>this.lastNetRaidUltimateSeq){this.lastNetRaidUltimateSeq=s.raidUltimateSeq||0;this.showBanner(s.raidUltimateName||'필살기!','안전한 틈을 찾아 움직여!');}
       this.syncNetworkGroup(this.netEnemyMap,s.enemies,this.enemies,8);
       this.syncNetworkGroup(this.netProjectileMap,s.projectiles,this.projectiles,12);
       this.syncNetworkGroup(this.netEnemyBulletMap,s.enemyBullets,this.enemyProjectiles,27);
@@ -3868,8 +4313,8 @@
       const lb=this.getLocalBuild();
       if(lb?.sprite){
         if(!lb.down&&!this.isChoiceOpen&&!this.manualPause){
-          let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;
-          const dt=Math.min(delta,40)/1000,snackBoost=this.runTimeMs<(lb.snackSpeedUntil||0)?(treasureSkillStats('juiceBox',lb.skillLevels?.juiceBox||1).speedMult||1):1;lb.sprite.x=Phaser.Math.Clamp(lb.sprite.x+dx*(lb.moveSpeed||190)*snackBoost*dt,0,this.worldSize);lb.sprite.y=Phaser.Math.Clamp(lb.sprite.y+dy*(lb.moveSpeed||190)*snackBoost*dt,0,this.worldSize);if(dx!==0)lb.sprite.setFlipX(dx<0);
+          let dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);if((lb.reverseLeft||0)>0){dx=-dx;dy=-dy;}const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;
+          const dt=Math.min(delta,40)/1000,snackBoost=this.runTimeMs<(lb.snackSpeedUntil||0)?(treasureSkillStats('juiceBox',lb.skillLevels?.juiceBox||1).speedMult||1):1,tempMove=(lb.tempBuffLeft||0)>0?(lb.tempMoveMult||1):1,hazardSlow=(lb.hazardSlowLeft||0)>0?(lb.hazardSlowMult||1):1;lb.sprite.x=Phaser.Math.Clamp(lb.sprite.x+dx*(lb.moveSpeed||190)*snackBoost*tempMove*hazardSlow*dt,0,this.worldSize);lb.sprite.y=Phaser.Math.Clamp(lb.sprite.y+dy*(lb.moveSpeed||190)*snackBoost*tempMove*hazardSlow*dt,0,this.worldSize);if(dx!==0)lb.sprite.setFlipX(dx<0);
         }
         if(Number.isFinite(lb.netX)&&Number.isFinite(lb.netY)){
           const d=Phaser.Math.Distance.Between(lb.sprite.x,lb.sprite.y,lb.netX,lb.netY);const f=d>150?0.28:(1-Math.exp(-Math.max(1,delta)/260));lb.sprite.x=Phaser.Math.Linear(lb.sprite.x,lb.netX,f);lb.sprite.y=Phaser.Math.Linear(lb.sprite.y,lb.netY,f);
@@ -3884,7 +4329,7 @@
       if(this.isGameOver||this.manualPause||this.isChoiceOpen)return;
       this.runTimeMs+=delta;const local=this.getLocalBuild(),remote=this.getRemoteBuild();this.runPlayerBuildTick(local,this.readLocalMoveInput(),delta);if(remote)this.runPlayerBuildTick(remote,this.remoteInput||blankMoveInput(),delta);if(local)this.loadBuild(local);
       this.updateRevives(delta);
-      this.updateWaveSpawns(delta);this.updateEnemyAI();this.updateGems();this.updateProjectiles();
+      this.updateWaveSpawns(delta);this.updateDeliveryItems();this.updateEnemyAI();this.updateGems();this.updateProjectiles();
       this.hudUpdateTimer=(this.hudUpdateTimer||0)+delta;if(this.hudUpdateTimer>=100){this.hudUpdateTimer=0;this.updateHud();}
       this.snapshotTimer=(this.snapshotTimer||0)+delta;if(this.snapshotTimer>=110){this.snapshotTimer=0;(socket?.volatile||socket)?.emit?.('coopSnapshot',this.buildNetworkSnapshot());}
       this.updateHitboxDebug();
@@ -3920,11 +4365,36 @@
         const raid=boss.enemyRole==='raidBoss',pct=Phaser.Math.Clamp(boss.hp/Math.max(1,boss.maxHp),0,1);
         d.boss.hidden=false;d.boss.classList.toggle('raid',raid);
         if(d.bossKind)d.bossKind.textContent=raid?'TRUE BOSS':'BOSS';
-        if(d.bossName)d.bossName.textContent=raid?`${boss.raidName||this.raidBossName||'TRUE BOSS'}${boss.raidPhase2?' · 2 PHASE':''}`:`위험 음식 ${boss.bossIndex||this.regularBossCount||1}`;
+        if(d.bossName)d.bossName.textContent=raid?`${boss.raidName||this.raidBossName||'TRUE BOSS'}${(boss.raidPhase||1)>=3?' · FINAL':(boss.raidPhase||1)>=2?' · PHASE 2':''}`:`위험 음식 ${boss.bossIndex||this.regularBossCount||1}`;
         if(d.bossHpText)d.bossHpText.textContent=`${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`;
         if(d.bossFill)d.bossFill.style.width=`${Math.round(pct*1000)/10}%`;
       }else if(d.boss)d.boss.hidden=true;
       this.refreshBuildHud();
+    }
+
+
+    showRunComplete(){
+      if(this.runCleared||this.isGameOver)return;
+      this.runCleared=true;this.physics.world.pause();this.time.paused=true;
+      const screen=document.querySelector('#run-complete-screen');const stats=document.querySelector('#run-complete-stats');
+      if(stats)stats.textContent=`산책 ${formatTime(this.runTimeMs/1000)} · Lv.${this.level} · 처치 ${this.kills}`;
+      screen?.classList.add('show');
+      if(this.coopMode&&this.networkRole==='host')socket?.emit('coopRunComplete',{time:this.runTimeMs,level:this.level,kills:this.kills});
+    }
+    showRemoteRunComplete(payload={}){
+      this.runCleared=true;this.physics.world.pause();this.time.paused=true;
+      const screen=document.querySelector('#run-complete-screen');const stats=document.querySelector('#run-complete-stats');
+      if(stats)stats.textContent=`산책 ${formatTime((payload.time||this.runTimeMs)/1000)} · Lv.${payload.level||this.level} · 처치 ${payload.kills||this.kills}`;
+      screen?.classList.add('show');document.querySelector('#run-endless-btn')?.classList.add('guest-wait');
+    }
+    continueEndless(){
+      document.querySelector('#run-complete-screen')?.classList.remove('show');document.querySelector('#run-endless-btn')?.classList.remove('guest-wait');
+      this.runCleared=false;this.endlessMode=true;this.endlessCycle=Math.max(1,this.endlessCycle||1);this.nextRaidIndex=0;this.nextRaidAt=this.runTimeMs+180000;
+      this.physics.world.resume();this.time.paused=false;this.showBanner('ENDLESS 산책 시작!','5종 TRUE BOSS가 더 강해져 다시 순환한다');
+      if(this.coopMode&&this.networkRole==='host')socket?.emit('coopRunContinue',{nextRaidAt:this.nextRaidAt,endlessCycle:this.endlessCycle});
+    }
+    applyRemoteEndless(payload={}){
+      document.querySelector('#run-complete-screen')?.classList.remove('show');this.runCleared=false;this.endlessMode=true;this.endlessCycle=payload.endlessCycle||1;this.nextRaidAt=payload.nextRaidAt||this.runTimeMs+180000;this.physics.world.resume();this.time.paused=false;this.showBanner('ENDLESS 산책 시작!','방장이 계속 산책하기를 선택했다');
     }
 
     gameOver() {
@@ -3947,15 +4417,17 @@
       if (this.cursors.right.isDown || this.keys.right.isDown) dx += 1;
       if (this.cursors.up.isDown || this.keys.up.isDown) dy -= 1;
       if (this.cursors.down.isDown || this.keys.down.isDown) dy += 1;
+      if(this.runTimeMs<(this.reverseControlsUntil||0)){dx=-dx;dy=-dy;}
       const len = Math.hypot(dx, dy) || 1;
       dx /= len; dy /= len;
       const moving = Math.abs(dx) + Math.abs(dy) > 0.01;
       if (moving) this.facingAngle = Math.atan2(dy, dx);
-      const snackMove=(this.runTimeMs<(this.snackSpeedUntil||0)?(this.snackSpeedMult||1):1); this.player.body.setVelocity(dx * this.moveSpeed * snackMove, dy * this.moveSpeed * snackMove);
+      const snackMove=(this.runTimeMs<(this.snackSpeedUntil||0)?(this.snackSpeedMult||1):1),tempMove=this.runTimeMs<(this.tempBuffUntil||0)?(this.tempMoveMult||1):1,hazardSlow=this.runTimeMs<(this.hazardSlowUntil||0)?(this.hazardSlowMult||1):1; this.player.body.setVelocity(dx * this.moveSpeed * snackMove * tempMove * hazardSlow, dy * this.moveSpeed * snackMove * tempMove * hazardSlow);
       if (dx !== 0) this.player.setFlipX(dx < 0);
       this.updateSoloPresentation();
 
       this.updateWaveSpawns(delta);
+      this.updateDeliveryItems();
       this.updateEnemyAI();
       this.updateGems();
       this.updateProjectiles();
@@ -3964,7 +4436,8 @@
       this.updateShieldVisual();
 
       this.basicTimer += delta;
-      if (this.basicTimer >= this.basicCooldown) {
+      const tempAtk=this.runTimeMs<(this.tempBuffUntil||0)?(this.tempAttackMult||1):1;
+      if (this.basicTimer >= this.basicCooldown/tempAtk) {
         this.basicTimer = 0;
         this.fireBasicProjectile();
       }
@@ -3981,6 +4454,8 @@
     startBgmPlaylist();
     document.querySelector('#start-screen').classList.remove('show');
     document.querySelector('#gameover-screen').classList.remove('show');
+    document.querySelector('#run-complete-screen')?.classList.remove('show');
+    document.querySelector('#run-endless-btn')?.classList.remove('guest-wait');
     document.querySelector('#levelup-screen').classList.remove('show');
     document.querySelector('#chest-screen').classList.remove('show');
     document.querySelector('#pause-screen').classList.remove('show');
@@ -4050,6 +4525,9 @@
   }
 
   document.querySelector('#start-btn').addEventListener('click', () => startGame({}));
+  document.querySelector('#run-endless-btn')?.addEventListener('click',()=>{if(activeScene?.coopMode&&activeScene.networkRole==='guest')return;activeScene?.continueEndless?.();});
+  document.querySelector('#run-restart-btn')?.addEventListener('click',()=>{document.querySelector('#run-complete-screen')?.classList.remove('show');if(activeScene?.coopMode){activeScene.returnToLobby?.();return;}startGame();});
+  document.querySelector('#run-lobby-btn')?.addEventListener('click',()=>{document.querySelector('#run-complete-screen')?.classList.remove('show');activeScene?.returnToLobby?.();});
   document.querySelector('#restart-btn').addEventListener('click', () => {
     if(activeScene?.coopMode){activeScene.returnToLobby?.();return;}
     if (activeScene) {
